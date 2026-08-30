@@ -12,7 +12,7 @@ import (
 var (
 	enroll   = flag.Bool("enroll", false, "Enroll this node with the control plane")
 	token    = flag.String("token", "", "Enrollment token (required with --enroll)")
-	endpoint = flag.String("endpoint", "", "Control plane endpoint (required with --enroll)")
+	endpoint = flag.String("endpoint", "https://api.civonex.ir/api", "Control plane endpoint")
 	cfgPath  = flag.String("config", "/etc/proxy-agent/agent.json", "Agent config file path")
 )
 
