@@ -16,6 +16,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
   const navLinks = [
     { href: '/user/dashboard', key: 'user.nav.dashboard' },
     { href: '/user/credentials', key: 'user.nav.credentials' },
+    { href: '/user/nodes', key: 'user.nav.nodes' },
     { href: '/user/profile', key: 'user.nav.profile' },
   ];
 

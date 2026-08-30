@@ -70,7 +70,28 @@ export default function AdminNodesPage() {
     }
   }
 
+  async function approveNode(nodeId: string) {
+    try {
+      await api.nodes.approve(nodeId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to approve node');
+    }
+  }
+
+  async function rejectNode(nodeId: string) {
+    try {
+      await api.nodes.reject(nodeId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to reject node');
+    }
+  }
+
   useEffect(() => { load(); }, []);
+
+  const pendingUserNodes = nodes.filter((n) => n.status === 'pending' && n.submittedById);
+  const otherNodes = nodes.filter((n) => !(n.status === 'pending' && n.submittedById));
 
   return (
     <div>
@@ -83,7 +104,7 @@ export default function AdminNodesPage() {
           <Alert type="success" message={`Token for node ${enrollmentToken.nodeId}: ${enrollmentToken.token}`} />
           <p style={{ margin: '6px 0 0', fontSize: 12, color: colors.textMuted }}>
             Run: <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 }}>
-              {'./agent -enroll -endpoint http://<control-plane> -token ' + enrollmentToken.token}
+              {'./agent -enroll -endpoint https://api.civonex.ir/api -token ' + enrollmentToken.token}
             </code>
           </p>
           <Button onClick={() => setEnrollmentToken(null)} variant="ghost" size="sm" style={{ marginTop: 8 }}>
@@ -93,42 +114,110 @@ export default function AdminNodesPage() {
       )}
 
       {loading ? <Spinner /> : (
-        <Card>
-          <Table headers={['Label', 'Country', 'Roles', 'Status', 'Actions']}>
-            {nodes.length === 0 ? (
-              <Tr>
-                <td colSpan={5} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
-                  No nodes yet.
-                </td>
-              </Tr>
-            ) : nodes.map((node) => (
-              <Tr key={node.id}>
-                <Td style={{ fontWeight: 600 }}>{node.label}</Td>
-                <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {node.roles.map((r) => (
-                      <span key={r} style={{ fontSize: 11, background: '#e0e7ff', color: '#3730a3', borderRadius: 4, padding: '2px 8px', fontWeight: 500 }}>
-                        {r}
-                      </span>
-                    ))}
-                  </div>
-                </Td>
-                <Td><Badge label={node.status} /></Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">Get Token</Button>
-                    {node.status !== 'inactive' ? (
-                      <Button onClick={() => setStatus(node.id, 'inactive')} variant="secondary" size="sm">Disable</Button>
-                    ) : (
-                      <Button onClick={() => setStatus(node.id, 'active')} variant="primary" size="sm">Enable</Button>
-                    )}
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </Table>
-        </Card>
+        <>
+          {/* Pending approval queue */}
+          {pendingUserNodes.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+              }}>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: colors.text }}>
+                  Pending Approval
+                </h2>
+                <span style={{
+                  background: '#fef3c7', color: '#92400e', borderRadius: 12,
+                  fontSize: 12, fontWeight: 700, padding: '2px 10px',
+                }}>
+                  {pendingUserNodes.length}
+                </span>
+              </div>
+              <Card>
+                <Table headers={['Label', 'Country', 'Submitted by', 'Agent', 'Actions']}>
+                  {pendingUserNodes.map((node) => (
+                    <Tr key={node.id}>
+                      <Td style={{ fontWeight: 600 }}>{node.label}</Td>
+                      <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
+                      <Td>
+                        <span style={{ fontSize: 13, color: colors.textMuted }}>
+                          {node.submittedBy?.displayName ?? `User #${node.submittedById}`}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span style={{ fontSize: 12, color: node.nodeSecretHash ? '#166534' : '#6b7280' }}>
+                          {node.nodeSecretHash ? '✓ Connected' : 'Not connected'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Button
+                            onClick={() => approveNode(node.id)}
+                            size="sm"
+                            style={{ background: '#22c55e', color: '#fff', border: 'none' }}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            onClick={() => rejectNode(node.id)}
+                            variant="secondary"
+                            size="sm"
+                            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </Td>
+                    </Tr>
+                  ))}
+                </Table>
+              </Card>
+            </div>
+          )}
+
+          {/* All other nodes */}
+          <div>
+            {pendingUserNodes.length > 0 && (
+              <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: colors.text }}>
+                All Nodes
+              </h2>
+            )}
+            <Card>
+              <Table headers={['Label', 'Country', 'Roles', 'Status', 'Actions']}>
+                {otherNodes.length === 0 ? (
+                  <Tr>
+                    <td colSpan={5} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
+                      No nodes yet.
+                    </td>
+                  </Tr>
+                ) : otherNodes.map((node) => (
+                  <Tr key={node.id}>
+                    <Td style={{ fontWeight: 600 }}>{node.label}</Td>
+                    <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
+                    <Td>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {node.roles.map((r) => (
+                          <span key={r} style={{ fontSize: 11, background: '#e0e7ff', color: '#3730a3', borderRadius: 4, padding: '2px 8px', fontWeight: 500 }}>
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    </Td>
+                    <Td><Badge label={node.status} /></Td>
+                    <Td>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">Get Token</Button>
+                        {node.status !== 'disabled' ? (
+                          <Button onClick={() => setStatus(node.id, 'disabled')} variant="secondary" size="sm">Disable</Button>
+                        ) : (
+                          <Button onClick={() => setStatus(node.id, 'active')} variant="primary" size="sm">Enable</Button>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </Table>
+            </Card>
+          </div>
+        </>
       )}
 
       {showCreate && (

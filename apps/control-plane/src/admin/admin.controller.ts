@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { NodesService } from '../nodes/nodes.service';
@@ -54,6 +54,16 @@ export class AdminController {
   @Post('nodes/:id/enrollment-token')
   generateToken(@Param('id') id: string) {
     return this.nodes.generateEnrollmentToken(BigInt(id));
+  }
+
+  @Post('nodes/:id/approve')
+  approveNode(@Param('id') id: string, @Req() req: any) {
+    return this.nodes.approveNode(BigInt(id), req.user.id);
+  }
+
+  @Post('nodes/:id/reject')
+  rejectNode(@Param('id') id: string) {
+    return this.nodes.rejectNode(BigInt(id));
   }
 
   // ── Plans ──

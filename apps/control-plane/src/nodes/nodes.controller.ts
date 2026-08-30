@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { NodesService } from './nodes.service';
@@ -39,6 +40,30 @@ export class NodesController {
   @Get()
   findAll(@Query('country') country?: string) {
     return this.nodes.findAll(country);
+  }
+
+  // ──────────────────────────────────────────────
+  // User self-service node endpoints
+  // (Must be registered before /:id to avoid route clash)
+  // ──────────────────────────────────────────────
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my')
+  getMyNodes(@Req() req: any) {
+    return this.nodes.findUserNodes(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('my')
+  createMyNode(
+    @Req() req: any,
+    @Body() body: { countryCode: string; label: string; roles?: string[] },
+  ) {
+    return this.nodes.createUserNode(req.user.id, {
+      countryCode: body.countryCode.toUpperCase(),
+      label: body.label,
+      roles: body.roles ?? ['exit'],
+    });
   }
 
   @UseGuards(JwtAuthGuard)

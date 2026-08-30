@@ -97,7 +97,7 @@ export const api = {
       'GET', '/admin/dashboard',
     ),
 
-  // Nodes
+  // Nodes (admin)
   nodes: {
     list: (country?: string) => request<Node[]>('GET', country ? `/admin/nodes?country=${country}` : '/admin/nodes'),
     create: (data: { countryCode: string; label: string; roles: string[] }) =>
@@ -106,6 +106,15 @@ export const api = {
       request<Node>('PATCH', `/admin/nodes/${id}/status`, { status }),
     enrollmentToken: (id: string) =>
       request<{ token: string; expiresAt: string }>('POST', `/admin/nodes/${id}/enrollment-token`),
+    approve: (id: string) => request<Node>('POST', `/admin/nodes/${id}/approve`, {}),
+    reject: (id: string) => request<Node>('POST', `/admin/nodes/${id}/reject`, {}),
+  },
+
+  // Nodes (user self-service)
+  myNodes: {
+    list: () => request<Node[]>('GET', '/nodes/my'),
+    create: (data: { countryCode: string; label: string }) =>
+      request<{ node: Node; token: string; expiresAt: string }>('POST', '/nodes/my', data),
   },
 
   // Users
@@ -145,6 +154,10 @@ export interface Node {
   roles: string[];
   status: string;
   createdAt: string;
+  submittedById?: string | null;
+  submittedBy?: { id: string; displayName: string } | null;
+  approvedAt?: string | null;
+  nodeSecretHash?: string | null;
 }
 
 export interface User {

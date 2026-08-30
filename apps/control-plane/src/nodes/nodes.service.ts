@@ -10,7 +10,12 @@ export class NodesService {
   findAll(countryCode?: string) {
     return this.prisma.node.findMany({
       where: countryCode ? { countryCode } : undefined,
-      include: { country: true, provider: true, capabilities: true },
+      include: {
+        country: true,
+        provider: true,
+        capabilities: true,
+        submittedBy: { select: { id: true, displayName: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -25,10 +30,19 @@ export class NodesService {
         edgeEndpoints: true,
         healthChecks: { orderBy: { checkedAt: 'desc' }, take: 10 },
         metrics: { orderBy: { recordedAt: 'desc' }, take: 5 },
+        submittedBy: { select: { id: true, displayName: true } },
       },
     });
     if (!node) throw new NotFoundException('Node not found');
     return node;
+  }
+
+  findUserNodes(userId: bigint) {
+    return this.prisma.node.findMany({
+      where: { submittedById: userId },
+      include: { country: true },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async create(data: {
@@ -41,6 +55,26 @@ export class NodesService {
       data: { ...data, status: 'pending' },
       include: { country: true },
     });
+  }
+
+  async createUserNode(
+    userId: bigint,
+    data: { countryCode: string; label: string; roles: string[] },
+  ) {
+    const node = await this.prisma.node.create({
+      data: { ...data, status: 'pending', submittedById: userId },
+      include: { country: true },
+    });
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.prisma.node.update({
+      where: { id: node.id },
+      data: { enrollmentToken: token, enrollmentTokenExpiry: expiresAt },
+    });
+
+    return { node, token, expiresAt };
   }
 
   async generateEnrollmentToken(nodeId: bigint): Promise<{ token: string; expiresAt: Date }> {
@@ -72,10 +106,14 @@ export class NodesService {
     const nodeSecret = randomBytes(32).toString('hex');
     const nodeSecretHash = await bcrypt.hash(nodeSecret, 10);
 
+    // User-submitted nodes stay pending until admin approves.
+    // Admin-created nodes (submittedById = null) auto-activate on enrollment.
+    const newStatus = node.submittedById ? 'pending' : 'active';
+
     const updated = await this.prisma.node.update({
       where: { id: node.id },
       data: {
-        status: 'active',
+        status: newStatus as never,
         ipv4Address: agentData.ipv4Address,
         ipv6Address: agentData.ipv6Address,
         enrollmentToken: null,
@@ -91,6 +129,31 @@ export class NodesService {
     return { ...updated, nodeSecret };
   }
 
+  async approveNode(nodeId: bigint, adminId: bigint) {
+    const node = await this.prisma.node.findUnique({ where: { id: nodeId } });
+    if (!node) throw new NotFoundException('Node not found');
+
+    return this.prisma.node.update({
+      where: { id: nodeId },
+      data: {
+        status: 'active' as never,
+        approvedById: adminId,
+        approvedAt: new Date(),
+      },
+      include: { submittedBy: { select: { id: true, displayName: true } } },
+    });
+  }
+
+  async rejectNode(nodeId: bigint) {
+    const node = await this.prisma.node.findUnique({ where: { id: nodeId } });
+    if (!node) throw new NotFoundException('Node not found');
+
+    return this.prisma.node.update({
+      where: { id: nodeId },
+      data: { status: 'disabled' as never },
+    });
+  }
+
   async verifyNodeSecret(nodeId: bigint, secret: string): Promise<boolean> {
     const node = await this.prisma.node.findUnique({
       where: { id: nodeId },
@@ -99,7 +162,8 @@ export class NodesService {
 
     if (!node?.nodeSecretHash) return false;
 
-    const activeStatuses = ['active', 'healthy', 'degraded'];
+    // Allow pending (enrolled but not yet approved) nodes to heartbeat
+    const activeStatuses = ['pending', 'active', 'healthy', 'degraded'];
     if (!activeStatuses.includes(node.status)) return false;
 
     return bcrypt.compare(secret, node.nodeSecretHash);
@@ -143,6 +207,7 @@ export class NodesService {
       where: { id: nodeId },
       data: {
         updatedAt: lastSeen,
+        // Only promote to healthy if already approved/active (not pending)
         ...(node?.status === 'active' ? { status: 'healthy' as never } : {}),
       },
     });
