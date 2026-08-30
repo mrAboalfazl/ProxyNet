@@ -1,0 +1,634 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users & Authentication ───────────────────────────────────────────────────
+
+model User {
+  id          BigInt   @id @default(autoincrement())
+  displayName String   @map("display_name")
+  email       String?  @unique
+  phone       String?  @unique
+  telegramId  String?  @unique @map("telegram_id")
+  status      UserStatus @default(active)
+  role        String   @default("user")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  credentials        UserCredential[]
+  sessions           UserSession[]
+  proxyCredentials   ProxyCredential[]
+  routingPreference  UserRoutingPreference?
+  usageAccount       UsageAccount?
+  subscriptions      Subscription[]
+  payments           Payment[]
+  connectionAffinities ConnectionAffinity[]
+  routeDecisions     RouteDecision[]
+  bans               Ban[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  active
+  suspended
+  banned
+  pending
+}
+
+model UserCredential {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt   @map("user_id")
+  method         AuthMethod
+  credentialHash String?  @map("credential_hash")
+  phone          String?
+  email          String?
+  telegramId     String?  @map("telegram_id")
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, method])
+  @@map("user_credentials")
+}
+
+enum AuthMethod {
+  password
+  totp
+  sms_otp
+  email_otp
+  telegram_otp
+}
+
+model UserSession {
+  id         String   @id @default(uuid())
+  userId     BigInt   @map("user_id")
+  tokenHash  String   @unique @map("token_hash")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  expiresAt  DateTime @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model ProxyCredential {
+  id         BigInt   @id @default(autoincrement())
+  userId     BigInt   @map("user_id")
+  uuid       String   @unique @default(uuid())
+  secretHash String   @map("secret_hash")
+  label      String?
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("proxy_credentials")
+}
+
+// ─── Plans & Subscriptions ────────────────────────────────────────────────────
+
+model Plan {
+  id                    BigInt   @id @default(autoincrement())
+  name                  String
+  monthlyBandwidthGb    Decimal  @map("monthly_bandwidth_gb") @db.Decimal(12, 3)
+  maxConcurrentSessions Int      @default(10) @map("max_concurrent_sessions")
+  allowedProtocols      String[] @map("allowed_protocols")
+  allowedCountries      String[] @map("allowed_countries")
+  autoModeEnabled       Boolean  @default(true) @map("auto_mode_enabled")
+  priorityClass         Int      @default(0) @map("priority_class")
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id          BigInt             @id @default(autoincrement())
+  userId      BigInt             @map("user_id")
+  planId      BigInt             @map("plan_id")
+  status      SubscriptionStatus @default(active)
+  periodStart DateTime           @map("period_start")
+  periodEnd   DateTime           @map("period_end")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  user     User    @relation(fields: [userId], references: [id])
+  plan     Plan    @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([userId])
+  @@index([periodEnd])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  active
+  expired
+  cancelled
+  suspended
+}
+
+model Payment {
+  id             BigInt        @id @default(autoincrement())
+  userId         BigInt        @map("user_id")
+  subscriptionId BigInt?       @map("subscription_id")
+  amountCents    BigInt        @map("amount_cents")
+  currency       String        @default("USD")
+  status         PaymentStatus @default(pending)
+  method         String?
+  externalRef    String?       @map("external_ref")
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  settledAt      DateTime?     @map("settled_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
+}
+
+// ─── Usage Metering ───────────────────────────────────────────────────────────
+
+model UsageAccount {
+  id              BigInt   @id @default(autoincrement())
+  userId          BigInt   @unique @map("user_id")
+  subscriptionId  BigInt?  @map("subscription_id")
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  bytesUsed       BigInt   @default(0) @map("bytes_used")
+  connectionsUsed BigInt   @default(0) @map("connections_used")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage_accounts")
+}
+
+model QuotaToken {
+  id              String   @id @default(uuid())
+  userId          BigInt   @map("user_id")
+  credentialUuid  String   @map("credential_uuid")
+  bytesRemaining  BigInt   @map("bytes_remaining")
+  connsRemaining  Int      @map("conns_remaining")
+  issuedAt        DateTime @default(now()) @map("issued_at")
+  expiresAt       DateTime @map("expires_at")
+  invalidatedAt   DateTime? @map("invalidated_at")
+
+  @@index([credentialUuid, expiresAt])
+  @@map("quota_tokens")
+}
+
+model UsageEvent {
+  id             BigInt   @id @default(autoincrement())
+  userId         BigInt   @map("user_id")
+  nodeId         BigInt?  @map("node_id")
+  sessionId      String?  @map("session_id")
+  eventType      UsageEventType @map("event_type")
+  protocol       String
+  bytesIn        BigInt   @default(0) @map("bytes_in")
+  bytesOut       BigInt   @default(0) @map("bytes_out")
+  sessionSeconds Int      @default(0) @map("session_seconds")
+  exitCountry    String?  @map("exit_country")
+  exitNodeId     BigInt?  @map("exit_node_id")
+  destination    String?
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+
+  @@index([userId, occurredAt])
+  @@map("usage_events")
+}
+
+enum UsageEventType {
+  http_request
+  tcp_session
+  udp_flow
+  ws_session
+}
+
+model UserRoutingPreference {
+  userId           BigInt  @id @map("user_id")
+  routingMode      String  @default("auto") @map("routing_mode")
+  preferredCountry String? @map("preferred_country")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_routing_preferences")
+}
+
+// ─── Geography & Nodes ────────────────────────────────────────────────────────
+
+model Country {
+  code             String  @id
+  name             String
+  enabled          Boolean @default(true)
+  autoModeEligible Boolean @default(true) @map("auto_mode_eligible")
+
+  nodes   Node[]
+  policies Policy[]
+
+  @@map("countries")
+}
+
+model NodeProvider {
+  id             BigInt      @id @default(autoincrement())
+  name           String
+  contactEmail   String?     @map("contact_email")
+  trustState     TrustState  @default(pending) @map("trust_state")
+  contractStatus String?     @map("contract_status")
+  notes          String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  nodes Node[]
+
+  @@map("node_providers")
+}
+
+enum TrustState {
+  pending
+  trusted
+  restricted
+  blocked
+}
+
+model Node {
+  id                    BigInt     @id @default(autoincrement())
+  providerId            BigInt?    @map("provider_id")
+  countryCode           String     @map("country_code")
+  label                 String
+  roles                 String[]
+  status                NodeStatus @default(pending)
+  ipv4Address           String?    @map("ipv4_address")
+  ipv6Address           String?    @map("ipv6_address")
+  reportedCountry       String?    @map("reported_country")
+  verifiedCountry       String?    @map("verified_country")
+  verifiedAsn           String?    @map("verified_asn")
+  verifiedProvider      String?    @map("verified_provider")
+  lastGeoVerifiedAt     DateTime?  @map("last_geo_verified_at")
+  enrollmentToken       String?    @map("enrollment_token")
+  enrollmentTokenExpiry DateTime?  @map("enrollment_token_expires_at")
+  nodeSecretHash        String?    @map("node_secret_hash")
+  configVersion         BigInt     @default(0) @map("config_version")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime   @updatedAt @map("updated_at")
+
+  provider     NodeProvider?    @relation(fields: [providerId], references: [id])
+  country      Country          @relation(fields: [countryCode], references: [code])
+  capabilities NodeCapability[]
+  heartbeats   NodeHeartbeat[]
+  healthChecks NodeHealthCheck[]
+  metrics      NodeMetric[]
+  edgeEndpoints EdgeEndpoint[]
+  ipPools      IpPool[]
+
+  @@index([countryCode, status])
+  @@map("nodes")
+}
+
+enum NodeStatus {
+  pending
+  active
+  healthy
+  degraded
+  unhealthy
+  quarantined
+  disabled
+  draining
+}
+
+model NodeCapability {
+  id        BigInt  @id @default(autoincrement())
+  nodeId    BigInt  @map("node_id")
+  protocol  String
+  transport String
+  port      Int
+  enabled   Boolean @default(true)
+
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([nodeId, protocol, transport])
+  @@map("node_capabilities")
+}
+
+model NodeHeartbeat {
+  id            BigInt   @id @default(autoincrement())
+  nodeId        BigInt   @map("node_id")
+  agentVersion  String?  @map("agent_version")
+  configVersion BigInt?  @map("config_version")
+  reportedAt    DateTime @default(now()) @map("reported_at")
+
+  node Node @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, reportedAt(sort: Desc)])
+  @@map("node_heartbeats")
+}
+
+model NodeHealthCheck {
+  id            BigInt   @id @default(autoincrement())
+  nodeId        BigInt   @map("node_id")
+  checkType     String   @map("check_type")
+  status        String
+  latencyMs     Int?     @map("latency_ms")
+  packetLossPct Decimal? @map("packet_loss_pct") @db.Decimal(5, 2)
+  notes         String?
+  checkedAt     DateTime @default(now()) @map("checked_at")
+
+  node Node @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, checkedAt(sort: Desc)])
+  @@map("node_health_checks")
+}
+
+model NodeMetric {
+  id            BigInt   @id @default(autoincrement())
+  nodeId        BigInt   @map("node_id")
+  activeSessions Int?    @map("active_sessions")
+  bytesInRate   BigInt?  @map("bytes_in_rate")
+  bytesOutRate  BigInt?  @map("bytes_out_rate")
+  cpuPct        Decimal? @map("cpu_pct") @db.Decimal(5, 2)
+  memPct        Decimal? @map("mem_pct") @db.Decimal(5, 2)
+  recordedAt    DateTime @default(now()) @map("recorded_at")
+
+  node Node @relation(fields: [nodeId], references: [id])
+
+  @@index([nodeId, recordedAt(sort: Desc)])
+  @@map("node_metrics")
+}
+
+// ─── Edge Endpoints & Reachability ───────────────────────────────────────────
+
+model EdgeEndpoint {
+  id                 BigInt          @id @default(autoincrement())
+  nodeId             BigInt          @map("node_id")
+  transportType      TransportType   @map("transport_type")
+  ipAddress          String          @map("ip_address")
+  port               Int
+  domain             String?
+  publicKey          String?         @map("public_key")
+  configJson         Json?           @map("config_json")
+  status             EndpointStatus  @default(active)
+  reachabilityScore  Decimal         @default(1.0) @map("reachability_score") @db.Decimal(4, 3)
+  burnedAt           DateTime?       @map("burned_at")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  node              Node                    @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  reachabilityStats EdgeReachabilityStat[]
+
+  @@index([nodeId, status])
+  @@map("edge_endpoints")
+}
+
+enum TransportType {
+  reality
+  ss2022
+  hysteria2
+  https
+  grpc
+}
+
+enum EndpointStatus {
+  reserved
+  active
+  burned
+  rotating
+  disabled
+}
+
+model IpPool {
+  id         BigInt    @id @default(autoincrement())
+  nodeId     BigInt    @map("node_id")
+  ipAddress  String    @unique @map("ip_address")
+  status     IpStatus  @default(reserved)
+  assignedAt DateTime? @map("assigned_at")
+  burnedAt   DateTime? @map("burned_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  node Node @relation(fields: [nodeId], references: [id])
+
+  @@map("ip_pools")
+}
+
+enum IpStatus {
+  reserved
+  active
+  burned
+}
+
+model EdgeReachabilityStat {
+  id           BigInt   @id @default(autoincrement())
+  endpointId   BigInt   @map("endpoint_id")
+  source       String
+  sourceRegion String?  @map("source_region")
+  success      Boolean
+  latencyMs    Int?     @map("latency_ms")
+  recordedAt   DateTime @default(now()) @map("recorded_at")
+
+  endpoint EdgeEndpoint @relation(fields: [endpointId], references: [id])
+
+  @@index([endpointId, recordedAt(sort: Desc)])
+  @@map("edge_reachability_stats")
+}
+
+// ─── Policies & Routing ───────────────────────────────────────────────────────
+
+model Policy {
+  id               BigInt      @id @default(autoincrement())
+  name             String
+  description      String?
+  enabled          Boolean     @default(true)
+  priority         Int         @default(100)
+  scope            PolicyScope
+  action           PolicyAction
+  targetCountry    String?     @map("target_country")
+  targetNodeId     BigInt?     @map("target_node_id")
+  appliesToUserId  BigInt?     @map("applies_to_user_id")
+  appliesToPlanId  BigInt?     @map("applies_to_plan_id")
+  createdBy        BigInt?     @map("created_by")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  country Country? @relation(fields: [targetCountry], references: [code])
+  rules   PolicyRule[]
+
+  @@map("policies")
+}
+
+enum PolicyScope {
+  GLOBAL
+  AUTO_ONLY
+  COUNTRY_ONLY
+  USER
+  PLAN
+  COUNTRY
+  PROTOCOL
+  DESTINATION
+}
+
+enum PolicyAction {
+  force_country
+  prefer_country
+  block
+  allow
+  set_relay
+  bypass_country
+}
+
+model PolicyRule {
+  id         BigInt   @id @default(autoincrement())
+  policyId   BigInt   @map("policy_id")
+  matchType  String   @map("match_type")
+  matchValue String   @map("match_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@map("policy_rules")
+}
+
+model ConfigVersion {
+  id          BigInt   @id @default(autoincrement())
+  version     BigInt   @unique
+  description String?
+  publishedAt DateTime @default(now()) @map("published_at")
+
+  @@map("config_versions")
+}
+
+model RouteDecision {
+  id              String   @id @default(uuid())
+  userId          BigInt?  @map("user_id")
+  sessionId       String?  @map("session_id")
+  destination     String?
+  protocol        String?
+  requestedMode   String?  @map("requested_mode")
+  requestedCountry String? @map("requested_country")
+  effectivePolicy Json?    @map("effective_policy")
+  candidateNodes  BigInt[] @map("candidate_nodes")
+  selectedRelayChain BigInt[] @map("selected_relay_chain")
+  selectedExit    BigInt?  @map("selected_exit")
+  selectionScore  Decimal? @map("selection_score") @db.Decimal(10, 4)
+  selectionReason String?  @map("selection_reason")
+  configVersion   BigInt?  @map("config_version")
+  decidedAt       DateTime @default(now()) @map("decided_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, decidedAt(sort: Desc)])
+  @@index([decidedAt(sort: Desc)])
+  @@map("route_decisions")
+}
+
+model ConnectionAffinity {
+  sessionId       String    @id @map("session_id")
+  userId          BigInt    @map("user_id")
+  exitNodeId      BigInt?   @map("exit_node_id")
+  relayChain      BigInt[]  @map("relay_chain")
+  countryCode     String?   @map("country_code")
+  protocol        String?
+  establishedAt   DateTime  @default(now()) @map("established_at")
+  expiresAt       DateTime  @map("expires_at")
+  terminatedAt    DateTime? @map("terminated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("connection_affinities")
+}
+
+// ─── Security, Abuse & Audit ──────────────────────────────────────────────────
+
+model Ban {
+  id          BigInt    @id @default(autoincrement())
+  targetType  String    @map("target_type")
+  targetValue String    @map("target_value")
+  reason      String
+  expiresAt   DateTime? @map("expires_at")
+  createdBy   BigInt?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  createdByUser User? @relation(fields: [createdBy], references: [id])
+
+  @@unique([targetType, targetValue])
+  @@map("bans")
+}
+
+model BlocklistEntry {
+  id         BigInt    @id @default(autoincrement())
+  matchType  String    @map("match_type")
+  matchValue String    @map("match_value")
+  reason     String?
+  source     String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  expiresAt  DateTime? @map("expires_at")
+
+  @@unique([matchType, matchValue])
+  @@index([matchType, matchValue])
+  @@map("blocklist_entries")
+}
+
+model AbuseReport {
+  id            BigInt       @id @default(autoincrement())
+  reporterEmail String?      @map("reporter_email")
+  reportType    String       @map("report_type")
+  targetDomain  String?      @map("target_domain")
+  targetIp      String?      @map("target_ip")
+  description   String
+  status        ReportStatus @default(open)
+  assignedTo    BigInt?      @map("assigned_to")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  resolvedAt    DateTime?    @map("resolved_at")
+
+  @@map("abuse_reports")
+}
+
+enum ReportStatus {
+  open
+  reviewing
+  resolved
+  dismissed
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorType  String   @map("actor_type")
+  actorId    String?  @map("actor_id")
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([occurredAt(sort: Desc)])
+  @@map("audit_logs")
+}

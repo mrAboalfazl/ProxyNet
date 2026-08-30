@@ -1,0 +1,26 @@
+{
+  "name": "@platform/control-plane-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "implicitDependencies": [
+      "@platform/control-plane"
+    ],
+    "targets": {
+      "e2e": {
+        "executor": "@nx/jest:jest",
+        "outputs": [
+          "{projectRoot}/test-output/jest/coverage"
+        ],
+        "options": {
+          "jestConfig": "apps/control-plane-e2e/jest.config.cts",
+          "passWithNoTests": true
+        },
+        "dependsOn": [
+          "@platform/control-plane:build",
+          "@platform/control-plane:serve"
+        ]
+      }
+    }
+  }
+}

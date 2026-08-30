@@ -45,3 +45,21 @@ Thumbs.db
 .claude/settings.local.json
 
 .nx/polygraph
+
+# Next.js
+.next
+out
+
+test-output
+
+# Environment files (contain secrets — never commit)
+.env
+.env.local
+.env.*.local
+apps/**/.env
+apps/**/.env.local
+
+# Compiled agent binaries
+agent/agent-linux
+agent/agent.exe
+agent/*.exe

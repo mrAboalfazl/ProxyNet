@@ -1,0 +1,97 @@
+import { Controller, Post, Delete, Body, Request, UseGuards, HttpCode } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { InitiateLoginDto, SendOtpDto, VerifyOtpDto, PasswordLoginDto } from './dto/login.dto';
+import { IsEmail, IsString, IsOptional, MinLength } from 'class-validator';
+
+class RegisterDto {
+  @IsString() displayName: string;
+  @IsEmail() email: string;
+  @IsString() @MinLength(6) password: string;
+  @IsOptional() @IsString() phone?: string;
+}
+
+@ApiTags('auth')
+@Controller('auth')
+export class AuthController {
+  constructor(private auth: AuthService) {}
+
+  @Post('register')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Register a new user account' })
+  register(@Body() dto: RegisterDto, @Request() req) {
+    return this.auth.register(dto.displayName, dto.email, dto.password, dto.phone, req.ip, req.headers['user-agent']);
+  }
+
+  @Post('initiate')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Get available login methods for an identifier' })
+  initiate(@Body() dto: InitiateLoginDto) {
+    return this.auth.initiateLogin(dto.identifier);
+  }
+
+  @Post('otp/send')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Send an OTP code via the specified method' })
+  sendOtp(@Body() dto: SendOtpDto) {
+    return this.auth.sendOtp(dto.identifier, dto.method);
+  }
+
+  @Post('otp/verify')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Verify OTP and receive an access token' })
+  verifyOtp(@Body() dto: VerifyOtpDto, @Request() req) {
+    return this.auth.verifyOtp(
+      dto.identifier,
+      dto.method,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @Post('login')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Login with username + password' })
+  passwordLogin(@Body() dto: PasswordLoginDto, @Request() req) {
+    return this.auth.verifyPassword(dto.identifier, dto.password, req.ip, req.headers['user-agent']);
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke current session' })
+  logout(@Request() req) {
+    const token = req.headers['authorization']?.replace('Bearer ', '');
+    return this.auth.revokeSession(token);
+  }
+
+  @Post('totp/setup')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate TOTP setup URL and manual key' })
+  totpSetup(@Request() req) {
+    return this.auth.totpSetup(req.user.id);
+  }
+
+  @Post('totp/confirm')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm TOTP setup with a valid code' })
+  totpConfirm(@Request() req, @Body() body: { code: string }) {
+    return this.auth.totpConfirm(req.user.id, body.code);
+  }
+
+  @Delete('totp')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable and remove TOTP for the current user' })
+  totpDisable(@Request() req) {
+    return this.auth.totpDisable(req.user.id);
+  }
+}
