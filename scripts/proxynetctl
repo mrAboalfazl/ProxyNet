@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# proxynetctl — manage a ProxyNet node
+set -euo pipefail
+
+SERVICES=(proxynet-agent proxynet-relay)
+GITHUB_REPO="mrAboalfazl/ProxyNet"
+LIB_DIR="/usr/local/lib/proxynet"
+ETC_DIR="/etc/proxynet"
+INSTALL_URL="https://raw.githubusercontent.com/$GITHUB_REPO/master/scripts/install.sh"
+
+C_RESET=$'\033[0m'; C_GRN=$'\033[0;32m'; C_RED=$'\033[0;31m'; C_BLD=$'\033[1m'; C_DIM=$'\033[2m'
+
+require_root() {
+  [[ $EUID -eq 0 ]] || { echo "run as root: sudo proxynetctl $*" >&2; exit 1; }
+}
+
+cmd_status() {
+  echo "${C_BLD}ProxyNet node status${C_RESET}"
+  for svc in "${SERVICES[@]}"; do
+    local state; state="$(systemctl is-active "$svc" 2>/dev/null || echo inactive)"
+    local since; since="$(systemctl show -p ActiveEnterTimestamp --value "$svc" 2>/dev/null | sed 's/^$/never/')"
+    local color; [[ "$state" == "active" ]] && color="$C_GRN" || color="$C_RED"
+    printf "  %-20s %b%-10s%b  since %s\n" "$svc" "$color" "$state" "$C_RESET" "$since"
+  done
+
+  echo
+  echo "${C_BLD}Connectivity${C_RESET}"
+  if curl -fsSL --max-time 3 http://127.0.0.1:9443/health >/dev/null 2>&1; then
+    printf "  %b✓%b relay /health responds\n" "$C_GRN" "$C_RESET"
+  else
+    printf "  %b✗%b relay /health does not respond on 127.0.0.1:9443\n" "$C_RED" "$C_RESET"
+  fi
+
+  if [[ -f "$ETC_DIR/agent.json" ]]; then
+    local panel; panel="$(sed -n 's/.*"control_endpoint": *"\([^"]*\)".*/\1/p' "$ETC_DIR/agent.json" | head -1)"
+    if [[ -n "$panel" ]]; then
+      if curl -fsSL --max-time 5 "$panel/api/health" >/dev/null 2>&1; then
+        printf "  %b✓%b control-plane reachable at %s\n" "$C_GRN" "$C_RESET" "$panel"
+      else
+        printf "  %b✗%b control-plane NOT reachable at %s\n" "$C_RED" "$C_RESET" "$panel"
+      fi
+    fi
+  fi
+
+  echo
+  echo "${C_BLD}Recent heartbeats${C_RESET} ${C_DIM}(last 3)${C_RESET}"
+  journalctl -u proxynet-agent -n 100 --no-pager 2>/dev/null | grep -i heartbeat | tail -3 | sed 's/^/  /'
+}
+
+cmd_logs() {
+  local svc="${1:-agent}"
+  case "$svc" in
+    agent) journalctl -u proxynet-agent -f --no-pager ;;
+    relay) journalctl -u proxynet-relay -f --no-pager ;;
+    all|*) journalctl -u proxynet-agent -u proxynet-relay -f --no-pager ;;
+  esac
+}
+
+cmd_restart() {
+  require_root restart
+  systemctl restart "${SERVICES[@]}"
+  echo "restarted: ${SERVICES[*]}"
+  cmd_status
+}
+
+cmd_upgrade() {
+  require_root upgrade
+  echo "Re-running installer to pull latest binary + relay..."
+  local panel token
+  panel="$(sed -n 's/.*"control_endpoint": *"\([^"]*\)".*/\1/p' "$ETC_DIR/agent.json" | head -1)"
+  # Upgrade is 'refresh binaries only' — no new enrollment.
+  # Just re-download the binary and relay.js from GitHub and restart.
+  local arch
+  case "$(uname -m)" in
+    x86_64|amd64) arch="linux-amd64" ;;
+    aarch64|arm64) arch="linux-arm64" ;;
+    *) echo "unsupported arch" >&2; exit 1 ;;
+  esac
+  local ver="${1:-v1.0.0}"
+  local base="https://github.com/$GITHUB_REPO/releases/download/$ver"
+  echo "  fetching platform-agent-$arch@$ver"
+  curl -fsSL --max-time 60 -o "$LIB_DIR/platform-agent.new" "$base/platform-agent-$arch"
+  chmod 0755 "$LIB_DIR/platform-agent.new"
+  mv "$LIB_DIR/platform-agent.new" "$LIB_DIR/platform-agent"
+  echo "  fetching node-relay.js@main"
+  curl -fsSL --max-time 30 -o "$LIB_DIR/node-relay.js.new" \
+    "https://raw.githubusercontent.com/$GITHUB_REPO/master/packages/node-relay/index.js"
+  mv "$LIB_DIR/node-relay.js.new" "$LIB_DIR/node-relay.js"
+  systemctl restart "${SERVICES[@]}"
+  echo "upgraded and restarted"
+}
+
+cmd_uninstall() {
+  require_root uninstall
+  echo "This will remove ProxyNet from this node. Continue? [y/N]"
+  read -r yn
+  [[ "$yn" =~ ^[Yy]$ ]] || { echo "aborted"; exit 0; }
+  bash <(curl -fsSL "$INSTALL_URL") --uninstall
+}
+
+usage() {
+  cat <<EOF
+proxynetctl — manage a ProxyNet node
+
+Usage:
+  proxynetctl status              Show service and connectivity status
+  proxynetctl logs [agent|relay]  Follow logs (default: agent)
+  proxynetctl restart             Restart both services
+  proxynetctl upgrade [VERSION]   Pull latest binary + relay, restart
+  proxynetctl uninstall           Remove ProxyNet from this node
+EOF
+}
+
+case "${1:-}" in
+  status)    shift; cmd_status "$@" ;;
+  logs)      shift; cmd_logs "$@" ;;
+  restart)   shift; cmd_restart "$@" ;;
+  upgrade)   shift; cmd_upgrade "$@" ;;
+  uninstall) shift; cmd_uninstall "$@" ;;
+  ""|-h|--help) usage ;;
+  *) echo "unknown command: $1" >&2; usage; exit 1 ;;
+esac
