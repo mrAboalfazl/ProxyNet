@@ -7,6 +7,8 @@ import {
   Param,
   Request,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ProxyCredentialsService } from './proxy-credentials.service';
@@ -35,6 +37,7 @@ export class ProxyCredentialsController {
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
   revoke(@Request() req, @Param('id') id: string) {
     return this.proxyCredentials.revoke(BigInt(req.user.id), BigInt(id));
   }
