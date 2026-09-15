@@ -1,8 +1,8 @@
-import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsIn, IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class InitiateLoginDto {
-  @ApiProperty({ description: 'Email, phone number, or Telegram @username' })
+  @ApiProperty({ description: 'Email, phone number, or Telegram username' })
   @IsString()
   @IsNotEmpty()
   identifier: string;
@@ -30,8 +30,7 @@ export class VerifyOtpDto {
   method: string;
 
   @ApiProperty({ description: '6-digit OTP code' })
-  @IsString()
-  @IsNotEmpty()
+  @Matches(/^\d{6}$/)
   code: string;
 }
 
@@ -45,4 +44,31 @@ export class PasswordLoginDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class StartRegistrationDto {
+  @IsString()
+  @IsNotEmpty()
+  displayName: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+export class ConfirmRegistrationDto {
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  registrationId: string;
+
+  @IsString()
+  @Matches(/^\d{6}$/)
+  code: string;
 }

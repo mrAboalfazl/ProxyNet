@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { XrayConfigService } from '../xray/xray-config.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 @Injectable()
 export class ProxyCredentialsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private xray: XrayConfigService,
+  ) {}
 
   async create(userId: bigint, label?: string) {
     const secret = randomBytes(24).toString('base64url');
@@ -17,18 +21,17 @@ export class ProxyCredentialsService {
         secretHash,
         label: label ?? 'Default',
       },
-      select: {
-        id: true,
-        uuid: true,
-        label: true,
-      },
     });
+
+    // Sync new UUID to xray so the VLESS connection actually works
+    await this.xray.addClient(credential.uuid);
 
     return {
       id: credential.id.toString(),
       uuid: credential.uuid,
-      secret,
+      secret,           // returned once — client must save it
       label: credential.label,
+      createdAt: credential.createdAt,
     };
   }
 
@@ -68,17 +71,22 @@ export class ProxyCredentialsService {
         revokedAt: new Date(),
       },
     });
+
+    // Remove from xray so the UUID can no longer connect
+    await this.xray.removeClient(credential.uuid);
   }
 
-  async verify(uuid: string, secret: string): Promise<boolean> {
+  async verify(uuid: string, secret: string): Promise<{ valid: false } | { valid: true; userId: bigint }> {
     const credential = await this.prisma.proxyCredential.findUnique({
       where: { uuid },
     });
 
     if (!credential || !credential.enabled || credential.revokedAt !== null) {
-      return false;
+      return { valid: false };
     }
 
-    return bcrypt.compare(secret, credential.secretHash);
+    const match = await bcrypt.compare(secret, credential.secretHash);
+    if (!match) return { valid: false };
+    return { valid: true, userId: credential.userId };
   }
 }

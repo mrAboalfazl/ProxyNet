@@ -16,6 +16,7 @@ model User {
   email       String?  @unique
   phone       String?  @unique
   telegramId  String?  @unique @map("telegram_id")
+  publicSlug  String   @unique @map("public_slug")
   status      UserStatus @default(active)
   role        String   @default("user")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -24,6 +25,8 @@ model User {
   credentials        UserCredential[]
   sessions           UserSession[]
   proxyCredentials   ProxyCredential[]
+  forwarders         Forwarder[]
+  wallet             Wallet?
   routingPreference  UserRoutingPreference?
   usageAccount       UsageAccount?
   subscriptions      Subscription[]
@@ -35,6 +38,66 @@ model User {
   approvedNodes      Node[]          @relation("ApprovedNodes")
 
   @@map("users")
+}
+
+model Wallet {
+  userId       BigInt   @id @map("user_id")
+  balanceToman BigInt   @default(0) @map("balance_toman")
+  currency     String   @default("IRR")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id                BigInt   @id @default(autoincrement())
+  walletUserId      BigInt   @map("wallet_user_id")
+  amountToman       BigInt   @map("amount_toman")
+  type              String
+  description       String?
+  balanceAfterToman BigInt   @map("balance_after_toman")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  wallet Wallet @relation(fields: [walletUserId], references: [userId], onDelete: Cascade)
+
+  @@index([walletUserId, createdAt(sort: Desc)])
+  @@map("wallet_transactions")
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model Forwarder {
+  id               BigInt   @id @default(autoincrement())
+  userId           BigInt   @map("user_id")
+  slug             String   @unique
+  label            String
+  targetUrl        String   @map("target_url")
+  preservePath     Boolean  @default(true) @map("preserve_path")
+  preserveQuery    Boolean  @default(true) @map("preserve_query")
+  forwardAuthHeader Boolean @default(true) @map("forward_auth_header")
+  enabled          Boolean  @default(true)
+  callCount        BigInt   @default(0) @map("call_count")
+  bytesIn          BigInt   @default(0) @map("bytes_in")
+  bytesOut         BigInt   @default(0) @map("bytes_out")
+  lastUsedAt       DateTime? @map("last_used_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+  @@map("forwarders")
 }
 
 enum UserStatus {

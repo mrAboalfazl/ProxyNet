@@ -9,7 +9,9 @@ import { AppModule } from './app/app.module';
 };
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: true preserves the untouched request body on req.rawBody so the forwarder
+  // proxy can pass through binary/JSON/form bodies unchanged even after body-parser runs.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -25,8 +27,9 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.APP_PORT || process.env.PORT || 3000;
-  await app.listen(port);
-  Logger.log(`Control Plane running on http://localhost:${port}/api`);
+  const host = process.env.HOST || '127.0.0.1';
+  await app.listen(port, host);
+  Logger.log(`Control Plane running on http://${host}:${port}/api`);
   Logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
 }
 

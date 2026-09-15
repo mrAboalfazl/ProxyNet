@@ -1,16 +1,15 @@
-import { Controller, Post, Delete, Body, Request, UseGuards, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Delete, GoneException, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import {
+  ConfirmRegistrationDto,
+  InitiateLoginDto,
+  PasswordLoginDto,
+  SendOtpDto,
+  StartRegistrationDto,
+  VerifyOtpDto,
+} from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { InitiateLoginDto, SendOtpDto, VerifyOtpDto, PasswordLoginDto } from './dto/login.dto';
-import { IsEmail, IsString, IsOptional, MinLength } from 'class-validator';
-
-class RegisterDto {
-  @IsString() displayName: string;
-  @IsEmail() email: string;
-  @IsString() @MinLength(6) password: string;
-  @IsOptional() @IsString() phone?: string;
-}
 
 @ApiTags('auth')
 @Controller('auth')
@@ -18,10 +17,23 @@ export class AuthController {
   constructor(private auth: AuthService) {}
 
   @Post('register')
+  @ApiOperation({ summary: 'Deprecated: registration requires phone verification' })
+  register() {
+    throw new GoneException('Use /auth/registration/start and /auth/registration/confirm');
+  }
+
+  @Post('registration/start')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Send a phone verification code for a new account' })
+  startRegistration(@Body() dto: StartRegistrationDto, @Request() req) {
+    return this.auth.startRegistration(dto.displayName, dto.email, dto.phone, dto.password, req.ip);
+  }
+
+  @Post('registration/confirm')
   @HttpCode(201)
-  @ApiOperation({ summary: 'Register a new user account' })
-  register(@Body() dto: RegisterDto, @Request() req) {
-    return this.auth.register(dto.displayName, dto.email, dto.password, dto.phone, req.ip, req.headers['user-agent']);
+  @ApiOperation({ summary: 'Create a new account after successful phone verification' })
+  confirmRegistration(@Body() dto: ConfirmRegistrationDto, @Request() req) {
+    return this.auth.confirmRegistration(dto.registrationId, dto.code, req.ip, req.headers['user-agent']);
   }
 
   @Post('initiate')
@@ -42,18 +54,12 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Verify OTP and receive an access token' })
   verifyOtp(@Body() dto: VerifyOtpDto, @Request() req) {
-    return this.auth.verifyOtp(
-      dto.identifier,
-      dto.method,
-      dto.code,
-      req.ip,
-      req.headers['user-agent'],
-    );
+    return this.auth.verifyOtp(dto.identifier, dto.method, dto.code, req.ip, req.headers['user-agent']);
   }
 
   @Post('login')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Login with username + password' })
+  @ApiOperation({ summary: 'Login with username and password' })
   passwordLogin(@Body() dto: PasswordLoginDto, @Request() req) {
     return this.auth.verifyPassword(dto.identifier, dto.password, req.ip, req.headers['user-agent']);
   }

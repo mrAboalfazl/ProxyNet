@@ -18,6 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/nodes', key: 'admin.nav.nodes' },
     { href: '/admin/users', key: 'admin.nav.users' },
     { href: '/admin/plans', key: 'admin.nav.plans' },
+    { href: '/admin/pricing', key: 'admin.nav.pricing' },
     { href: '/admin/countries', key: 'admin.nav.countries' },
   ];
 

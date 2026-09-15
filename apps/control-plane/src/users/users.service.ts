@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 export interface CreateUserDto {
   displayName: string;
@@ -8,6 +9,14 @@ export interface CreateUserDto {
   phone?: string;
   telegramId?: string;
   password?: string;
+}
+
+const B62 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+function randomSlug(len: number): string {
+  const buf = randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += B62[buf[i] % B62.length];
+  return out;
 }
 
 @Injectable()
@@ -32,6 +41,7 @@ export class UsersService {
         email: dto.email,
         phone: dto.phone,
         telegramId: dto.telegramId,
+        publicSlug: randomSlug(12),
       },
     });
 
@@ -94,5 +104,75 @@ export class UsersService {
       create: { userId, ...preference },
       update: preference,
     });
+  }
+
+  async findByIdWithDetails(id: bigint) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        subscriptions: { where: { status: 'active' }, include: { plan: true }, take: 1 },
+        routingPreference: true,
+        usageAccount: true,
+        proxyCredentials: {
+          where: { revokedAt: null },
+          select: { id: true, uuid: true, label: true, enabled: true, createdAt: true },
+        },
+        forwarders: {
+          select: {
+            id: true, slug: true, label: true, targetUrl: true,
+            enabled: true, callCount: true, lastUsedAt: true, createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  /**
+   * Admin-only: return the constructed VLESS URIs for every active credential this
+   * user owns. Users cannot access this from their own panel.
+   */
+  async getVlessUrisForUser(id: bigint) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, displayName: true, email: true, phone: true,
+        proxyCredentials: {
+          where: { revokedAt: null, enabled: true },
+          select: { id: true, uuid: true, label: true, createdAt: true },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Use the domain (not the raw IP) so URIs survive server migration.
+    // Override with PROXY_SERVER_HOST env var if the panel is at a different
+    // hostname than the proxy endpoint.
+    const host = process.env.PROXY_SERVER_HOST ?? 'api.civonex.ir';
+    const port = process.env.PROXY_SERVER_PORT ?? '443';
+    const sni = process.env.REALITY_SNI ?? 'www.cloudflare.com';
+    const pbk = process.env.REALITY_PUBLIC_KEY ?? 'omSaAuvrDD7GCpU5yOK2GUZUc5N4rxnlvGlpklPCuSo';
+    const sid = process.env.REALITY_SHORT_ID ?? '3c421f5e';
+
+    const buildUri = (uuid: string, label: string | null) => {
+      const params = new URLSearchParams({
+        encryption: 'none', security: 'reality', sni, fp: 'chrome',
+        pbk, sid, type: 'tcp', flow: 'xtls-rprx-vision',
+      });
+      return `vless://${uuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(label ?? 'ProxyNet')}`;
+    };
+
+    return {
+      user: { id: user.id, displayName: user.displayName, email: user.email, phone: user.phone },
+      credentials: user.proxyCredentials.map((c) => ({
+        id: c.id.toString(),
+        uuid: c.uuid,
+        label: c.label,
+        createdAt: c.createdAt,
+        vlessUri: buildUri(c.uuid, c.label),
+      })),
+    };
   }
 }

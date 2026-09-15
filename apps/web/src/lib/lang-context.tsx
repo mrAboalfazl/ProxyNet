@@ -9,13 +9,13 @@ interface LangCtxValue {
   isRTL: boolean;
 }
 
-const LangCtx = createContext<LangCtxValue>({ lang: 'en', setLang: () => {}, isRTL: false });
+const LangCtx = createContext<LangCtxValue>({ lang: 'fa', setLang: () => {}, isRTL: true });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>('en');
+  const [lang, setLangState] = useState<Lang>('fa');
 
   useEffect(() => {
-    const saved = (localStorage.getItem('lang') as Lang) || 'en';
+    const saved = (localStorage.getItem('lang') as Lang) || 'fa';
     applyLang(saved);
     setLangState(saved);
   }, []);

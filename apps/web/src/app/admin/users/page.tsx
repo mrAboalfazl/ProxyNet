@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, User } from '../../../lib/api';
 import { PageHeader, Card, Table, Tr, Td, Badge, Button, Alert, Spinner, colors } from '../../../lib/ui';
 
@@ -69,7 +70,10 @@ export default function AdminUsersPage() {
                     {new Date(user.createdAt).toLocaleDateString()}
                   </Td>
                   <Td>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <Link href={`/admin/users/${user.id}`}>
+                        <Button variant="primary" size="sm">Details</Button>
+                      </Link>
                       {user.status === 'active' && (
                         <Button onClick={() => setStatus(user.id, 'suspended')} variant="secondary" size="sm">Suspend</Button>
                       )}

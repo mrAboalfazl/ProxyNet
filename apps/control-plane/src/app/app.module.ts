@@ -14,6 +14,9 @@ import { RoutingModule } from '../routing/routing.module';
 import { QuotaModule } from '../quota/quota.module';
 import { MeteringModule } from '../metering/metering.module';
 import { ProxyCredentialsModule } from '../proxy-credentials/proxy-credentials.module';
+import { GatewayModule } from '../gateway/gateway.module';
+import { ForwardersModule } from '../forwarders/forwarders.module';
+import { WalletModule } from '../wallet/wallet.module';
 
 @Module({
   imports: [
@@ -41,6 +44,9 @@ import { ProxyCredentialsModule } from '../proxy-credentials/proxy-credentials.m
     QuotaModule,
     MeteringModule,
     ProxyCredentialsModule,
+    WalletModule,
+    GatewayModule,
+    ForwardersModule,
   ],
 })
 export class AppModule {}

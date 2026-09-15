@@ -1,10 +1,31 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
-import { REDIS_CLIENT } from '../redis/redis.module';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { UserCredential } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import type Redis from 'ioredis';
-import { randomInt } from 'crypto';
+import { REDIS_CLIENT } from '../redis/redis.module';
 
 const OTP_TTL_SECONDS = 5 * 60;
+const REGISTRATION_MAX_ATTEMPTS = 5;
+const REGISTRATION_SEND_COOLDOWN_SECONDS = 60;
+
+export interface PendingRegistration {
+  displayName: string;
+  email: string;
+  phone: string;
+  passwordHash: string;
+}
+
+interface StoredRegistration extends PendingRegistration {
+  codeHash: string;
+  attempts: number;
+}
 
 @Injectable()
 export class OtpService {
@@ -13,12 +34,11 @@ export class OtpService {
   constructor(@Inject(REDIS_CLIENT) private redis: Redis) {}
 
   generateCode(): string {
-    return randomInt(100000, 999999).toString();
+    return randomInt(100000, 1000000).toString();
   }
 
   async storeCode(userId: string, method: string, code: string): Promise<void> {
-    const key = `otp:${userId}:${method}`;
-    await this.redis.set(key, code, 'EX', OTP_TTL_SECONDS);
+    await this.redis.set(`otp:${userId}:${method}`, code, 'EX', OTP_TTL_SECONDS);
   }
 
   async verifyCode(userId: string, method: string, submitted: string): Promise<boolean> {
@@ -27,6 +47,92 @@ export class OtpService {
     if (!stored || stored !== submitted) return false;
     await this.redis.del(key);
     return true;
+  }
+
+  async beginRegistration(
+    registration: PendingRegistration,
+    ipAddress?: string,
+  ): Promise<{ registrationId: string; expiresInSeconds: number }> {
+    const cooldownKeys = [
+      `registration:cooldown:phone:${this.hashIdentifier(registration.phone)}`,
+      ...(ipAddress ? [`registration:cooldown:ip:${this.hashIdentifier(ipAddress)}`] : []),
+    ];
+
+    for (const key of cooldownKeys) {
+      const accepted = await this.redis.set(
+        key,
+        '1',
+        'EX',
+        REGISTRATION_SEND_COOLDOWN_SECONDS,
+        'NX',
+      );
+      if (!accepted) {
+        throw new BadRequestException('Please wait before requesting another verification code');
+      }
+    }
+
+    const registrationId = randomBytes(32).toString('hex');
+    const code = this.generateCode();
+    const pending: StoredRegistration = {
+      ...registration,
+      codeHash: await bcrypt.hash(code, 10),
+      attempts: 0,
+    };
+    const key = this.registrationKey(registrationId);
+
+    await this.redis.set(key, JSON.stringify(pending), 'EX', OTP_TTL_SECONDS);
+    try {
+      await this.sendKavenegarSms(registration.phone, code);
+    } catch (error) {
+      await this.redis.del(key);
+      await Promise.all(cooldownKeys.map((cooldownKey) => this.redis.del(cooldownKey)));
+      throw error;
+    }
+
+    return { registrationId, expiresInSeconds: OTP_TTL_SECONDS };
+  }
+
+  async consumeVerifiedRegistration(
+    registrationId: string,
+    submittedCode: string,
+  ): Promise<PendingRegistration> {
+    const key = this.registrationKey(registrationId);
+    const raw = await this.redis.get(key);
+    if (!raw) throw new BadRequestException('Verification code is invalid or expired');
+
+    let pending: StoredRegistration;
+    try {
+      pending = JSON.parse(raw) as StoredRegistration;
+    } catch {
+      await this.redis.del(key);
+      throw new BadRequestException('Verification code is invalid or expired');
+    }
+
+    if (pending.attempts >= REGISTRATION_MAX_ATTEMPTS) {
+      await this.redis.del(key);
+      throw new BadRequestException('Too many invalid verification attempts');
+    }
+
+    if (!await bcrypt.compare(submittedCode, pending.codeHash)) {
+      pending.attempts += 1;
+      if (pending.attempts >= REGISTRATION_MAX_ATTEMPTS) {
+        await this.redis.del(key);
+      } else {
+        await this.redis.set(key, JSON.stringify(pending), 'KEEPTTL');
+      }
+      throw new BadRequestException('Verification code is invalid or expired');
+    }
+
+    if (!await this.redis.del(key)) {
+      throw new BadRequestException('Verification code is invalid or expired');
+    }
+
+    return {
+      displayName: pending.displayName,
+      email: pending.email,
+      phone: pending.phone,
+      passwordHash: pending.passwordHash,
+    };
   }
 
   async deliver(
@@ -40,28 +146,30 @@ export class OtpService {
     }
 
     if (method === 'email_otp' && credential.email) {
-      // TODO Phase 2: SMTP/SendGrid
-      this.logger.log(`[OTP] email_otp code=${code} to=${credential.email}`);
+      this.logger.log(`Email OTP requested for ${credential.email}`);
       return;
     }
 
     if (method === 'telegram_otp' && credential.telegramId) {
-      // TODO Phase 2: Telegram Bot API
-      this.logger.log(`[OTP] telegram_otp code=${code} to=${credential.telegramId}`);
+      this.logger.log(`Telegram OTP requested for ${credential.telegramId}`);
       return;
     }
 
-    this.logger.log(
-      `[OTP] method=${method} code=${code} to=${credential.email ?? credential.phone ?? credential.telegramId}`,
-    );
+    throw new BadRequestException('Unsupported verification method');
   }
 
   private async sendKavenegarSms(phone: string, code: string): Promise<void> {
     const apiKey = process.env.KAVENEGAR_API_KEY;
-    if (!apiKey) throw new Error('KAVENEGAR_API_KEY is not set');
+    if (!apiKey) {
+      throw new ServiceUnavailableException('SMS verification is temporarily unavailable');
+    }
+
     const url = `https://api.kavenegar.com/v1/${apiKey}/sms/send.json`;
-    const message = `کد تأیید پروکسی‌نت: ${code}`;
-    const body = new URLSearchParams({ receptor: phone, message, sender: '' });
+    const body = new URLSearchParams({
+      receptor: phone,
+      message: `Civonex verification code: ${code}`,
+      sender: '',
+    });
 
     try {
       const res = await fetch(url, {
@@ -69,16 +177,23 @@ export class OtpService {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
       });
-      const text = await res.text();
       if (!res.ok) {
-        this.logger.error(`KaveNegar error: ${res.status} ${text}`);
-        throw new Error(`SMS delivery failed (${res.status})`);
+        this.logger.error(`KaveNegar SMS delivery failed with status ${res.status}`);
+        throw new ServiceUnavailableException('SMS verification is temporarily unavailable');
       }
       this.logger.log(`KaveNegar SMS sent to ${phone}`);
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith('SMS delivery failed')) throw err;
-      this.logger.error(`KaveNegar network error: ${err}`);
-      throw new Error('SMS delivery failed — network error');
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      this.logger.error(`KaveNegar network error: ${error}`);
+      throw new ServiceUnavailableException('SMS verification is temporarily unavailable');
     }
+  }
+
+  private registrationKey(registrationId: string): string {
+    return `registration:pending:${registrationId}`;
+  }
+
+  private hashIdentifier(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
   }
 }

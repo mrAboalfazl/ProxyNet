@@ -59,8 +59,11 @@ export const api = {
   login: (identifier: string, password: string) =>
     request<{ accessToken: string }>('POST', '/auth/login', { identifier, password }),
 
-  register: (displayName: string, email: string, password: string, phone?: string) =>
-    request<{ accessToken: string }>('POST', '/auth/register', { displayName, email, password, phone }),
+  startRegistration: (data: { displayName: string; email: string; phone: string; password: string }) =>
+    request<{ registrationId: string; expiresInSeconds: number }>('POST', '/auth/registration/start', data),
+
+  confirmRegistration: (registrationId: string, code: string) =>
+    request<{ accessToken: string }>('POST', '/auth/registration/confirm', { registrationId, code }),
 
   sendOtp: (identifier: string, method: string) =>
     request<{ sent: boolean }>('POST', '/auth/otp/send', { identifier, method }),
@@ -86,7 +89,7 @@ export const api = {
   myCredentials: () => request<ProxyCredential[]>('GET', '/proxy-credentials'),
 
   createCredential: (label?: string) =>
-    request<ProxyCredential>('POST', '/proxy-credentials', { label }),
+    request<ProxyCredential & { secret?: string }>('POST', '/proxy-credentials', { label }),
 
   revokeCredential: (id: string) =>
     request<void>('DELETE', `/proxy-credentials/${id}`),
@@ -120,7 +123,45 @@ export const api = {
   // Users
   users: {
     list: (page = 1) => request<{ users: User[]; total: number; page: number }>('GET', `/admin/users?page=${page}&limit=20`),
+    get: (id: string) => request<AdminUserDetails>('GET', `/admin/users/${id}`),
+    getVless: (id: string) => request<AdminVlessBundle>('GET', `/admin/users/${id}/vless`),
     setStatus: (id: string, status: string) => request<User>('PATCH', `/admin/users/${id}/status`, { status }),
+  },
+
+  // Health check (authenticated — verifies auth + returns account status/usage/wallet)
+  healthMe: () => request<HealthMeResponse>('GET', '/health/me'),
+
+  // Wallet (user)
+  wallet: {
+    me: () => request<WalletMeResponse>('GET', '/wallet/me'),
+    transactions: (limit = 50) => request<WalletTransaction[]>('GET', `/wallet/me/transactions?limit=${limit}`),
+  },
+
+  // Wallet + pricing (admin)
+  adminWallet: {
+    get: (userId: string) => request<AdminWalletBundle>('GET', `/admin/users/${userId}/wallet`),
+    topup: (userId: string, amountToman: number | string, description?: string) =>
+      request<{ wallet: { balanceToman: string; currency: string }; transactionId: string }>(
+        'POST', `/admin/users/${userId}/wallet/topup`, { amountToman, description },
+      ),
+    adjust: (userId: string, amountToman: number | string, description?: string) =>
+      request<{ wallet: { balanceToman: string; currency: string }; transactionId: string }>(
+        'POST', `/admin/users/${userId}/wallet/adjust`, { amountToman, description },
+      ),
+  },
+  adminPricing: {
+    get: () => request<PricingResponse>('GET', '/admin/pricing'),
+    update: (patch: Partial<PricingResponse>) => request<PricingResponse>('PATCH', '/admin/pricing', patch),
+  },
+
+  // Forwarders (user)
+  forwarders: {
+    list: () => request<{ userSlug: string; forwarders: Forwarder[] }>('GET', '/forwarders'),
+    create: (data: { label: string; targetUrl: string; forwardAuthHeader?: boolean; preservePath?: boolean; preserveQuery?: boolean }) =>
+      request<Forwarder>('POST', '/forwarders', data),
+    update: (id: string, data: Partial<{ label: string; targetUrl: string; enabled: boolean; forwardAuthHeader: boolean; preservePath: boolean; preserveQuery: boolean }>) =>
+      request<Forwarder>('PATCH', `/forwarders/${id}`, data),
+    remove: (id: string) => request<void>('DELETE', `/forwarders/${id}`),
   },
 
   // Plans
@@ -194,4 +235,101 @@ export interface ProxyCredential {
   label: string | null;
   enabled: boolean;
   createdAt: string;
+}
+
+export interface WalletMeResponse {
+  balanceToman: string;
+  currency: string;
+  updatedAt: string;
+  pricing: PricingResponse;
+}
+
+export interface WalletTransaction {
+  id: string;
+  amountToman: string;
+  type: string;
+  description: string | null;
+  balanceAfterToman: string;
+  createdAt: string;
+}
+
+export interface PricingResponse {
+  perRequestToman: string;
+  perMbToman: string;
+  minBalanceToman: string;
+}
+
+export interface AdminWalletBundle {
+  wallet: { balanceToman: string; currency: string; updatedAt: string };
+  transactions: WalletTransaction[];
+}
+
+export interface HealthMeResponse {
+  status: 'ok' | string;
+  timestamp: string;
+  user: {
+    id: string;
+    displayName: string;
+    email: string | null;
+    phone: string | null;
+    publicSlug: string;
+    status: string;
+    createdAt: string;
+  };
+  plan: {
+    name: string;
+    monthlyBandwidthGb: number;
+    maxConcurrentSessions: number;
+  } | null;
+  usage: {
+    totalForwarders: number;
+    enabledForwarders: number;
+    activeCredentials: number;
+    totalCallsAllTime: string;
+    totalBytesIn: string;
+    totalBytesOut: string;
+    forwardersUsedToday: number;
+  };
+  wallet: {
+    balanceToman: string;
+    currency: string;
+    aboveMinBalance: boolean;
+  };
+  pricing: PricingResponse;
+}
+
+export interface Forwarder {
+  id: string;
+  slug: string;
+  label: string;
+  targetUrl: string;
+  enabled: boolean;
+  preservePath: boolean;
+  preserveQuery: boolean;
+  forwardAuthHeader: boolean;
+  callCount: string;
+  bytesIn: string;
+  bytesOut: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminVlessBundle {
+  user: { id: string; displayName: string; email: string | null; phone: string | null };
+  credentials: Array<{ id: string; uuid: string; label: string | null; createdAt: string; vlessUri: string }>;
+}
+
+export interface AdminUserDetails {
+  id: string;
+  displayName: string;
+  email: string | null;
+  phone: string | null;
+  publicSlug: string;
+  status: string;
+  role: string;
+  createdAt: string;
+  subscriptions: Array<{ status: string; plan: Plan }>;
+  routingPreference: { routingMode: string; preferredCountry: string | null } | null;
+  proxyCredentials: Array<{ id: string; uuid: string; label: string | null; enabled: boolean; createdAt: string }>;
+  forwarders: Array<{ id: string; slug: string; label: string; targetUrl: string; enabled: boolean; callCount: string; lastUsedAt: string | null; createdAt: string }>;
 }
