@@ -12,11 +12,10 @@
   background: var(--panel-bg);
   min-height: 100vh;
 }
-.user-shell { display: grid; grid-template-areas: 'main sidebar'; grid-template-columns: minmax(0, 1fr) 17.5rem; min-height: 100vh; }
-[data-user-panel][dir='ltr'] .user-shell { grid-template-areas: 'sidebar main'; grid-template-columns: 17.5rem minmax(0, 1fr); }
-.user-sidebar { grid-area: sidebar; display: flex; flex-direction: column; background: #0f172a; color: #e2e8f0; border-inline-start: 1px solid rgba(255,255,255,.08); min-height: 100vh; }
+.user-shell { display: flex; min-height: 100vh; }
+.user-sidebar { display: flex; flex: 0 0 17.5rem; flex-direction: column; background: #0f172a; color: #e2e8f0; border-inline-start: 1px solid rgba(255,255,255,.08); min-height: 100vh; }
 [data-user-panel][dir='ltr'] .user-sidebar { border-inline-start: 0; border-inline-end: 1px solid rgba(255,255,255,.08); }
-.user-main { grid-area: main; min-width: 0; padding: 2rem clamp(1rem, 3vw, 3rem); }
+.user-main { flex: 1 1 auto; min-width: 0; padding: 2rem clamp(1rem, 3vw, 3rem); }
 .user-content { width: min(100%, 82rem); margin-inline: auto; }
 .user-brand { display: flex; align-items: center; gap: .75rem; padding: 1.25rem; border-bottom: 1px solid rgba(255,255,255,.09); }
 .user-brand-mark { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .75rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
