@@ -206,9 +206,6 @@ export class ForwarderProxyController {
       if (node && !node.isLocal) {
         // Hop through the node relay. The relay's /fetch endpoint returns a JSON envelope,
         // so we translate back to a raw response.
-        const relaySecret = this.nodeSelector.getNodeSecret(node.id);
-        if (!relaySecret) throw new Error(`no relay secret for node ${node.id}`);
-
         const relayPayload = Buffer.from(JSON.stringify({
           url: finalUrl,
           method: req.method,
@@ -226,7 +223,7 @@ export class ForwarderProxyController {
             headers: {
               'content-type': 'application/json',
               'content-length': String(relayPayload.length),
-              'x-node-secret': relaySecret,
+              'x-node-secret': node.relaySecret,
             },
           }, (relayRes) => {
             const chunks: Buffer[] = [];

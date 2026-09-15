@@ -359,6 +359,7 @@ model Node {
   enrollmentToken       String?    @map("enrollment_token")
   enrollmentTokenExpiry DateTime?  @map("enrollment_token_expires_at")
   nodeSecretHash        String?    @map("node_secret_hash")
+  relaySecretEncrypted  String?    @map("relay_secret_encrypted")
   configVersion         BigInt     @default(0) @map("config_version")
   submittedById         BigInt?    @map("submitted_by_id")
   approvedById          BigInt?    @map("approved_by_id")

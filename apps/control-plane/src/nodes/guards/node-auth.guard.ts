@@ -9,6 +9,7 @@ export class NodeAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
       params: Record<string, string>;
+      nodeSecret?: string;
     }>();
 
     const authHeader = request.headers['authorization'];
@@ -31,6 +32,7 @@ export class NodeAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid node credentials');
     }
 
+    request.nodeSecret = secret;
     return true;
   }
 }

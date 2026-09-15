@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoutingSnapshotService } from './routing-snapshot.service';
+import { decryptRelaySecret } from '../nodes/relay-secret.crypto';
 
 export interface SelectedNode {
   id: number;
@@ -8,6 +9,7 @@ export interface SelectedNode {
   label: string;
   host: string;      // ipv4 or ipv6 address to reach the node's relay
   relayPort: number; // convention: 9443
+  relaySecret: string;
   isLocal: boolean;  // true if this is the control-plane's own host — skip the network hop
 }
 
@@ -58,7 +60,14 @@ export class NodeSelectorService {
     // Look up the address from the DB.
     const node = await this.prisma.node.findUnique({
       where: { id: BigInt(pick.id) },
-      select: { id: true, ipv4Address: true, ipv6Address: true, countryCode: true, label: true },
+      select: {
+        id: true,
+        ipv4Address: true,
+        ipv6Address: true,
+        countryCode: true,
+        label: true,
+        relaySecretEncrypted: true,
+      },
     });
     if (!node || (!node.ipv4Address && !node.ipv6Address)) {
       this.logger.warn(`selected node ${pick.id} has no reachable address`);
@@ -72,12 +81,26 @@ export class NodeSelectorService {
     // which is the honest behaviour for a co-located dev node.
     const isLocal = !!controlPlaneHost && host === controlPlaneHost;
 
+    if (!node.relaySecretEncrypted) {
+      this.logger.warn(`selected node ${pick.id} has not registered a relay credential`);
+      return null;
+    }
+
+    let relaySecret: string;
+    try {
+      relaySecret = decryptRelaySecret(node.relaySecretEncrypted);
+    } catch {
+      this.logger.error(`selected node ${pick.id} has an unreadable relay credential`);
+      return null;
+    }
+
     return {
       id: Number(node.id),
       countryCode: node.countryCode,
       label: node.label,
       host,
       relayPort: parseInt(process.env.NODE_RELAY_PORT ?? '9443', 10),
+      relaySecret,
       isLocal,
     };
   }
@@ -91,18 +114,4 @@ export class NodeSelectorService {
    * For now: read from an env-var-configured map, or return null and let the
    * caller decide to skip the hop.
    */
-  getNodeSecret(nodeId: number): string | null {
-    // Node operators register their relay secret out-of-band in env, e.g.
-    //   NODE_RELAY_SECRETS='{"1":"5510876703...","2":"aaaabbbb..."}'
-    // This avoids ever storing the plaintext relay secret in the DB.
-    const raw = process.env.NODE_RELAY_SECRETS;
-    if (!raw) return null;
-    try {
-      const map = JSON.parse(raw) as Record<string, string>;
-      return map[String(nodeId)] ?? null;
-    } catch {
-      this.logger.error('NODE_RELAY_SECRETS is not valid JSON');
-      return null;
-    }
-  }
 }

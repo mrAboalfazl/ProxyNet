@@ -239,15 +239,29 @@ async function controlRequest(path, body) {
         Authorization: `Bearer ${NODE_SECRET}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`control plane returned ${response.status}`);
+    if (response.status === 204) return undefined;
     return response.json();
   } finally {
     clearTimeout(timeout);
   }
 }
+
+async function registerRelayCredential() {
+  if (!CONTROL_PLANE_URL || !NODE_ID) return;
+  try {
+    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/relay-register`, {});
+    console.log('[node-relay] relay credential registered');
+  } catch (error) {
+    console.warn(`[node-relay] relay credential registration failed: ${error.message}`);
+  }
+}
+
+void registerRelayCredential();
+setInterval(() => void registerRelayCredential(), 5 * 60 * 1000).unref();
 
 async function authorizeSocksCredential(username, password) {
   if (!CONTROL_PLANE_URL || !NODE_ID) throw new Error('SOCKS5 is not configured with a control plane endpoint');

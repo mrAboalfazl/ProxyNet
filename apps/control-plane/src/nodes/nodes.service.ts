@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { encryptRelaySecret } from './relay-secret.crypto';
 
 @Injectable()
 export class NodesService {
@@ -167,6 +168,13 @@ export class NodesService {
     if (!activeStatuses.includes(node.status)) return false;
 
     return bcrypt.compare(secret, node.nodeSecretHash);
+  }
+
+  async registerRelaySecret(nodeId: bigint, secret: string): Promise<void> {
+    await this.prisma.node.update({
+      where: { id: nodeId },
+      data: { relaySecretEncrypted: encryptRelaySecret(secret) },
+    });
   }
 
   async updateStatus(id: bigint, status: string) {

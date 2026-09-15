@@ -9,7 +9,7 @@ import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
 import { AccountStatusStrip } from '../../../lib/account-status';
 
-const API_BASE = 'https://api.civonex.ir/api';
+const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'https://panel.civonex.ir/api';
 
 interface Credential {
   id: string;

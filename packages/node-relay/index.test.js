@@ -25,6 +25,11 @@ function readChunk(socket) {
 test('SOCKS5 requires credentials and rejects private destinations', async (t) => {
   const control = http.createServer((req, res) => {
     assert.equal(req.headers.authorization, 'Bearer node-secret');
+    if (req.url === '/api/nodes/1/relay-register') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
     if (req.url === '/api/nodes/1/usage-events') {
       res.statusCode = 202;
       res.end(JSON.stringify({ accepted: true }));

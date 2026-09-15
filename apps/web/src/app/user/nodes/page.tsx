@@ -6,7 +6,7 @@ import { PageHeader, Card, Table, Tr, Td, Button, Input, Alert, Spinner, Modal, 
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 
-const ENDPOINT = 'https://api.civonex.ir/api';
+const ENDPOINT = 'https://panel.civonex.ir';
 const AGENT_LINUX_URL = 'https://github.com/mrAboalfazl/ProxyNet/releases/download/v1.0.0/agent-linux';
 const AGENT_WINDOWS_URL = 'https://github.com/mrAboalfazl/ProxyNet/releases/download/v1.0.0/agent.exe';
 const DOCS_URL = 'https://github.com/mrAboalfazl/ProxyNet#readme';

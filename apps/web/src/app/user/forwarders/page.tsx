@@ -8,7 +8,7 @@ import { t, Lang } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildForwarderSnippets } from '../../../lib/code-examples';
 import { AccountStatusStrip } from '../../../lib/account-status';
 
-const API_BASE = 'https://api.civonex.ir/api';
+const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'https://panel.civonex.ir/api';
 
 type TestState = { loading: true } | { loading: false; ok: boolean; status?: number; timeMs?: number; msg?: string };
 

@@ -62,11 +62,6 @@ export class GatewayService {
   }
 
   private async fetchViaNode(node: SelectedNode, params: FetchParams): Promise<FetchResult> {
-    const secret = this.nodeSelector.getNodeSecret(node.id);
-    if (!secret) {
-      throw new Error(`no relay secret configured for node ${node.id}`);
-    }
-
     const payload = Buffer.from(JSON.stringify({
       url: params.url,
       method: params.method,
@@ -83,7 +78,7 @@ export class GatewayService {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': String(payload.length),
-          'X-Node-Secret': secret,
+          'X-Node-Secret': node.relaySecret,
         },
         timeout: NODE_HOP_TIMEOUT_MS,
       }, (res) => {

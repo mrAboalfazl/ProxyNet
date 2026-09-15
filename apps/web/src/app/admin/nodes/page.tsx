@@ -104,7 +104,7 @@ export default function AdminNodesPage() {
           <Alert type="success" message={`Token for node ${enrollmentToken.nodeId}: ${enrollmentToken.token}`} />
           <p style={{ margin: '6px 0 0', fontSize: 12, color: colors.textMuted }}>
             Run: <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 }}>
-              {'./agent -enroll -endpoint https://api.civonex.ir/api -token ' + enrollmentToken.token}
+              {'./agent -enroll -endpoint https://panel.civonex.ir -token ' + enrollmentToken.token}
             </code>
           </p>
           <Button onClick={() => setEnrollmentToken(null)} variant="ghost" size="sm" style={{ marginTop: 8 }}>

@@ -102,6 +102,14 @@ export class NodesController {
   // All share NodeAuthGuard which reads :id from path params
   // ──────────────────────────────────────────────
 
+  /** Node relay stores its authenticated relay credential, encrypted at rest. */
+  @UseGuards(NodeAuthGuard)
+  @Post(':id/relay-register')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async registerRelaySecret(@Param('id') id: string, @Req() req: { nodeSecret?: string }) {
+    await this.nodes.registerRelaySecret(BigInt(id), req.nodeSecret!);
+  }
+
   /** Agent heartbeat */
   @UseGuards(NodeAuthGuard)
   @Post(':id/heartbeat')
