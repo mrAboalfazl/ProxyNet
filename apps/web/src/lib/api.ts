@@ -176,6 +176,7 @@ export const api = {
   // Countries
   countries: {
     list: () => request<Country[]>('GET', '/countries'),
+    listAdmin: () => request<Country[]>('GET', '/admin/countries'),
     setEnabled: (code: string, enabled: boolean) =>
       request<Country>('PATCH', `/admin/countries/${code}/enabled`, { enabled }),
     status: () => request<CountryStatus[]>('GET', '/admin/countries/status'),

@@ -96,6 +96,12 @@ export class AdminController {
   }
 
   // ── Countries ──
+  /** Admins must be able to re-enable countries that are temporarily disabled. */
+  @Get('countries')
+  listCountries() {
+    return this.countries.findAll(false);
+  }
+
   @Post('countries')
   upsertCountry(@Body() body: { code: string; name: string }) {
     return this.countries.upsert(body.code, body.name);

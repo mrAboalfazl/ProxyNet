@@ -14,7 +14,7 @@ export default function AdminCountriesPage() {
   async function load() {
     setLoading(true);
     try {
-      const [c, s] = await Promise.all([api.countries.list(), api.countries.status().catch(() => [])]);
+      const [c, s] = await Promise.all([api.countries.listAdmin(), api.countries.status().catch(() => [])]);
       setCountries(c);
       const statusMap: typeof poolStatus = {};
       for (const entry of s) {
