@@ -35,6 +35,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  function loginError(err: unknown, fallback: string) {
+    const message = err instanceof Error ? err.message : fallback;
+    if (lang === 'fa' && message === 'Phone number is not registered') {
+      return 'این شماره موبایل ثبت‌نام نشده است.';
+    }
+    return message;
+  }
+
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -44,7 +52,7 @@ export default function LoginPage() {
       setToken(accessToken);
       router.push(getRoleFromToken(accessToken) === 'admin' ? '/admin/dashboard' : '/user/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(loginError(err, 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -65,7 +73,7 @@ export default function LoginPage() {
       }
       setCodeSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send code');
+      setError(loginError(err, 'Failed to send code'));
     } finally {
       setLoading(false);
     }
@@ -80,7 +88,7 @@ export default function LoginPage() {
       setToken(accessToken);
       router.push(getRoleFromToken(accessToken) === 'admin' ? '/admin/dashboard' : '/user/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code');
+      setError(loginError(err, 'Invalid code'));
     } finally {
       setLoading(false);
     }

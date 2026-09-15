@@ -247,12 +247,22 @@ export class AuthService {
   }
 
   private async findUserByIdentifier(identifier: string) {
+    const input = identifier.trim();
+    const canonicalPhone = (() => {
+      try {
+        return normalizeIranPhone(input);
+      } catch {
+        return undefined;
+      }
+    })();
+
     return this.prisma.user.findFirst({
       where: {
         OR: [
-          { email: identifier },
-          { phone: identifier },
-          { telegramId: identifier },
+          { email: input.toLowerCase() },
+          { phone: input },
+          ...(canonicalPhone && canonicalPhone !== input ? [{ phone: canonicalPhone }] : []),
+          { telegramId: input },
         ],
         status: 'active',
       },
