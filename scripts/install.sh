@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-PROXYNET_VERSION="v1.0.1"
+PROXYNET_VERSION="v1.0.2"
 GITHUB_REPO="mrAboalfazl/ProxyNet"
 DEFAULT_PANEL="https://api.civonex.ir"
 

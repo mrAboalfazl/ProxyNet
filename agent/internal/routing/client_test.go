@@ -18,7 +18,7 @@ func TestGetSnapshotUsesNodeAuthenticatedEndpoint(t *testing.T) {
 			t.Fatalf("authorization = %q, want node bearer secret", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"configVersion":1,"nodes":[],"policies":[]}`))
+		_, _ = w.Write([]byte(`{"version":"1","nodes":[{"id":"42","countryCode":"DE","status":"healthy","roles":["exit"],"endpoints":[{"ipAddress":"192.0.2.10","port":443,"transportType":"vless_reality"}]}],"policies":[{"id":"7","name":"default","countryCode":"DE","maxHops":1}]}`))
 	}))
 	defer server.Close()
 
@@ -28,5 +28,8 @@ func TestGetSnapshotUsesNodeAuthenticatedEndpoint(t *testing.T) {
 	}
 	if snapshot.ConfigVersion != 1 {
 		t.Fatalf("config version = %d, want 1", snapshot.ConfigVersion)
+	}
+	if got := snapshot.Nodes[0].Endpoints[0].Protocol; got != "vless_reality" {
+		t.Fatalf("endpoint protocol = %q, want vless_reality", got)
 	}
 }

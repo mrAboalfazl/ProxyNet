@@ -16,7 +16,7 @@ import (
 	"github.com/proxy-platform/agent/internal/routing"
 )
 
-const agentVersion = "v1.0.1"
+const agentVersion = "v1.0.2"
 
 // Agent manages the connection to the Control Plane and coordinates
 // local data-plane subprocess management.
@@ -95,12 +95,12 @@ func (a *Agent) syncRoutingSnapshot(ctx context.Context) error {
 		return fmt.Errorf("fetch snapshot: %w", err)
 	}
 
-	if snap.ConfigVersion == a.activeConfigVersion {
+	if int64(snap.ConfigVersion) == a.activeConfigVersion {
 		return nil // nothing changed
 	}
 
 	fmt.Printf("[routing] snapshot updated v%d → v%d\n", a.activeConfigVersion, snap.ConfigVersion)
-	a.activeConfigVersion = snap.ConfigVersion
+	a.activeConfigVersion = int64(snap.ConfigVersion)
 
 	if a.xray == nil {
 		// Xray binary not configured — just track the version.
@@ -167,7 +167,7 @@ func buildXrayConfig(cfg *config.Config, snap *routing.Snapshot) *dataplane.Xray
 		}
 		for _, ep := range node.Endpoints {
 			if ep.Protocol == "vless_reality" && ep.Port > 0 {
-				tag := fmt.Sprintf("exit-%d", node.ID)
+				tag := fmt.Sprintf("exit-%s", node.ID)
 				xrayCfg.Outbounds = append(xrayCfg.Outbounds, dataplane.XrayOutbound{
 					Protocol: "vless",
 					Tag:      tag,

@@ -5,19 +5,34 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
 
 // Snapshot is the config snapshot published by the control plane.
 type Snapshot struct {
-	ConfigVersion int64        `json:"configVersion"`
+	ConfigVersion Int64        `json:"version"`
 	Nodes         []NodeInfo   `json:"nodes"`
 	Policies      []PolicyInfo `json:"policies"`
 }
 
+// Int64 accepts either a JSON number or a decimal string. The control plane
+// serializes database bigint values as strings so they remain safe in browsers.
+type Int64 int64
+
+func (value *Int64) UnmarshalJSON(data []byte) error {
+	text := strings.Trim(string(data), "\"")
+	parsed, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid integer %q: %w", text, err)
+	}
+	*value = Int64(parsed)
+	return nil
+}
+
 type NodeInfo struct {
-	ID          int64          `json:"id"`
+	ID          string         `json:"id"`
 	CountryCode string         `json:"countryCode"`
 	Status      string         `json:"status"` // healthy | degraded | active
 	Roles       []string       `json:"roles"`  // edge | relay | exit
@@ -27,11 +42,11 @@ type NodeInfo struct {
 type EndpointInfo struct {
 	IPAddress string `json:"ipAddress"`
 	Port      int    `json:"port"`
-	Protocol  string `json:"protocol"` // vless_reality | shadowsocks | hysteria2
+	Protocol  string `json:"transportType"` // vless_reality | shadowsocks | hysteria2
 }
 
 type PolicyInfo struct {
-	ID          int64  `json:"id"`
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	CountryCode string `json:"countryCode"`
 	MaxHops     int    `json:"maxHops"`
