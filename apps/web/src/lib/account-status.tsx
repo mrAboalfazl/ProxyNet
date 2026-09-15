@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, HealthMeResponse } from './api';
-import { colors } from './ui';
+import { colors } from '../components/user-ui';
 import { t, Lang } from './i18n';
 
 function fmtBytes(n: string | number): string {
@@ -88,7 +88,7 @@ export function AccountStatusStrip({ lang }: { lang: Lang }) {
         </>
       )}
 
-      <div style={{ marginLeft: 'auto' }}>
+      <div style={{ marginInlineStart: 'auto' }}>
         <button
           onClick={load}
           disabled={loading}

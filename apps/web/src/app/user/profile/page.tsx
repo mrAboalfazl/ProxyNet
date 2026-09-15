@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
-import { Card, Button, Input, Alert, Spinner, colors } from '../../../lib/ui';
+import { Card, Button, Input, Alert, Spinner, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 

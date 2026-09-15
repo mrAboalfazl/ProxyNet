@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, WalletMeResponse, WalletTransaction } from '../../../lib/api';
-import { PageHeader, Card, Alert, Spinner, colors } from '../../../lib/ui';
+import { PageHeader, Card, Alert, Spinner, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { AccountStatusStrip } from '../../../lib/account-status';
@@ -113,8 +113,8 @@ export default function WalletPage() {
                   <Th>{t(lang, 'wallet.tx.date')}</Th>
                   <Th>{t(lang, 'wallet.tx.type')}</Th>
                   <Th>{t(lang, 'wallet.tx.description')}</Th>
-                  <Th align="right">{t(lang, 'wallet.tx.amount')}</Th>
-                  <Th align="right">{t(lang, 'wallet.tx.balance')}</Th>
+                  <Th align="end">{t(lang, 'wallet.tx.amount')}</Th>
+                  <Th align="end">{t(lang, 'wallet.tx.balance')}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -141,13 +141,13 @@ export default function WalletPage() {
                           title={tx.description ?? ''}>
                         {tx.description ?? '—'}
                       </Td>
-                      <Td align="right" style={{
+                      <Td align="end" style={{
                         fontVariantNumeric: 'tabular-nums', fontWeight: 600, direction: 'ltr',
                         color: isCredit ? '#166534' : '#991b1b',
                       }}>
                         {isCredit ? '+' : ''}{fmtNum(tx.amountToman, lang)}
                       </Td>
-                      <Td align="right" style={{ fontVariantNumeric: 'tabular-nums', color: colors.textMuted, direction: 'ltr' }}>
+                      <Td align="end" style={{ fontVariantNumeric: 'tabular-nums', color: colors.textMuted, direction: 'ltr' }}>
                         {fmtNum(tx.balanceAfterToman, lang)}
                       </Td>
                     </tr>
@@ -162,7 +162,7 @@ export default function WalletPage() {
   );
 }
 
-function Th({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+function Th({ children, align = 'start' }: { children: React.ReactNode; align?: 'start' | 'end' }) {
   return (
     <th style={{
       padding: '10px 16px', textAlign: align, fontWeight: 600, fontSize: 11,
@@ -173,7 +173,7 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
   );
 }
 
-function Td({ children, align = 'left', style, title }: { children: React.ReactNode; align?: 'left' | 'right'; style?: React.CSSProperties; title?: string }) {
+function Td({ children, align = 'start', style, title }: { children: React.ReactNode; align?: 'start' | 'end'; style?: React.CSSProperties; title?: string }) {
   return <td style={{ padding: '10px 16px', textAlign: align, ...style }} title={title}>{children}</td>;
 }
 

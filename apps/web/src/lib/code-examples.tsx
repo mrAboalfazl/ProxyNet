@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { colors } from './ui';
+import { colors } from '../components/user-ui';
 import { t, Lang } from './i18n';
 
 interface CopyableCodeBlockProps {
@@ -23,7 +23,7 @@ function CopyableCodeBlock({ code, language }: CopyableCodeBlockProps) {
       <button
         onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
         style={{
-          position: 'absolute', top: 8, right: 8,
+          position: 'absolute', top: 8, insetInlineEnd: 8,
           fontSize: 11, padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
           border: '1px solid rgba(255,255,255,0.2)',
           background: copied ? '#166534' : 'rgba(255,255,255,0.05)',
@@ -35,7 +35,7 @@ function CopyableCodeBlock({ code, language }: CopyableCodeBlockProps) {
       </button>
       {language && (
         <span style={{
-          position: 'absolute', top: 8, left: 12,
+          position: 'absolute', top: 8, insetInlineStart: 12,
           fontSize: 10, color: '#64748b', fontWeight: 600,
           letterSpacing: '0.05em', textTransform: 'uppercase',
         }}>

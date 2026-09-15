@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
-import { StatCard, Alert, Spinner, Card, colors } from '../../../lib/ui';
+import { StatCard, Alert, Spinner, Card, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 
@@ -114,7 +114,7 @@ export default function UserDashboardPage() {
       )}
 
       {!planGb && (
-        <Card style={{ padding: '20px 24px', marginBottom: 24, borderLeft: `4px solid ${colors.warning}` }}>
+        <Card style={{ padding: '20px 24px', marginBottom: 24, borderInlineStart: `4px solid ${colors.warning}` }}>
           <p style={{ margin: 0, fontWeight: 600, color: colors.navy }}>{t(lang, 'udash.no_plan')}</p>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: colors.textMuted }}>
             {t(lang, 'udash.no_plan_msg')}

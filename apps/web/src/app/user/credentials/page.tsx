@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../../lib/api';
-import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../lib/ui';
+import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
@@ -122,7 +122,7 @@ print(r.json()["body"])`;
               padding: '10px 14px', fontSize: 11, overflowX: 'auto', direction: 'ltr',
               whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             }}>{curlExample}</pre>
-            <div style={{ position: 'absolute', top: 6, right: 6 }}>
+            <div style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}>
               <CopyButton text={curlExample} label="Copy" />
             </div>
           </div>
@@ -136,7 +136,7 @@ print(r.json()["body"])`;
               padding: '10px 14px', fontSize: 11, overflowX: 'auto', direction: 'ltr',
               whiteSpace: 'pre-wrap',
             }}>{pythonExample}</pre>
-            <div style={{ position: 'absolute', top: 6, right: 6 }}>
+            <div style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}>
               <CopyButton text={pythonExample} label="Copy" />
             </div>
           </div>

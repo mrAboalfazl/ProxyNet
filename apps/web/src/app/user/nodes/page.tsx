@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api, Node } from '../../../lib/api';
-import { PageHeader, Card, Table, Tr, Td, Button, Input, Alert, Spinner, Modal, colors } from '../../../lib/ui';
+import { PageHeader, Card, Table, Tr, Td, Button, Input, Alert, Spinner, Modal, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 

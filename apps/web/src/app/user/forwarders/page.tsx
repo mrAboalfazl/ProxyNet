@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, Forwarder } from '../../../lib/api';
-import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../lib/ui';
+import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t, Lang } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildForwarderSnippets } from '../../../lib/code-examples';
