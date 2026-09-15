@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  shellcheck:
+    name: shellcheck installer + proxynetctl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+          severity: warning
+
+  install-smoke:
+    name: install.sh smoke (parses + --help works)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse-check install.sh
+        run: bash -n scripts/install.sh
+      - name: Parse-check proxynetctl
+        run: bash -n scripts/proxynetctl
+      - name: --help works
+        run: bash scripts/install.sh --help
+      - name: proxynetctl --help works
+        run: bash scripts/proxynetctl --help
+
+  relay-lint:
+    name: node-relay syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Parse-check
+        run: node --check packages/node-relay/index.js
+      - name: Boot + health check
+        run: |
+          NODE_SECRET=ci-test node packages/node-relay/index.js &
+          RELAY_PID=$!
+          sleep 1
+          # /health should return 200 with no auth
+          curl -fsS http://127.0.0.1:9443/health
+          # /fetch without auth should 401
+          code=$(curl -so /dev/null -w '%{http_code}' -X POST http://127.0.0.1:9443/fetch -H 'Content-Type: application/json' -d '{}')
+          [ "$code" = "401" ] || (echo "expected 401, got $code" && exit 1)
+          # /fetch with wrong secret should 401
+          code=$(curl -so /dev/null -w '%{http_code}' -X POST http://127.0.0.1:9443/fetch -H 'X-Node-Secret: wrong' -d '{}')
+          [ "$code" = "401" ] || (echo "expected 401 wrong-secret, got $code" && exit 1)
+          # /fetch with correct secret but no url should 400
+          code=$(curl -so /dev/null -w '%{http_code}' -X POST http://127.0.0.1:9443/fetch -H 'X-Node-Secret: ci-test' -H 'Content-Type: application/json' -d '{}')
+          [ "$code" = "400" ] || (echo "expected 400 no-url, got $code" && exit 1)
+          # SSRF: fetching 127.0.0.1 should fail
+          code=$(curl -so /tmp/resp -w '%{http_code}' -X POST http://127.0.0.1:9443/fetch -H 'X-Node-Secret: ci-test' -H 'Content-Type: application/json' -d '{"url":"http://127.0.0.1:1/"}')
+          # relay returns 502 + error message for blocked hosts
+          grep -q 'Blocked destination host' /tmp/resp || (cat /tmp/resp && exit 1)
+          kill $RELAY_PID
