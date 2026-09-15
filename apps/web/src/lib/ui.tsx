@@ -146,7 +146,8 @@ export function Table({
               <th
                 key={h}
                 style={{
-                  textAlign: 'left',
+                  // Match cell alignment in both LTR and RTL admin screens.
+                  textAlign: 'start',
                   padding: '10px 16px',
                   fontSize: 12,
                   fontWeight: 600,
