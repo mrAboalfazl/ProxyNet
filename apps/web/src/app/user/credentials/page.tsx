@@ -363,6 +363,21 @@ export default function UserCredentialsPage() {
                     ? 'برای استفاده از HTTP Gateway به UUID و Secret نیاز دارید. Secret فقط یک بار (هنگام ساخت) نمایش داده می‌شود.'
                     : 'Use with HTTP Gateway needs UUID + Secret. The Secret is shown once at creation.'}
                 </p>
+                {!socksRequiresPlan && socksEndpoints.length > 0 && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 6 }}>SOCKS5 CONNECTION LINK</div>
+                    {socksEndpoints.map((endpoint) => {
+                      const template = `socks5://${encodeURIComponent(cred.uuid)}:YOUR_SECRET@${endpoint.host}:${endpoint.port}`;
+                      return (
+                        <div key={endpoint.nodeId} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center', direction: 'ltr', marginBottom: 6 }}>
+                          <code style={{ minWidth: 0, background: '#f8fafc', border: `1px solid ${colors.border}`, borderRadius: 7, padding: '8px 10px', fontSize: 11, overflowWrap: 'anywhere' }}>{template}</code>
+                          <CopyButton text={template} label="Copy link" />
+                        </div>
+                      );
+                    })}
+                    <div style={{ fontSize: 11, color: colors.textMuted }}>Replace <code>YOUR_SECRET</code> with the secret shown when this credential was created.</div>
+                  </div>
+                )}
               </div>
             </Card>
           ))}
