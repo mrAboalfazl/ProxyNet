@@ -95,7 +95,7 @@ export const api = {
     request<void>('DELETE', `/proxy-credentials/${id}`),
 
   socks5: {
-    endpoints: () => request<Socks5Endpoint[]>('GET', '/proxy-credentials/socks5/endpoints'),
+    endpoints: () => request<Socks5EndpointResult>('GET', '/proxy-credentials/socks5/endpoints'),
   },
 
   // Dashboard
@@ -249,6 +249,11 @@ export interface Socks5Endpoint {
   countryName: string;
   host: string;
   port: number;
+}
+
+export interface Socks5EndpointResult {
+  endpoints: Socks5Endpoint[];
+  requiresActivePlan: boolean;
 }
 
 export interface WalletMeResponse {

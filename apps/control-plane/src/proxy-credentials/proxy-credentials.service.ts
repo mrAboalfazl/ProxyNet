@@ -4,6 +4,18 @@ import { XrayConfigService } from '../xray/xray-config.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
+export interface Socks5EndpointResult {
+  endpoints: Array<{
+    nodeId: string;
+    label: string;
+    countryCode: string;
+    countryName: string;
+    host: string;
+    port: number;
+  }>;
+  requiresActivePlan: boolean;
+}
+
 @Injectable()
 export class ProxyCredentialsService {
   constructor(
@@ -51,13 +63,13 @@ export class ProxyCredentialsService {
     });
   }
 
-  async getSocks5Endpoints(userId: bigint) {
+  async getSocks5Endpoints(userId: bigint): Promise<Socks5EndpointResult> {
     const subscription = await this.prisma.subscription.findFirst({
       where: { userId, status: 'active' },
       include: { plan: true },
       orderBy: { createdAt: 'desc' },
     });
-    if (!subscription) return [];
+    if (!subscription) return { endpoints: [], requiresActivePlan: true };
 
     const nodes = await this.prisma.node.findMany({
       where: {
@@ -70,7 +82,7 @@ export class ProxyCredentialsService {
         country: { select: { name: true } },
         heartbeats: {
           select: { agentVersion: true },
-          orderBy: { createdAt: 'desc' },
+          orderBy: { reportedAt: 'desc' },
           take: 1,
         },
       },
@@ -79,7 +91,9 @@ export class ProxyCredentialsService {
 
     const allowedCountries = subscription.plan.allowedCountries;
     const socksPort = Number.parseInt(process.env.SOCKS5_PORT ?? '1080', 10) || 1080;
-    return nodes
+    return {
+      requiresActivePlan: false,
+      endpoints: nodes
       .filter((node) =>
         (allowedCountries.length === 0 || allowedCountries.includes(node.countryCode)) &&
         supportsSocks5(node.heartbeats[0]?.agentVersion),
@@ -91,7 +105,8 @@ export class ProxyCredentialsService {
         countryName: node.country.name,
         host: node.ipv4Address as string,
         port: socksPort,
-      }));
+      })),
+    };
   }
 
   async revoke(userId: bigint, credentialId: bigint): Promise<void> {

@@ -8,6 +8,7 @@ import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
 import { AccountStatusStrip } from '../../../lib/account-status';
+import { Server, ShieldAlert } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'https://panel.civonex.ir/api';
 
@@ -35,11 +36,12 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      onClick={() => { void navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
       style={{
-        fontSize: 12, padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
-        border: `1px solid ${colors.border}`, background: copied ? '#dcfce7' : '#f8fafc',
-        color: copied ? '#166534' : colors.textMuted, whiteSpace: 'nowrap',
+        minHeight: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 7, cursor: 'pointer',
+        border: `1px solid ${copied ? '#86efac' : '#cbd5e1'}`, background: copied ? '#dcfce7' : '#fff',
+        color: copied ? '#166534' : '#334155', whiteSpace: 'nowrap', transition: 'all 120ms ease',
       }}
     >
       {copied ? '✓' : label}
@@ -47,7 +49,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function SecretBanner({ cred, lang, endpoints, onDismiss }: { cred: NewlyCreated; lang: string; endpoints: Socks5Endpoint[]; onDismiss: () => void }) {
+function SecretBanner({ cred, lang, endpoints, requiresActivePlan, onDismiss }: { cred: NewlyCreated; lang: string; endpoints: Socks5Endpoint[]; requiresActivePlan: boolean; onDismiss: () => void }) {
   const basicAuth = buildBasicAuth(cred.uuid, cred.secret);
 
   const curlExample = `curl -X POST ${API_BASE}/gateway/fetch \\
@@ -104,13 +106,18 @@ print(r.json()["body"])`;
       </div>
 
       <div style={{ borderTop: '1px solid #fcd34d', paddingTop: 16, marginTop: 4, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#78350f', marginBottom: 8 }}>SOCKS5</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, fontWeight: 700, color: '#78350f', marginBottom: 8 }}><Server size={16} /> SOCKS5</div>
         <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
           {lang === 'fa'
             ? 'نام کاربری UUID و رمز عبور Secret است. SOCKS5 به‌صورت رمزنگاری‌شده اجرا نمی‌شود؛ فقط از شبکه مورداعتماد استفاده کنید.'
             : 'Use the UUID as the username and Secret as the password. SOCKS5 does not encrypt authentication; use it only from a trusted network.'}
         </p>
-        {endpoints.length === 0 ? (
+        {requiresActivePlan ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#9a3412' }}>
+            <ShieldAlert size={16} style={{ flex: '0 0 auto', marginTop: 1 }} />
+            <span>{lang === 'fa' ? 'برای استفاده از SOCKS5 ابتدا یک اشتراک فعال تهیه یا فعال کنید. نود آلمان آماده است، اما بدون اشتراک اتصال مجاز نیست.' : 'Activate a subscription before using SOCKS5. The German node is ready, but connections are blocked without an active subscription.'}</span>
+          </div>
+        ) : endpoints.length === 0 ? (
           <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
             {lang === 'fa' ? 'هنوز هیچ نود SOCKS5 آماده‌ای وجود ندارد.' : 'No SOCKS5-enabled node is ready yet.'}
           </p>
@@ -189,13 +196,15 @@ export default function UserCredentialsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newlyCreated, setNewlyCreated] = useState<NewlyCreated | null>(null);
   const [socksEndpoints, setSocksEndpoints] = useState<Socks5Endpoint[]>([]);
+  const [socksRequiresPlan, setSocksRequiresPlan] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const [data, endpoints] = await Promise.all([api.myCredentials(), api.socks5.endpoints()]);
+      const [data, socks] = await Promise.all([api.myCredentials(), api.socks5.endpoints()]);
       setCreds(data);
-      setSocksEndpoints(endpoints);
+      setSocksEndpoints(socks.endpoints);
+      setSocksRequiresPlan(socks.requiresActivePlan);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load credentials');
     } finally {
@@ -208,8 +217,9 @@ export default function UserCredentialsPage() {
     setCreating(true);
     setError('');
     try {
-      const [cred, endpoints] = await Promise.all([api.createCredential(newLabel.trim()), api.socks5.endpoints()]);
-      setSocksEndpoints(endpoints);
+      const [cred, socks] = await Promise.all([api.createCredential(newLabel.trim()), api.socks5.endpoints()]);
+      setSocksEndpoints(socks.endpoints);
+      setSocksRequiresPlan(socks.requiresActivePlan);
       setNewlyCreated({
         id: cred.id,
         uuid: cred.uuid,
@@ -284,10 +294,33 @@ export default function UserCredentialsPage() {
       )}
 
       {newlyCreated && (
-        <SecretBanner cred={newlyCreated} lang={lang} endpoints={socksEndpoints} onDismiss={() => setNewlyCreated(null)} />
+        <SecretBanner cred={newlyCreated} lang={lang} endpoints={socksEndpoints} requiresActivePlan={socksRequiresPlan} onDismiss={() => setNewlyCreated(null)} />
       )}
 
       {error && <Alert message={error} />}
+
+      {!loading && (
+        <Card style={{ padding: '18px 20px', marginBottom: 16, border: `1px solid ${socksRequiresPlan ? '#fed7aa' : '#bfdbfe'}`, background: socksRequiresPlan ? '#fff7ed' : '#f8fbff' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            {socksRequiresPlan ? <ShieldAlert size={20} color="#c2410c" /> : <Server size={20} color={colors.primary} />}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 750, color: colors.navy, marginBottom: 5 }}>SOCKS5</div>
+              {socksRequiresPlan ? (
+                <div style={{ fontSize: 13, lineHeight: 1.7, color: '#9a3412' }}>
+                  {lang === 'fa' ? 'نود آلمان آماده است، اما این حساب اشتراک فعال ندارد. پس از فعال‌سازی اشتراک، مشخصات اتصال اینجا نمایش داده می‌شود.' : 'The German node is ready, but this account has no active subscription. Connection details appear here after a subscription is activated.'}
+                </div>
+              ) : socksEndpoints.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {socksEndpoints.map((endpoint) => <div key={endpoint.nodeId} style={{ fontSize: 13, color: colors.text }}><strong>{endpoint.countryName} · {endpoint.label}</strong><code style={{ marginInlineStart: 8, direction: 'ltr' }}>{endpoint.host}:{endpoint.port}</code></div>)}
+                  <div style={{ fontSize: 12, color: colors.textMuted }}>{lang === 'fa' ? 'نام کاربری UUID و رمز عبور Secret اعتبارنامه شماست.' : 'Use your credential UUID as the username and its Secret as the password.'}</div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: colors.textMuted }}>{lang === 'fa' ? 'در حال حاضر هیچ نود SOCKS5 آماده‌ای وجود ندارد.' : 'No SOCKS5 node is currently ready.'}</div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {loading ? (
         <Spinner />
