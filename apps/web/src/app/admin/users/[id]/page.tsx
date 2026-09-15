@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle } from '../../../../lib/api';
+import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle, Plan } from '../../../../lib/api';
 import { PageHeader, Card, Badge, Button, Alert, Spinner, colors } from '../../../../lib/ui';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -33,6 +33,9 @@ export default function AdminUserDetailPage() {
   const [topupAmount, setTopupAmount] = useState('');
   const [topupNote, setTopupNote] = useState('');
   const [topupBusy, setTopupBusy] = useState(false);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [assigningPlan, setAssigningPlan] = useState(false);
 
   async function loadWallet() {
     try {
@@ -43,6 +46,26 @@ export default function AdminUserDetailPage() {
     }
   }
   useEffect(() => { loadWallet(); }, [params.id]);
+
+  useEffect(() => {
+    api.plans.list().then((items) => {
+      setPlans(items);
+      if (items.length > 0) setSelectedPlanId(String(items[0].id));
+    }).catch((e) => setError(e instanceof Error ? e.message : 'Failed to load plans'));
+  }, []);
+
+  async function assignPlan() {
+    if (!selectedPlanId) return;
+    setAssigningPlan(true);
+    try {
+      await api.plans.assignToUser(params.id, selectedPlanId);
+      setUser(await api.users.get(params.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to assign plan');
+    } finally {
+      setAssigningPlan(false);
+    }
+  }
 
   async function submitTopup(e: React.FormEvent) {
     e.preventDefault();
@@ -120,6 +143,28 @@ export default function AdminUserDetailPage() {
             </div>
           ))}
         </div>
+      </Card>
+
+      <Card style={{ padding: '20px 24px', marginBottom: 20, border: '1px solid #bfdbfe', background: '#f8fbff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: colors.navy, marginBottom: 5 }}>Subscription</div>
+            <div style={{ fontSize: 13, color: colors.textMuted }}>
+              {user.subscriptions?.find((s) => s.status === 'active')?.plan
+                ? `Active: ${user.subscriptions.find((s) => s.status === 'active')?.plan.name}`
+                : 'No active subscription. Assign a plan to enable SOCKS5 and quota access.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)} disabled={plans.length === 0 || assigningPlan} style={{ minWidth: 210, padding: '9px 10px', border: `1px solid ${colors.border}`, borderRadius: 7, background: '#fff', fontSize: 13 }}>
+              {plans.length === 0 ? <option value="">No active plans</option> : plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.monthlyBandwidthGb} GB</option>)}
+            </select>
+            <Button onClick={assignPlan} disabled={!selectedPlanId || plans.length === 0 || assigningPlan}>
+              {assigningPlan ? 'Assigning…' : 'Assign plan'}
+            </Button>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: 12, color: colors.textMuted }}>Assigning a plan replaces the current active subscription and starts a new 30-day period.</div>
       </Card>
 
       {/* Wallet — admin can top up + view transactions */}
