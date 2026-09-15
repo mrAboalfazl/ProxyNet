@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -15,10 +17,10 @@ type Snapshot struct {
 }
 
 type NodeInfo struct {
-	ID          int64    `json:"id"`
-	CountryCode string   `json:"countryCode"`
-	Status      string   `json:"status"` // healthy | degraded | active
-	Roles       []string `json:"roles"`  // edge | relay | exit
+	ID          int64          `json:"id"`
+	CountryCode string         `json:"countryCode"`
+	Status      string         `json:"status"` // healthy | degraded | active
+	Roles       []string       `json:"roles"`  // edge | relay | exit
 	Endpoints   []EndpointInfo `json:"endpoints"`
 }
 
@@ -56,7 +58,8 @@ func NewClient(endpoint, nodeID, nodeSecret string) *Client {
 
 // GetSnapshot fetches the current routing snapshot from the control plane.
 func (c *Client) GetSnapshot() (*Snapshot, error) {
-	req, err := http.NewRequest(http.MethodGet, c.endpoint+"/api/routing/snapshot", nil)
+	snapshotURL := strings.TrimRight(c.endpoint, "/") + "/api/nodes/" + url.PathEscape(c.nodeID) + "/snapshot"
+	req, err := http.NewRequest(http.MethodGet, snapshotURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

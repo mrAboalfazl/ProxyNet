@@ -16,10 +16,10 @@ type enrollRequest struct {
 }
 
 type enrollResponse struct {
-	ID             int64  `json:"id"`
-	Status         string `json:"status"`
-	ConfigVersion  int64  `json:"configVersion"`
-	NodeSecret     string `json:"nodeSecret"`
+	ID            int64  `json:"id"`
+	Status        string `json:"status"`
+	ConfigVersion int64  `json:"configVersion"`
+	NodeSecret    string `json:"nodeSecret"`
 }
 
 // Enroll performs the one-time enrollment of this node with the Control Plane.
@@ -27,7 +27,7 @@ type enrollResponse struct {
 func Enroll(endpoint, token, cfgPath string) error {
 	body, _ := json.Marshal(enrollRequest{
 		Token:        token,
-		AgentVersion: "0.1.0",
+		AgentVersion: agentVersion,
 	})
 
 	resp, err := http.Post(endpoint+"/api/nodes/enroll", "application/json", bytes.NewReader(body))

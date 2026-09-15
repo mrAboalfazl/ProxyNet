@@ -16,6 +16,8 @@ import (
 	"github.com/proxy-platform/agent/internal/routing"
 )
 
+const agentVersion = "v1.0.1"
+
 // Agent manages the connection to the Control Plane and coordinates
 // local data-plane subprocess management.
 type Agent struct {
@@ -200,7 +202,7 @@ type heartbeatPayload struct {
 
 func (a *Agent) sendHeartbeat() error {
 	payload := heartbeatPayload{
-		AgentVersion:   "0.1.0",
+		AgentVersion:   agentVersion,
 		ConfigVersion:  a.activeConfigVersion,
 		ActiveSessions: a.activeSessions,
 	}
