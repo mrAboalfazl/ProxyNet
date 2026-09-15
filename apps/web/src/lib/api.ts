@@ -225,9 +225,9 @@ export interface Country {
 }
 
 export interface CountryStatus {
-  countryCode: string;
-  totalNodes: number;
-  healthyNodes: number;
+  code: string;
+  total: number;
+  healthy: number;
 }
 
 export interface ProxyCredential {

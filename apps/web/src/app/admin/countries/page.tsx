@@ -18,7 +18,7 @@ export default function AdminCountriesPage() {
       setCountries(c);
       const statusMap: typeof poolStatus = {};
       for (const entry of s) {
-        statusMap[entry.countryCode] = { totalNodes: entry.totalNodes, healthyNodes: entry.healthyNodes };
+        statusMap[entry.code] = { totalNodes: entry.total, healthyNodes: entry.healthy };
       }
       setPoolStatus(statusMap);
       setError('');
