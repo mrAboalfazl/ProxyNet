@@ -168,7 +168,7 @@ export class OtpService {
     const body = new URLSearchParams({
       receptor: phone,
       message: `Civonex verification code: ${code}`,
-      sender: '',
+      sender: process.env.KAVENEGAR_SENDER ?? '',
     });
 
     try {
