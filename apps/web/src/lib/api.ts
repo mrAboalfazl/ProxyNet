@@ -94,6 +94,10 @@ export const api = {
   revokeCredential: (id: string) =>
     request<void>('DELETE', `/proxy-credentials/${id}`),
 
+  socks5: {
+    endpoints: () => request<Socks5Endpoint[]>('GET', '/proxy-credentials/socks5/endpoints'),
+  },
+
   // Dashboard
   dashboard: () =>
     request<{ totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number }>(
@@ -236,6 +240,15 @@ export interface ProxyCredential {
   label: string | null;
   enabled: boolean;
   createdAt: string;
+}
+
+export interface Socks5Endpoint {
+  nodeId: string;
+  label: string;
+  countryCode: string;
+  countryName: string;
+  host: string;
+  port: number;
 }
 
 export interface WalletMeResponse {

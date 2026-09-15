@@ -24,6 +24,11 @@ export class ProxyCredentialsController {
     return this.proxyCredentials.findByUser(BigInt(req.user.id));
   }
 
+  @Get('socks5/endpoints')
+  getSocks5Endpoints(@Request() req) {
+    return this.proxyCredentials.getSocks5Endpoints(BigInt(req.user.id));
+  }
+
   @Post()
   create(@Request() req, @Body() body: { label?: string }) {
     return this.proxyCredentials.create(BigInt(req.user.id), body.label);

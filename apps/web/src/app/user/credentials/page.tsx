@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { api } from '../../../lib/api';
+import { api, Socks5Endpoint } from '../../../lib/api';
 import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
@@ -47,7 +47,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-function SecretBanner({ cred, lang, onDismiss }: { cred: NewlyCreated; lang: string; onDismiss: () => void }) {
+function SecretBanner({ cred, lang, endpoints, onDismiss }: { cred: NewlyCreated; lang: string; endpoints: Socks5Endpoint[]; onDismiss: () => void }) {
   const basicAuth = buildBasicAuth(cred.uuid, cred.secret);
 
   const curlExample = `curl -X POST ${API_BASE}/gateway/fetch \\
@@ -101,6 +101,29 @@ print(r.json()["body"])`;
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{ borderTop: '1px solid #fcd34d', paddingTop: 16, marginTop: 4, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#78350f', marginBottom: 8 }}>SOCKS5</div>
+        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
+          {lang === 'fa'
+            ? 'نام کاربری UUID و رمز عبور Secret است. SOCKS5 به‌صورت رمزنگاری‌شده اجرا نمی‌شود؛ فقط از شبکه مورداعتماد استفاده کنید.'
+            : 'Use the UUID as the username and Secret as the password. SOCKS5 does not encrypt authentication; use it only from a trusted network.'}
+        </p>
+        {endpoints.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
+            {lang === 'fa' ? 'هنوز هیچ نود SOCKS5 آماده‌ای وجود ندارد.' : 'No SOCKS5-enabled node is ready yet.'}
+          </p>
+        ) : endpoints.map((endpoint) => {
+          const uri = `socks5://${encodeURIComponent(cred.uuid)}:${encodeURIComponent(cred.secret)}@${endpoint.host}:${endpoint.port}`;
+          return (
+            <div key={endpoint.nodeId} style={{ background: '#fff', border: '1px solid #fcd34d', borderRadius: 6, padding: '10px 12px', marginTop: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 6 }}>{endpoint.countryName} · {endpoint.label}</div>
+              <code style={{ display: 'block', fontSize: 11, direction: 'ltr', overflowWrap: 'anywhere', color: colors.text }}>{uri}</code>
+              <div style={{ marginTop: 7 }}><CopyButton text={uri} label="Copy SOCKS5 URL" /></div>
+            </div>
+          );
+        })}
       </div>
 
       {/* API usage */}
@@ -165,12 +188,14 @@ export default function UserCredentialsPage() {
   const [newLabel, setNewLabel] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newlyCreated, setNewlyCreated] = useState<NewlyCreated | null>(null);
+  const [socksEndpoints, setSocksEndpoints] = useState<Socks5Endpoint[]>([]);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await api.myCredentials();
+      const [data, endpoints] = await Promise.all([api.myCredentials(), api.socks5.endpoints()]);
       setCreds(data);
+      setSocksEndpoints(endpoints);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load credentials');
     } finally {
@@ -183,7 +208,8 @@ export default function UserCredentialsPage() {
     setCreating(true);
     setError('');
     try {
-      const cred = await api.createCredential(newLabel.trim());
+      const [cred, endpoints] = await Promise.all([api.createCredential(newLabel.trim()), api.socks5.endpoints()]);
+      setSocksEndpoints(endpoints);
       setNewlyCreated({
         id: cred.id,
         uuid: cred.uuid,
@@ -258,7 +284,7 @@ export default function UserCredentialsPage() {
       )}
 
       {newlyCreated && (
-        <SecretBanner cred={newlyCreated} lang={lang} onDismiss={() => setNewlyCreated(null)} />
+        <SecretBanner cred={newlyCreated} lang={lang} endpoints={socksEndpoints} onDismiss={() => setNewlyCreated(null)} />
       )}
 
       {error && <Alert message={error} />}

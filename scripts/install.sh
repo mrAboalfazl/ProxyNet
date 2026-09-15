@@ -17,9 +17,9 @@ set -euo pipefail
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-PROXYNET_VERSION="v1.0.2"
+PROXYNET_VERSION="v1.1.0"
 GITHUB_REPO="mrAboalfazl/ProxyNet"
-DEFAULT_PANEL="https://api.civonex.ir"
+DEFAULT_PANEL="https://panel.civonex.ir"
 
 # Where things live on the node
 SYS_USER="proxynet"
@@ -252,8 +252,12 @@ EOF
 
   cat > "$ETC_DIR/relay.env" <<EOF
 NODE_SECRET=$NODE_SECRET
+NODE_ID=$NODE_ID
+CONTROL_PLANE_URL=$PANEL
 RELAY_HOST=0.0.0.0
 RELAY_PORT=9443
+SOCKS_HOST=0.0.0.0
+SOCKS_PORT=1080
 EOF
   chmod 0640 "$ETC_DIR/relay.env"
   chown "$SYS_USER:$SYS_GROUP" "$ETC_DIR/relay.env"
@@ -433,11 +437,13 @@ configure_firewall() {
   step "Configuring firewall"
   if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
     ufw allow 9443/tcp comment 'ProxyNet relay' >>"$LOG_FILE" 2>&1 || true
-    ok "ufw: opened 9443/tcp"
+    ufw allow 1080/tcp comment 'ProxyNet SOCKS5' >>"$LOG_FILE" 2>&1 || true
+    ok "ufw: opened 9443/tcp and 1080/tcp"
   elif command -v firewall-cmd >/dev/null && systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-port=9443/tcp >>"$LOG_FILE" 2>&1 || true
+    firewall-cmd --permanent --add-port=1080/tcp >>"$LOG_FILE" 2>&1 || true
     firewall-cmd --reload >>"$LOG_FILE" 2>&1 || true
-    ok "firewalld: opened 9443/tcp"
+    ok "firewalld: opened 9443/tcp and 1080/tcp"
   else
     warn "no active firewall detected — make sure port 9443/tcp is reachable from $PANEL"
   fi
@@ -475,6 +481,7 @@ ${C_GRN}${C_BLD}═════════════════════�
 
   Node ID:      ${C_BLD}$NODE_ID${C_RESET}  ($NODE_LABEL, $NODE_COUNTRY)
   Control URL:  $PANEL
+  SOCKS5:       ${DETECTED_IPV4:-your-node-ip}:1080
   Config:       $ETC_DIR/agent.json
   Log file:     $LOG_FILE
 

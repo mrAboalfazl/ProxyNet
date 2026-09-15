@@ -93,6 +93,29 @@ export class QuotaService {
     return JSON.parse(raw) as QuotaTokenPayload;
   }
 
+  /** Return a live token, creating one from the user's active plan when needed. */
+  async getOrIssueToken(userId: bigint, credentialUuid: string): Promise<QuotaTokenPayload | null> {
+    return (await this.getToken(credentialUuid)) ?? this.issueToken(userId, credentialUuid);
+  }
+
+  /** Atomically deduct completed SOCKS5 session traffic from the live token. */
+  async consumeTokenBytes(credentialUuid: string, bytes: bigint): Promise<void> {
+    if (bytes <= 0n) return;
+    const key = `quota:token:${credentialUuid}`;
+    await this.redis.eval(
+      `local raw = redis.call('GET', KEYS[1])
+       if not raw then return 0 end
+       local token = cjson.decode(raw)
+       token.bytesRemaining = tostring(math.max(0, tonumber(token.bytesRemaining) - tonumber(ARGV[1])))
+       local ttl = redis.call('TTL', KEYS[1])
+       if ttl > 0 then redis.call('SETEX', KEYS[1], ttl, cjson.encode(token)) end
+       return 1`,
+      1,
+      key,
+      bytes.toString(),
+    );
+  }
+
   async revokeUserTokens(userId: bigint): Promise<void> {
     const credentials = await this.prisma.proxyCredential.findMany({
       where: { userId, enabled: true },

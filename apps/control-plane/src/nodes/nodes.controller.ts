@@ -19,6 +19,8 @@ import { QuotaService } from '../quota/quota.service';
 import { MeteringService, RecordUsageEventData } from '../metering/metering.service';
 import { ProxyCredentialsService } from '../proxy-credentials/proxy-credentials.service';
 import { RoutingSnapshotService } from '../routing/routing-snapshot.service';
+import { WalletService } from '../wallet/wallet.service';
+import { PricingService } from '../wallet/pricing.service';
 
 @ApiTags('nodes')
 @ApiBearerAuth()
@@ -30,6 +32,8 @@ export class NodesController {
     private readonly metering: MeteringService,
     private readonly proxyCredentials: ProxyCredentialsService,
     private readonly routingSnapshot: RoutingSnapshotService,
+    private readonly wallet: WalletService,
+    private readonly pricing: PricingService,
   ) {}
 
   // ──────────────────────────────────────────────
@@ -141,8 +145,14 @@ export class NodesController {
       return { allowed: false, reason: 'invalid_credential' };
     }
 
-    // Check Redis for a live quota token
-    const quotaToken = await this.quota.getToken(body.uuid);
+    const pricing = await this.pricing.get();
+    if (!(await this.wallet.hasMinBalance(valid.userId, pricing.minBalanceToman))) {
+      return { allowed: false, reason: 'insufficient_balance' };
+    }
+
+    // Issue a short-lived quota token on first use, then reuse it for subsequent
+    // SOCKS5 sessions until it expires.
+    const quotaToken = await this.quota.getOrIssueToken(valid.userId, body.uuid);
     if (!quotaToken) {
       return { allowed: false, reason: 'no_quota_token' };
     }
@@ -198,21 +208,42 @@ export class NodesController {
       exitCountry?: string;
       exitNodeId?: string;
       destination?: string;
+      credentialUuid?: string;
     },
   ) {
+    const userId = BigInt(body.userId);
+    const bytesIn = BigInt(body.bytesIn);
+    const bytesOut = BigInt(body.bytesOut);
+
     await this.metering.recordUsageEvent({
-      userId: BigInt(body.userId),
+      userId,
       nodeId: BigInt(id),
       sessionId: body.sessionId,
       eventType: body.eventType,
       protocol: body.protocol,
-      bytesIn: BigInt(body.bytesIn),
-      bytesOut: BigInt(body.bytesOut),
+      bytesIn,
+      bytesOut,
       sessionSeconds: body.sessionSeconds,
       exitCountry: body.exitCountry,
       exitNodeId: body.exitNodeId ? BigInt(body.exitNodeId) : undefined,
       destination: body.destination,
     });
+
+    if (body.protocol === 'socks5') {
+      if (!body.credentialUuid) {
+        throw new BadRequestException('credentialUuid is required for SOCKS5 usage');
+      }
+      await this.quota.consumeTokenBytes(body.credentialUuid, bytesIn + bytesOut);
+      const pricing = await this.pricing.get();
+      const cost = this.pricing.computeCostBigInt(bytesIn, bytesOut, pricing);
+      await this.wallet.chargeSilently(
+        userId,
+        cost,
+        'socks5_session',
+        `SOCKS5 ${body.destination ?? 'session'}`.slice(0, 200),
+        { bytesIn: Number(bytesIn), bytesOut: Number(bytesOut), nodeId: Number(id) },
+      );
+    }
     return { accepted: true };
   }
 }

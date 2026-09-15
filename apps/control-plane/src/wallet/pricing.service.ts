@@ -74,7 +74,11 @@ export class PricingService {
    * Rounds partial MBs UP (favoring the platform slightly — one 500KB call = 1MB).
    */
   computeCost(bytesIn: number, bytesOut: number, cfg: PricingConfig): bigint {
-    const totalBytes = BigInt(bytesIn + bytesOut);
+    return this.computeCostBigInt(BigInt(bytesIn), BigInt(bytesOut), cfg);
+  }
+
+  computeCostBigInt(bytesIn: bigint, bytesOut: bigint, cfg: PricingConfig): bigint {
+    const totalBytes = bytesIn + bytesOut;
     const mb = (totalBytes + (1024n * 1024n) - 1n) / (1024n * 1024n); // ceil
     return cfg.perRequestToman + mb * cfg.perMbToman;
   }

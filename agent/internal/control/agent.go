@@ -16,7 +16,7 @@ import (
 	"github.com/proxy-platform/agent/internal/routing"
 )
 
-const agentVersion = "v1.0.2"
+const agentVersion = "v1.1.0"
 
 // Agent manages the connection to the Control Plane and coordinates
 // local data-plane subprocess management.

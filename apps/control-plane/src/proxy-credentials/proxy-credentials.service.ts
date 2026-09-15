@@ -51,6 +51,49 @@ export class ProxyCredentialsService {
     });
   }
 
+  async getSocks5Endpoints(userId: bigint) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { userId, status: 'active' },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!subscription) return [];
+
+    const nodes = await this.prisma.node.findMany({
+      where: {
+        status: { in: ['healthy', 'degraded'] },
+        ipv4Address: { not: null },
+        roles: { has: 'exit' },
+        country: { enabled: true },
+      },
+      include: {
+        country: { select: { name: true } },
+        heartbeats: {
+          select: { agentVersion: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: { countryCode: 'asc' },
+    });
+
+    const allowedCountries = subscription.plan.allowedCountries;
+    const socksPort = Number.parseInt(process.env.SOCKS5_PORT ?? '1080', 10) || 1080;
+    return nodes
+      .filter((node) =>
+        (allowedCountries.length === 0 || allowedCountries.includes(node.countryCode)) &&
+        supportsSocks5(node.heartbeats[0]?.agentVersion),
+      )
+      .map((node) => ({
+        nodeId: node.id.toString(),
+        label: node.label,
+        countryCode: node.countryCode,
+        countryName: node.country.name,
+        host: node.ipv4Address as string,
+        port: socksPort,
+      }));
+  }
+
   async revoke(userId: bigint, credentialId: bigint): Promise<void> {
     const credential = await this.prisma.proxyCredential.findUnique({
       where: { id: credentialId },
@@ -89,4 +132,11 @@ export class ProxyCredentialsService {
     if (!match) return { valid: false };
     return { valid: true, userId: credential.userId };
   }
+}
+
+function supportsSocks5(agentVersion?: string | null): boolean {
+  const match = agentVersion?.match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return false;
+  const [, major, minor] = match;
+  return Number(major) > 1 || (Number(major) === 1 && Number(minor) >= 1);
 }

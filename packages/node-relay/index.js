@@ -18,12 +18,28 @@
 
 const http = require('http');
 const https = require('https');
+const net = require('net');
+const dns = require('dns').promises;
+const fs = require('fs');
 const { URL } = require('url');
-const { timingSafeEqual } = require('crypto');
+const { timingSafeEqual, randomUUID } = require('crypto');
 
-const NODE_SECRET = process.env.NODE_SECRET;
+function readAgentConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(process.env.AGENT_CONFIG_PATH || '/etc/proxynet/agent.json', 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+const agentConfig = readAgentConfig();
+const NODE_SECRET = process.env.NODE_SECRET || agentConfig.node_secret;
+const NODE_ID = process.env.NODE_ID || agentConfig.node_id;
+const CONTROL_PLANE_URL = (process.env.CONTROL_PLANE_URL || agentConfig.control_endpoint || '').replace(/\/$/, '');
 const PORT = parseInt(process.env.RELAY_PORT || '9443', 10);
 const HOST = process.env.RELAY_HOST || '0.0.0.0';
+const SOCKS_PORT = parseInt(process.env.SOCKS_PORT || '1080', 10);
+const SOCKS_HOST = process.env.SOCKS_HOST || '0.0.0.0';
 
 if (!NODE_SECRET) {
   console.error('[node-relay] FATAL: NODE_SECRET env var is required');
@@ -32,6 +48,7 @@ if (!NODE_SECRET) {
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30_000;
+const SOCKS_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 // SSRF: block the relay from being tricked into scanning its own private network.
 const BLOCKED_HOSTS = [
@@ -176,6 +193,269 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`[node-relay] listening on ${HOST}:${PORT}`);
 });
+
+// SOCKS5 is deliberately a separate listener from the private HTTP relay. It
+// accepts only username/password authentication, verifies every new connection
+// with the control plane, blocks private destinations, and reports byte usage.
+const SOCKS_VERSION = 0x05;
+const SOCKS_AUTH_VERSION = 0x01;
+const SOCKS_METHOD_USERPASS = 0x02;
+const activeSocksConnections = new Map();
+
+function isBlockedAddress(address) {
+  const value = address.toLowerCase();
+  return BLOCKED_HOSTS.some((re) => re.test(value)) ||
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(value) ||
+    /^(19[2-9]|2[0-5]\d)\./.test(value) ||
+    /^2(2[4-9]|3\d|4\d|5[0-5])\./.test(value) ||
+    value === '::' || value.startsWith('::ffff:127.') ||
+    value.startsWith('::ffff:10.') || value.startsWith('::ffff:192.168.') ||
+    value.startsWith('::ffff:172.');
+}
+
+async function resolveDestination(host) {
+  if (isBlockedHost(host)) throw new Error('blocked destination host');
+  if (net.isIP(host)) {
+    if (isBlockedAddress(host)) throw new Error('blocked destination address');
+    return { address: host, family: net.isIP(host) };
+  }
+  const addresses = await dns.lookup(host, { all: true, verbatim: true });
+  const publicAddress = addresses.find((entry) => !isBlockedAddress(entry.address));
+  if (!publicAddress) throw new Error('destination resolves only to private addresses');
+  return publicAddress;
+}
+
+function socksReply(socket, code) {
+  socket.write(Buffer.from([SOCKS_VERSION, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+}
+
+async function controlRequest(path, body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${CONTROL_PLANE_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${NODE_SECRET}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`control plane returned ${response.status}`);
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function authorizeSocksCredential(username, password) {
+  if (!CONTROL_PLANE_URL || !NODE_ID) throw new Error('SOCKS5 is not configured with a control plane endpoint');
+  const result = await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/credential-verify`, {
+    uuid: username,
+    secret: password,
+  });
+  if (!result.allowed || !result.quotaToken) throw new Error(result.reason || 'credential rejected');
+  return result.quotaToken;
+}
+
+function reportSocksUsage(context, destination, bytesIn, bytesOut, startedAt) {
+  const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+  return controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/usage-events`, {
+    userId: context.userId,
+    sessionId: context.sessionId,
+    eventType: 'tcp_session',
+    protocol: 'socks5',
+    credentialUuid: context.credentialUuid,
+    bytesIn: String(bytesIn),
+    bytesOut: String(bytesOut),
+    sessionSeconds: seconds,
+    destination,
+  }).catch((error) => console.warn(`[socks5] usage report failed: ${error.message}`));
+}
+
+function ipv6FromBuffer(value) {
+  const groups = [];
+  for (let i = 0; i < 16; i += 2) groups.push(value.readUInt16BE(i).toString(16));
+  return groups.join(':');
+}
+
+function createSocksConnection(socket) {
+  let buffer = Buffer.alloc(0);
+  let stage = 'greeting';
+  let authorizing = false;
+  let context = null;
+
+  socket.setTimeout(SOCKS_IDLE_TIMEOUT_MS, () => socket.destroy());
+  socket.on('error', () => {});
+  socket.on('data', (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    processBuffer();
+  });
+
+  function closeWithAuthFailure() {
+    socket.write(Buffer.from([SOCKS_AUTH_VERSION, 0x01]));
+    socket.end();
+  }
+
+  function processBuffer() {
+    if (authorizing || socket.destroyed) return;
+
+    if (stage === 'greeting') {
+      if (buffer.length < 2) return;
+      const version = buffer[0];
+      const methodCount = buffer[1];
+      if (buffer.length < 2 + methodCount) return;
+      const methods = buffer.subarray(2, 2 + methodCount);
+      buffer = buffer.subarray(2 + methodCount);
+      if (version !== SOCKS_VERSION || methods.includes(SOCKS_METHOD_USERPASS) === false) {
+        socket.write(Buffer.from([SOCKS_VERSION, 0xff]));
+        socket.end();
+        return;
+      }
+      socket.write(Buffer.from([SOCKS_VERSION, SOCKS_METHOD_USERPASS]));
+      stage = 'authentication';
+    }
+
+    if (stage === 'authentication') {
+      if (buffer.length < 2) return;
+      const usernameLength = buffer[1];
+      if (buffer.length < 3 + usernameLength) return;
+      const passwordLengthIndex = 2 + usernameLength;
+      const passwordLength = buffer[passwordLengthIndex];
+      if (buffer.length < passwordLengthIndex + 1 + passwordLength) return;
+      if (buffer[0] !== SOCKS_AUTH_VERSION || usernameLength === 0 || passwordLength === 0) {
+        closeWithAuthFailure();
+        return;
+      }
+      const username = buffer.subarray(2, 2 + usernameLength).toString('utf8');
+      const password = buffer.subarray(passwordLengthIndex + 1, passwordLengthIndex + 1 + passwordLength).toString('utf8');
+      buffer = buffer.subarray(passwordLengthIndex + 1 + passwordLength);
+      authorizing = true;
+      authorizeSocksCredential(username, password)
+        .then((quotaToken) => {
+          context = {
+            userId: quotaToken.userId,
+            sessionId: randomUUID(),
+            bytesRemaining: BigInt(quotaToken.bytesRemaining),
+            credentialUuid: username,
+          };
+          const active = activeSocksConnections.get(username) || 0;
+          if (active >= quotaToken.connsRemaining) {
+            closeWithAuthFailure();
+            return;
+          }
+          activeSocksConnections.set(username, active + 1);
+          socket.once('close', () => {
+            const remaining = (activeSocksConnections.get(username) || 1) - 1;
+            if (remaining > 0) activeSocksConnections.set(username, remaining);
+            else activeSocksConnections.delete(username);
+          });
+          socket.write(Buffer.from([SOCKS_AUTH_VERSION, 0x00]));
+          stage = 'request';
+          authorizing = false;
+          processBuffer();
+        })
+        .catch(() => closeWithAuthFailure());
+      return;
+    }
+
+    if (stage !== 'request') return;
+    if (buffer.length < 4) return;
+    const [version, command, reserved, addressType] = buffer;
+    if (version !== SOCKS_VERSION || reserved !== 0x00 || command !== 0x01) {
+      socksReply(socket, command === 0x01 ? 0x01 : 0x07);
+      socket.end();
+      return;
+    }
+
+    let host;
+    let offset = 4;
+    if (addressType === 0x01) {
+      if (buffer.length < offset + 4 + 2) return;
+      host = Array.from(buffer.subarray(offset, offset + 4)).join('.');
+      offset += 4;
+    } else if (addressType === 0x03) {
+      if (buffer.length < offset + 1) return;
+      const length = buffer[offset];
+      if (buffer.length < offset + 1 + length + 2 || length === 0) return;
+      host = buffer.subarray(offset + 1, offset + 1 + length).toString('utf8');
+      offset += 1 + length;
+    } else if (addressType === 0x04) {
+      if (buffer.length < offset + 16 + 2) return;
+      host = ipv6FromBuffer(buffer.subarray(offset, offset + 16));
+      offset += 16;
+    } else {
+      socksReply(socket, 0x08);
+      socket.end();
+      return;
+    }
+    const port = buffer.readUInt16BE(offset);
+    buffer = buffer.subarray(offset + 2);
+    stage = 'connecting';
+    connectSocksDestination(socket, context, host, port);
+  }
+}
+
+async function connectSocksDestination(client, context, host, port) {
+  const destination = `${host}:${port}`;
+  let resolved;
+  try {
+    resolved = await resolveDestination(host);
+  } catch (error) {
+    console.warn(`[socks5] blocked destination ${destination}: ${error.message}`);
+    socksReply(client, 0x02);
+    client.end();
+    return;
+  }
+
+  const upstream = net.createConnection({ host: resolved.address, port, family: resolved.family });
+  let bytesIn = 0;
+  let bytesOut = 0;
+  let completed = false;
+  const startedAt = Date.now();
+
+  function finish() {
+    if (completed) return;
+    completed = true;
+    void reportSocksUsage(context, destination, bytesIn, bytesOut, startedAt);
+  }
+
+  function enforceQuota(size, inbound) {
+    context.bytesRemaining -= BigInt(size);
+    if (inbound) bytesIn += size;
+    else bytesOut += size;
+    if (context.bytesRemaining < 0n) {
+      client.destroy();
+      upstream.destroy();
+    }
+  }
+
+  upstream.setTimeout(SOCKS_IDLE_TIMEOUT_MS, () => upstream.destroy());
+  upstream.once('connect', () => {
+    socksReply(client, 0x00);
+    client.on('data', (chunk) => enforceQuota(chunk.length, true));
+    upstream.on('data', (chunk) => enforceQuota(chunk.length, false));
+    client.pipe(upstream);
+    upstream.pipe(client);
+  });
+  upstream.once('error', () => {
+    if (!completed) socksReply(client, 0x05);
+    client.destroy();
+  });
+  client.once('close', () => { upstream.destroy(); finish(); });
+  upstream.once('close', () => { client.destroy(); finish(); });
+}
+
+if (CONTROL_PLANE_URL && NODE_ID && Number.isInteger(SOCKS_PORT) && SOCKS_PORT > 0 && SOCKS_PORT < 65536) {
+  const socksServer = net.createServer(createSocksConnection);
+  socksServer.on('error', (error) => console.error(`[socks5] server error: ${error.message}`));
+  socksServer.listen(SOCKS_PORT, SOCKS_HOST, () => {
+    console.log(`[socks5] listening on ${SOCKS_HOST}:${SOCKS_PORT}`);
+  });
+} else {
+  console.warn('[socks5] disabled: missing node ID/control-plane URL or invalid SOCKS_PORT');
+}
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {

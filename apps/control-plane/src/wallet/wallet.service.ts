@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export type ChargeType =
   | 'gateway_call'
   | 'forwarder_call'
+  | 'socks5_session'
   | 'topup_admin'
   | 'adjustment_admin'
   | 'refund';
