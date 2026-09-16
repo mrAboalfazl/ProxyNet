@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BadgeDollarSign, Boxes, ChevronLeft, ChevronRight, CircleUserRound, KeyRound, LayoutDashboard, LogOut, Menu, Network, ShieldCheck, X } from 'lucide-react';
+import { BadgeDollarSign, Boxes, ChevronLeft, ChevronRight, CircleUserRound, KeyRound, LayoutDashboard, LogOut, Menu, Network, ReceiptText, ShieldCheck, X } from 'lucide-react';
 import { clearToken, getToken } from '../../lib/api';
 import { useLang } from '../../lib/lang-context';
 import { t } from '../../lib/i18n';
@@ -13,6 +13,7 @@ import './user-panel.css';
 const navigation = [
   { href: '/user/dashboard', key: 'user.nav.dashboard', icon: LayoutDashboard },
   { href: '/user/wallet', key: 'user.nav.wallet', icon: BadgeDollarSign },
+  { href: '/user/billing', key: 'user.nav.billing', icon: ReceiptText },
   { href: '/user/forwarders', key: 'user.nav.forwarders', icon: Network },
   { href: '/user/credentials', key: 'user.nav.credentials', icon: KeyRound },
   { href: '/user/nodes', key: 'user.nav.nodes', icon: Boxes },

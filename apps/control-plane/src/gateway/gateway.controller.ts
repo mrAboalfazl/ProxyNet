@@ -31,7 +31,7 @@ export class GatewayController {
    * Auth: Basic <base64(uuid:secret)>
    * Body: { url, method?, headers?, body? }
    *
-   * Charges the user's wallet: perRequest + ceil((bytesIn+bytesOut)/MB) * perMB toman.
+   * Charges the user's wallet once per observable request.
    * Returns 402 Payment Required if wallet is below the minimum before the call runs.
    */
   @Post('fetch')
@@ -87,7 +87,7 @@ export class GatewayController {
     });
 
     // Post-charge (fire-and-forget so a metering failure never breaks the response)
-    const cost = this.pricing.computeCost(result.bytesIn, result.bytesOut, pricing);
+    const cost = this.pricing.computeRequestCost(pricing);
     this.wallet
       .chargeSilently(verified.userId, cost, 'gateway_call', `${body.method ?? 'GET'} ${body.url}`.slice(0, 200), {
         requestUrl: body.url,

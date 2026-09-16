@@ -57,4 +57,42 @@ export class MeteringService {
       },
     });
   }
+
+  /** A transparent financial/usage view backed by the wallet ledger. */
+  async getFinancialReport(userId: bigint) {
+    const [transactions, usage] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: { walletUserId: userId }, orderBy: { createdAt: 'desc' }, take: 200,
+      }),
+      this.prisma.usageEvent.groupBy({
+        by: ['eventType', 'protocol'], where: { userId },
+        _count: { _all: true }, _sum: { bytesIn: true, bytesOut: true },
+      }),
+    ]);
+
+    const categoryNames: Record<string, string> = {
+      gateway_call: 'requests', forwarder_call: 'forwarding',
+      socks5_session: 'proxy_bandwidth', credential_fee: 'credentials',
+    };
+    const totals: Record<string, bigint> = {
+      requests: 0n, proxy_bandwidth: 0n, credentials: 0n, forwarding: 0n, other: 0n,
+    };
+    for (const tx of transactions) {
+      if (tx.amountToman >= 0n) continue;
+      const category = categoryNames[tx.type] ?? 'other';
+      totals[category] += -tx.amountToman;
+    }
+
+    return {
+      categories: Object.entries(totals).map(([category, spentToman]) => ({ category, spentToman: spentToman.toString() })),
+      usage: usage.map((row) => ({
+        eventType: row.eventType, protocol: row.protocol, requests: row._count._all,
+        bytesIn: (row._sum.bytesIn ?? 0n).toString(), bytesOut: (row._sum.bytesOut ?? 0n).toString(),
+      })),
+      transactions: transactions.map((tx) => ({
+        id: tx.id.toString(), type: tx.type, amountToman: tx.amountToman.toString(),
+        description: tx.description, balanceAfterToman: tx.balanceAfterToman.toString(), createdAt: tx.createdAt,
+      })),
+    };
+  }
 }

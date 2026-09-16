@@ -317,7 +317,7 @@ export class ForwarderProxyController {
     } finally {
       // Non-blocking metering + wallet charge
       this.forwarders.recordCall(fwd.id, bytesIn, bytesOut).catch(() => { /* logged inside */ });
-      const cost = this.pricing.computeCost(bytesIn, bytesOut, pricing);
+      const cost = this.pricing.computeRequestCost(pricing);
       this.wallet.chargeSilently(fwd.userId, cost, 'forwarder_call', `${req.method} ${finalUrl}`.slice(0, 200), {
         forwarderId: fwd.id.toString(),
         bytesIn,

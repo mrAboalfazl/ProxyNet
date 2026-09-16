@@ -73,14 +73,18 @@ export class PricingService {
    * Compute the cost of a single proxy call.
    * Rounds partial MBs UP (favoring the platform slightly — one 500KB call = 1MB).
    */
-  computeCost(bytesIn: number, bytesOut: number, cfg: PricingConfig): bigint {
-    return this.computeCostBigInt(BigInt(bytesIn), BigInt(bytesOut), cfg);
+  computeRequestCost(cfg: PricingConfig): bigint {
+    return cfg.perRequestToman;
   }
 
-  computeCostBigInt(bytesIn: bigint, bytesOut: bigint, cfg: PricingConfig): bigint {
+  computeBandwidthCost(bytesIn: number, bytesOut: number, cfg: PricingConfig): bigint {
+    return this.computeBandwidthCostBigInt(BigInt(bytesIn), BigInt(bytesOut), cfg);
+  }
+
+  computeBandwidthCostBigInt(bytesIn: bigint, bytesOut: bigint, cfg: PricingConfig): bigint {
     const totalBytes = bytesIn + bytesOut;
     const mb = (totalBytes + (1024n * 1024n) - 1n) / (1024n * 1024n); // ceil
-    return cfg.perRequestToman + mb * cfg.perMbToman;
+    return mb * cfg.perMbToman;
   }
 
   private parseBigInt(v: string | undefined): bigint | null {

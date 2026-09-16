@@ -159,6 +159,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'user.nav.nodes': 'My Nodes',
     'user.nav.forwarders': 'Forwarders',
     'user.nav.wallet': 'Wallet',
+    'user.nav.billing': 'Usage & billing',
 
     // Wallet page
     'wallet.title': 'Wallet',
@@ -432,6 +433,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'user.nav.nodes': 'نودهای من',
     'user.nav.forwarders': 'فوروارد آدرس‌ها',
     'user.nav.wallet': 'کیف پول',
+    'user.nav.billing': 'گزارش مصرف و مالی',
 
     // Wallet page (FA)
     'wallet.title': 'کیف پول',

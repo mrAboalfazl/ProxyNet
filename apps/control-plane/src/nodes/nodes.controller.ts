@@ -243,7 +243,7 @@ export class NodesController {
       }
       await this.quota.consumeTokenBytes(body.credentialUuid, bytesIn + bytesOut);
       const pricing = await this.pricing.get();
-      const cost = this.pricing.computeCostBigInt(bytesIn, bytesOut, pricing);
+      const cost = this.pricing.computeBandwidthCostBigInt(bytesIn, bytesOut, pricing);
       await this.wallet.chargeSilently(
         userId,
         cost,

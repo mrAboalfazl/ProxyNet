@@ -25,7 +25,7 @@ async function main() {
   const plans = [
     {
       name: 'Starter',
-      monthlyBandwidthGb: 50,
+      monthlyBandwidthGb: 1,
       maxConcurrentSessions: 5,
       allowedProtocols: ['http', 'socks5', 'tcp'],
       allowedCountries: [],
@@ -33,7 +33,7 @@ async function main() {
     },
     {
       name: 'Pro',
-      monthlyBandwidthGb: 200,
+      monthlyBandwidthGb: 3,
       maxConcurrentSessions: 20,
       allowedProtocols: ['http', 'socks5', 'tcp', 'udp'],
       allowedCountries: [],
@@ -41,7 +41,7 @@ async function main() {
     },
     {
       name: 'Business',
-      monthlyBandwidthGb: 1000,
+      monthlyBandwidthGb: 5,
       maxConcurrentSessions: 100,
       allowedProtocols: ['http', 'socks5', 'tcp', 'udp'],
       allowedCountries: [],
@@ -51,9 +51,8 @@ async function main() {
 
   for (const plan of plans) {
     const existing = await prisma.plan.findFirst({ where: { name: plan.name } });
-    if (!existing) {
-      await prisma.plan.create({ data: plan });
-    }
+    if (!existing) await prisma.plan.create({ data: plan });
+    else await prisma.plan.update({ where: { id: existing.id }, data: { monthlyBandwidthGb: plan.monthlyBandwidthGb } });
   }
 
   console.log('Seed complete: 6 countries, 3 plans');

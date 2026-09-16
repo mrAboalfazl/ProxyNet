@@ -11,4 +11,9 @@ export class MeteringController {
   getMyUsage(@Request() req) {
     return this.meteringService.getUsageStats(BigInt(req.user.id));
   }
+
+  @Get('financial/me')
+  getMyFinancialReport(@Request() req) {
+    return this.meteringService.getFinancialReport(BigInt(req.user.id));
+  }
 }
