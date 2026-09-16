@@ -1,52 +1,33 @@
 'use client';
-
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, FinancialReport } from '../../../lib/api';
 import { PageHeader, Card, Alert, Spinner, colors } from '../../../components/user-ui';
 import { AccountStatusStrip } from '../../../lib/account-status';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 
-const labels: Record<string, [string, string]> = {
-  requests: ['Requests', 'درخواست‌ها'], proxy_bandwidth: ['Proxy bandwidth', 'پهنای‌باند پروکسی'],
-  forwarding: ['Forwarding', 'فورواردینگ'], credentials: ['Credentials', 'اعتبارنامه‌ها'], other: ['Other fees', 'سایر هزینه‌ها'],
-};
-function num(value: string, lang: string) { return Number(value).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US'); }
-function bytes(value: string, lang: string) {
-  const n = Number(value); const units = ['B', 'KB', 'MB', 'GB']; let i = 0; let v = n;
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-  return `${v.toFixed(i ? 2 : 0)} ${units[i]}`;
-}
+const labels: Record<string, [string, string]> = { requests: ['Requests', 'درخواست‌ها'], proxy_bandwidth: ['Proxy bandwidth', 'پهنای‌باند پروکسی'], forwarding: ['Forwarding', 'فورواردینگ'], credentials: ['Credentials', 'اعتبارنامه‌ها'], other: ['Other fees', 'سایر هزینه‌ها'] };
+function n(v: string | number, lang: string) { return Number(v).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US'); }
+function bytes(v: string, lang: string) { let x = Number(v); const u = ['B', 'KB', 'MB', 'GB']; let i = 0; while (x >= 1024 && i < 3) { x /= 1024; i++; } return `${x.toFixed(i ? 2 : 0)} ${u[i]}`; }
 
 export default function BillingPage() {
-  const { lang } = useLang();
-  const [report, setReport] = useState<FinancialReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.financialReport().then(setReport).catch((e) => setError(e instanceof Error ? e.message : 'load failed')); }, []);
-  if (error) return <Alert message={error} />;
-  if (!report) return <Spinner />;
-  return <div>
-    <AccountStatusStrip lang={lang} />
-    <PageHeader title={lang === 'fa' ? 'گزارش مصرف و مالی' : 'Usage & billing'} />
-    <Card style={{ padding: 22, marginBottom: 20 }}>
-      <h3 style={{ margin: '0 0 16px', color: colors.navy }}>{lang === 'fa' ? 'هزینه بر اساس دسته‌بندی' : 'Spending by category'}</h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-        {report.categories.map((item) => <div key={item.category} style={{ padding: 14, border: `1px solid ${colors.border}`, borderRadius: 8 }}>
-          <div style={{ color: colors.textMuted, fontSize: 12 }}>{labels[item.category]?.[lang === 'fa' ? 1 : 0] ?? item.category}</div>
-          <strong style={{ display: 'block', marginTop: 6, direction: 'ltr' }}>{num(item.spentToman, lang)} {t(lang, 'wallet.currency')}</strong>
-        </div>)}
-      </div>
-    </Card>
-    <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-      <div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, fontWeight: 700 }}>{lang === 'fa' ? 'مصرف ثبت‌شده' : 'Recorded usage'}</div>
-      <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}><thead><tr style={{ background: '#f8fafc' }}>
-        <th style={{ padding: 10, textAlign: 'start' }}>Protocol</th><th style={{ padding: 10, textAlign: 'start' }}>Type</th><th style={{ padding: 10, textAlign: 'end' }}>Requests</th><th style={{ padding: 10, textAlign: 'end' }}>Bandwidth</th>
-      </tr></thead><tbody>{report.usage.map((u) => <tr key={`${u.eventType}-${u.protocol}`} style={{ borderTop: `1px solid ${colors.border}` }}>
-        <td style={{ padding: 10 }}>{u.protocol}</td><td style={{ padding: 10 }}>{u.eventType}</td><td style={{ padding: 10, textAlign: 'end' }}>{num(String(u.requests), lang)}</td><td style={{ padding: 10, textAlign: 'end', direction: 'ltr' }}>{bytes(String(Number(u.bytesIn) + Number(u.bytesOut)), lang)}</td>
-      </tr>)}</tbody></table></div>
-    </Card>
-    <Card style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, fontWeight: 700 }}>{lang === 'fa' ? 'تراکنش‌های مالی' : 'Financial transactions'}</div>
-      <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}><tbody>{report.transactions.map((tx) => <tr key={tx.id} style={{ borderTop: `1px solid ${colors.border}` }}><td style={{ padding: 10 }}>{labels[tx.type]?.[lang === 'fa' ? 1 : 0] ?? tx.type}</td><td style={{ padding: 10, color: colors.textMuted }}>{tx.description ?? '—'}</td><td style={{ padding: 10, textAlign: 'end', direction: 'ltr', color: Number(tx.amountToman) >= 0 ? '#166534' : '#991b1b' }}>{num(tx.amountToman, lang)}</td><td style={{ padding: 10, color: colors.textMuted }}>{new Date(tx.createdAt).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US')}</td></tr>)}</tbody></table></div>
-    </Card>
+  const { lang } = useLang(); const [report, setReport] = useState<FinancialReport | null>(null); const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1); const [usagePage, setUsagePage] = useState(1); const [category, setCategory] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState('');
+  const load = () => api.financialReport({ page, usagePage, category, from, to, limit: 20, usageLimit: 20 }).then(setReport).catch((e) => setError(e instanceof Error ? e.message : 'load failed'));
+  useEffect(() => { setError(null); load(); }, [page, usagePage, category, from, to]);
+  const maxDaily = useMemo(() => Math.max(1, ...(report?.dailySpending.map((d) => Number(d.spentToman)) ?? [1])), [report]);
+  if (error) return <Alert message={error} />; if (!report) return <Spinner />;
+  const totalPages = Math.max(1, Math.ceil(report.transactionsTotal / report.limit)); const usagePages = Math.max(1, Math.ceil(report.usageTotal / report.usageLimit));
+  return <div><AccountStatusStrip lang={lang} /><PageHeader title={lang === 'fa' ? 'گزارش مصرف و مالی' : 'Usage & billing'} />
+    <Card style={{ padding: 18, marginBottom: 18 }}><div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+      <label style={{ display: 'grid', gap: 5, fontSize: 12, color: colors.textMuted }}>{lang === 'fa' ? 'دسته‌بندی' : 'Category'}<select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); setUsagePage(1); }} style={{ minHeight: 38, padding: '0 10px', border: `1px solid ${colors.border}`, borderRadius: 7, background: '#fff' }}><option value="">{lang === 'fa' ? 'همه' : 'All'}</option>{Object.entries(labels).filter(([k]) => k !== 'other').map(([k, v]) => <option key={k} value={k}>{v[lang === 'fa' ? 1 : 0]}</option>)}</select></label>
+      <label style={{ display: 'grid', gap: 5, fontSize: 12, color: colors.textMuted }}>{lang === 'fa' ? 'از تاریخ' : 'From'}<input type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); setUsagePage(1); }} style={{ minHeight: 38, padding: '0 10px', border: `1px solid ${colors.border}`, borderRadius: 7 }} /></label>
+      <label style={{ display: 'grid', gap: 5, fontSize: 12, color: colors.textMuted }}>{lang === 'fa' ? 'تا تاریخ' : 'To'}<input type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); setUsagePage(1); }} style={{ minHeight: 38, padding: '0 10px', border: `1px solid ${colors.border}`, borderRadius: 7 }} /></label>
+      <button onClick={() => { setCategory(''); setFrom(''); setTo(''); setPage(1); setUsagePage(1); }} style={{ minHeight: 38, padding: '0 14px', border: `1px solid ${colors.border}`, borderRadius: 7, background: '#f8fafc', cursor: 'pointer' }}>{lang === 'fa' ? 'پاک کردن فیلتر' : 'Clear filters'}</button>
+    </div></Card>
+    <Card style={{ padding: 20, marginBottom: 18 }}><h3 style={{ margin: '0 0 16px', color: colors.navy }}>{lang === 'fa' ? 'هزینه روزانه — ۳۰ روز اخیر' : 'Daily spending — last 30 days'}</h3><div style={{ height: 190, display: 'flex', alignItems: 'end', gap: 4, borderBottom: `1px solid ${colors.border}`, padding: '0 4px' }}>{report.dailySpending.map((d) => <div key={d.day} title={`${d.day}: ${n(d.spentToman, lang)} ${t(lang, 'wallet.currency')}`} style={{ flex: 1, minWidth: 3, height: `${Math.max(3, Number(d.spentToman) / maxDaily * 100)}%`, background: '#2563eb', borderRadius: '4px 4px 0 0', opacity: .85 }} />)}</div><div style={{ display: 'flex', justifyContent: 'space-between', color: colors.textMuted, fontSize: 11, marginTop: 7 }}><span>{report.dailySpending[0]?.day ?? '—'}</span><span>{report.dailySpending.at(-1)?.day ?? '—'}</span></div></Card>
+    <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}><div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, fontWeight: 700 }}>{lang === 'fa' ? 'تراکنش‌های مالی' : 'Financial transactions'} <span style={{ color: colors.textMuted, fontWeight: 400, fontSize: 12 }}>({report.transactionsTotal})</span></div><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}><thead><tr style={{ background: '#f8fafc' }}><th style={{ padding: 10, textAlign: 'start' }}>Type</th><th style={{ padding: 10, textAlign: 'start' }}>Description</th><th style={{ padding: 10, textAlign: 'end' }}>Amount</th><th style={{ padding: 10, textAlign: 'start' }}>Date</th></tr></thead><tbody>{report.transactions.map((tx) => <tr key={tx.id} style={{ borderTop: `1px solid ${colors.border}` }}><td style={{ padding: 10 }}>{labels[tx.type]?.[lang === 'fa' ? 1 : 0] ?? tx.type}</td><td style={{ padding: 10, color: colors.textMuted }}>{tx.description ?? '—'}</td><td style={{ padding: 10, textAlign: 'end', direction: 'ltr', color: Number(tx.amountToman) >= 0 ? '#166534' : '#991b1b' }}>{n(tx.amountToman, lang)}</td><td style={{ padding: 10 }}>{new Date(tx.createdAt).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US')}</td></tr>)}</tbody></table></div><Pager page={page} pages={totalPages} onChange={setPage} lang={lang} /></Card>
+    <Card style={{ padding: 0, overflow: 'hidden' }}><div style={{ padding: '18px 22px', borderBottom: `1px solid ${colors.border}`, fontWeight: 700 }}>{lang === 'fa' ? 'سوابق مصرف' : 'Usage records'} <span style={{ color: colors.textMuted, fontWeight: 400, fontSize: 12 }}>({report.usageTotal})</span></div><div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}><thead><tr style={{ background: '#f8fafc' }}><th style={{ padding: 10, textAlign: 'start' }}>Protocol</th><th style={{ padding: 10, textAlign: 'start' }}>Type</th><th style={{ padding: 10, textAlign: 'end' }}>Bandwidth</th><th style={{ padding: 10, textAlign: 'start' }}>Date</th></tr></thead><tbody>{report.usage.map((u) => <tr key={u.id} style={{ borderTop: `1px solid ${colors.border}` }}><td style={{ padding: 10 }}>{u.protocol}</td><td style={{ padding: 10 }}>{u.eventType}</td><td style={{ padding: 10, textAlign: 'end', direction: 'ltr' }}>{bytes(String(Number(u.bytesIn) + Number(u.bytesOut)), lang)}</td><td style={{ padding: 10 }}>{new Date(u.occurredAt).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}</td></tr>)}</tbody></table></div><Pager page={usagePage} pages={usagePages} onChange={setUsagePage} lang={lang} /></Card>
   </div>;
 }
+function Pager({ page, pages, onChange, lang }: { page: number; pages: number; onChange: (n: number) => void; lang: string }) { return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, padding: 14 }}><button disabled={page <= 1} onClick={() => onChange(page - 1)}>{lang === 'fa' ? 'قبلی' : 'Previous'}</button><span style={{ fontSize: 12, color: colors.textMuted }}>{page} / {pages}</span><button disabled={page >= pages} onClick={() => onChange(page + 1)}>{lang === 'fa' ? 'بعدی' : 'Next'}</button></div>; }

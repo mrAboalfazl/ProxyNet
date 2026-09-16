@@ -1,4 +1,4 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MeteringService } from './metering.service';
 
@@ -13,7 +13,11 @@ export class MeteringController {
   }
 
   @Get('financial/me')
-  getMyFinancialReport(@Request() req) {
-    return this.meteringService.getFinancialReport(BigInt(req.user.id));
+  getMyFinancialReport(@Request() req, @Query() query: { page?: string; limit?: string; usagePage?: string; usageLimit?: string; from?: string; to?: string; category?: string }) {
+    return this.meteringService.getFinancialReport(BigInt(req.user.id), {
+      page: query.page ? Number(query.page) : undefined, limit: query.limit ? Number(query.limit) : undefined,
+      usagePage: query.usagePage ? Number(query.usagePage) : undefined, usageLimit: query.usageLimit ? Number(query.usageLimit) : undefined,
+      from: query.from, to: query.to, category: query.category,
+    });
   }
 }

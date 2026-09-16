@@ -88,7 +88,10 @@ export const api = {
     request<{ bytesUsed: number; connectionsUsed: number; periodStart: string; periodEnd: string; plan?: { name: string; monthlyBandwidthGb: number } }>(
       'GET', '/metering/usage/me',
     ),
-  financialReport: () => request<FinancialReport>('GET', '/metering/financial/me'),
+  financialReport: (params: Partial<{ page: number; limit: number; usagePage: number; usageLimit: number; from: string; to: string; category: string }> = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)]));
+    return request<FinancialReport>('GET', `/metering/financial/me${query.toString() ? `?${query}` : ''}`);
+  },
 
   // Proxy credentials
   myCredentials: () => request<ProxyCredential[]>('GET', '/proxy-credentials'),
@@ -279,7 +282,11 @@ export interface WalletTransaction {
 
 export interface FinancialReport {
   categories: Array<{ category: string; spentToman: string }>;
-  usage: Array<{ eventType: string; protocol: string; requests: number; bytesIn: string; bytesOut: string }>;
+  transactionsTotal: number;
+  page: number; limit: number;
+  usage: Array<{ id: string; eventType: string; protocol: string; requests: number; bytesIn: string; bytesOut: string; occurredAt: string }>;
+  usageTotal: number; usagePage: number; usageLimit: number;
+  dailySpending: Array<{ day: string; spentToman: string }>;
   transactions: WalletTransaction[];
 }
 
