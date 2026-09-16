@@ -60,9 +60,13 @@ export class MeteringService {
 
   /** A transparent financial/usage view backed by the wallet ledger. */
   async getFinancialReport(userId: bigint) {
-    const [transactions, usage] = await Promise.all([
+    const [transactions, ledgerTotals, usage] = await Promise.all([
       this.prisma.walletTransaction.findMany({
         where: { walletUserId: userId }, orderBy: { createdAt: 'desc' }, take: 200,
+      }),
+      this.prisma.walletTransaction.groupBy({
+        by: ['type'], where: { walletUserId: userId, amountToman: { lt: 0n } },
+        _sum: { amountToman: true },
       }),
       this.prisma.usageEvent.groupBy({
         by: ['eventType', 'protocol'], where: { userId },
@@ -77,10 +81,9 @@ export class MeteringService {
     const totals: Record<string, bigint> = {
       requests: 0n, proxy_bandwidth: 0n, credentials: 0n, forwarding: 0n, other: 0n,
     };
-    for (const tx of transactions) {
-      if (tx.amountToman >= 0n) continue;
-      const category = categoryNames[tx.type] ?? 'other';
-      totals[category] += -tx.amountToman;
+    for (const row of ledgerTotals) {
+      const category = categoryNames[row.type] ?? 'other';
+      totals[category] += -(row._sum.amountToman ?? 0n);
     }
 
     return {

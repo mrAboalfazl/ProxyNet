@@ -169,7 +169,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.zero_balance': 'Your wallet is empty. Every request needs at least {min} toman.',
     'wallet.pricing_title': 'Current pricing',
     'wallet.pricing_per_request': 'per request',
-    'wallet.pricing_per_mb': 'per MB transferred',
+    'wallet.pricing_per_mb': 'per MB SOCKS5 bandwidth',
     'wallet.pricing_min_balance': 'minimum to make a call',
     'wallet.transactions': 'Recent transactions',
     'wallet.no_transactions': 'No transactions yet.',
