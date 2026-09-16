@@ -17,7 +17,7 @@ export default function AdminPlansPage() {
   async function load() {
     setLoading(true);
     try {
-      setPlans(await api.plans.list());
+      setPlans(await api.adminPlans.list());
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load plans');

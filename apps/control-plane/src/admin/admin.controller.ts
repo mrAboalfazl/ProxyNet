@@ -9,6 +9,7 @@ import { WalletService } from '../wallet/wallet.service';
 import { PricingService } from '../wallet/pricing.service';
 import { AdminGuard } from './guards/admin.guard';
 import { MeteringService } from '../metering/metering.service';
+import { PlansService } from '../plans/plans.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -23,6 +24,7 @@ export class AdminController {
     private wallet: WalletService,
     private pricing: PricingService,
     private metering: MeteringService,
+    private plans: PlansService,
   ) {}
 
   @Get('dashboard')
@@ -110,6 +112,11 @@ export class AdminController {
   @Post('plans')
   createPlan(@Body() body: { name: string; monthlyBandwidthGb: number; maxConcurrentSessions?: number }) {
     return this.admin.createPlan(body);
+  }
+
+  @Get('plans')
+  listPlans() {
+    return this.plans.findAll();
   }
 
   @Post('users/:userId/assign-plan/:planId')

@@ -190,6 +190,9 @@ export const api = {
     assignToUser: (userId: string, planId: string) =>
       request<unknown>('POST', `/admin/users/${userId}/assign-plan/${planId}`),
   },
+  adminPlans: {
+    list: () => request<Plan[]>('GET', '/admin/plans'),
+  },
 
   // Countries
   countries: {
