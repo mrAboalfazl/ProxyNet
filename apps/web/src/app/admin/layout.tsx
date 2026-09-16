@@ -10,6 +10,7 @@ import './admin-panel.css';
 
 const navigation = [
   { href: '/admin/dashboard', key: 'admin.nav.dashboard', icon: LayoutDashboard },
+  { href: '/admin/statistics', key: 'admin.nav.statistics', icon: BarChart3 },
   { href: '/admin/nodes', key: 'admin.nav.nodes', icon: Boxes },
   { href: '/admin/users', key: 'admin.nav.users', icon: Users },
   { href: '/admin/plans', key: 'admin.nav.plans', icon: ReceiptText },

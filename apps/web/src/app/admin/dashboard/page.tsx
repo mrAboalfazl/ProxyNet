@@ -9,6 +9,10 @@ interface DashboardStats {
   totalNodes: number;
   healthyNodes: number;
   activeCountries: number;
+  walletBalanceToman: string;
+  revenueToman: string;
+  requestCount: number;
+  socksBandwidthBytes: string;
 }
 
 export default function AdminDashboardPage() {
@@ -62,6 +66,9 @@ export default function AdminDashboardPage() {
           <StatCard label="Total Nodes" value={stats.totalNodes} />
           <StatCard label="Healthy Nodes" value={stats.healthyNodes} color={stats.healthyNodes > 0 ? '#16a34a' : '#dc2626'} />
           <StatCard label="Active Countries" value={stats.activeCountries} />
+          <StatCard label="Wallet balances (toman)" value={Number(stats.walletBalanceToman).toLocaleString()} color="#166534" />
+          <StatCard label="Usage revenue (toman)" value={Number(stats.revenueToman).toLocaleString()} color="#1d4ed8" />
+          <StatCard label="Requests billed" value={stats.requestCount} />
         </div>
       )}
 

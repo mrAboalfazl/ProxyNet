@@ -16,14 +16,28 @@ export class AdminService {
   ) {}
 
   async getDashboardSummary() {
-    const [totalUsers, totalNodes, healthyNodes, activeCountries] = await this.prisma.$transaction([
+    const [totalUsers, totalNodes, healthyNodes, activeCountries, walletTotals, requestCount, socksBytes] = await this.prisma.$transaction([
       this.prisma.user.count({ where: { status: 'active' } }),
       this.prisma.node.count(),
       this.prisma.node.count({ where: { status: 'healthy' } }),
       this.prisma.country.count({ where: { enabled: true } }),
+      this.prisma.wallet.aggregate({ _sum: { balanceToman: true } }),
+      this.prisma.usageEvent.count({ where: { eventType: 'http_request' } }),
+      this.prisma.usageEvent.aggregate({ where: { protocol: 'socks5' }, _sum: { bytesIn: true, bytesOut: true } }),
     ]);
+    const revenue = await this.prisma.walletTransaction.aggregate({ where: { amountToman: { lt: 0n } }, _sum: { amountToman: true } });
+    return { totalUsers, totalNodes, healthyNodes, activeCountries, walletBalanceToman: (walletTotals._sum.balanceToman ?? 0n).toString(), revenueToman: (-(revenue._sum.amountToman ?? 0n)).toString(), requestCount, socksBandwidthBytes: ((socksBytes._sum.bytesIn ?? 0n) + (socksBytes._sum.bytesOut ?? 0n)).toString() };
+  }
 
-    return { totalUsers, totalNodes, healthyNodes, activeCountries };
+  async getStatistics() {
+    const summary = await this.getDashboardSummary();
+    const [activeSubscriptions, activeCredentials, forwarders, transactions] = await this.prisma.$transaction([
+      this.prisma.subscription.count({ where: { status: 'active' } }),
+      this.prisma.proxyCredential.count({ where: { enabled: true } }),
+      this.prisma.forwarder.count({ where: { enabled: true } }),
+      this.prisma.walletTransaction.count(),
+    ]);
+    return { ...summary, activeSubscriptions, activeCredentials, activeForwarders: forwarders, transactionCount: transactions, generatedAt: new Date() };
   }
 
   async createNode(data: {

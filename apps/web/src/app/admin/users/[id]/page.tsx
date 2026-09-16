@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle, Plan } from '../../../../lib/api';
+import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle, FinancialReport, Plan } from '../../../../lib/api';
 import { PageHeader, Card, Badge, Button, Alert, Spinner, colors } from '../../../../lib/ui';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -36,6 +36,7 @@ export default function AdminUserDetailPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [assigningPlan, setAssigningPlan] = useState(false);
+  const [financial, setFinancial] = useState<FinancialReport | null>(null);
 
   async function loadWallet() {
     try {
@@ -46,6 +47,7 @@ export default function AdminUserDetailPage() {
     }
   }
   useEffect(() => { loadWallet(); }, [params.id]);
+  useEffect(() => { api.adminUserFinancial(params.id, { limit: 50, usageLimit: 50 }).then(setFinancial).catch(() => { /* wallet details remain available */ }); }, [params.id]);
 
   useEffect(() => {
     api.plans.list().then((items) => {
@@ -251,6 +253,17 @@ export default function AdminUserDetailPage() {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {financial && (
+        <Card style={{ padding: '20px 24px', marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: colors.navy, marginBottom: 14 }}>Financial & usage breakdown</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 18 }}>
+            {financial.categories.map((item) => <div key={item.category} style={{ padding: 12, border: `1px solid ${colors.border}`, borderRadius: 8 }}><div style={{ fontSize: 11, color: colors.textMuted }}>{item.category.replace('_', ' ')}</div><strong style={{ display: 'block', marginTop: 5, direction: 'ltr' }}>{Number(item.spentToman).toLocaleString()} toman</strong></div>)}
+          </div>
+          <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>Usage records: {financial.usageTotal} · Financial transactions: {financial.transactionsTotal}</div>
+          {financial.usage.length > 0 && <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr style={{ background: '#f8fafc' }}><th style={{ padding: 8, textAlign: 'start' }}>Protocol</th><th style={{ padding: 8, textAlign: 'start' }}>Type</th><th style={{ padding: 8, textAlign: 'end' }}>Bytes</th><th style={{ padding: 8, textAlign: 'start' }}>Occurred</th></tr></thead><tbody>{financial.usage.map((u) => <tr key={u.id} style={{ borderTop: `1px solid ${colors.border}` }}><td style={{ padding: 8 }}>{u.protocol}</td><td style={{ padding: 8 }}>{u.eventType}</td><td style={{ padding: 8, textAlign: 'end', direction: 'ltr' }}>{(Number(u.bytesIn) + Number(u.bytesOut)).toLocaleString()}</td><td style={{ padding: 8 }}>{new Date(u.occurredAt).toLocaleString()}</td></tr>)}</tbody></table></div>}
         </Card>
       )}
 

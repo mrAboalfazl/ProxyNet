@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WalletService } from '../wallet/wallet.service';
 import { PricingService } from '../wallet/pricing.service';
 import { AdminGuard } from './guards/admin.guard';
+import { MeteringService } from '../metering/metering.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -21,11 +22,17 @@ export class AdminController {
     private users: UsersService,
     private wallet: WalletService,
     private pricing: PricingService,
+    private metering: MeteringService,
   ) {}
 
   @Get('dashboard')
   dashboard() {
     return this.admin.getDashboardSummary();
+  }
+
+  @Get('statistics')
+  statistics() {
+    return this.admin.getStatistics();
   }
 
   // ── Users ──
@@ -42,6 +49,15 @@ export class AdminController {
   @Get('users/:id')
   getUser(@Param('id') id: string) {
     return this.users.findByIdWithDetails(BigInt(id));
+  }
+
+  @Get('users/:id/financial')
+  getUserFinancial(@Param('id') id: string, @Query() query: Record<string, string>) {
+    return this.metering.getFinancialReport(BigInt(id), {
+      page: query.page ? Number(query.page) : undefined, limit: query.limit ? Number(query.limit) : undefined,
+      usagePage: query.usagePage ? Number(query.usagePage) : undefined, usageLimit: query.usageLimit ? Number(query.usageLimit) : undefined,
+      from: query.from, to: query.to, category: query.category,
+    });
   }
 
   /**

@@ -108,6 +108,7 @@ const tr: Record<Lang, Record<string, string>> = {
     // Admin layout
     'admin.panel': 'Admin Panel',
     'admin.nav.dashboard': 'Dashboard',
+    'admin.nav.statistics': 'Statistics & Budget',
     'admin.nav.nodes': 'Nodes',
     'admin.nav.users': 'Users',
     'admin.nav.plans': 'Plans',
@@ -385,6 +386,7 @@ const tr: Record<Lang, Record<string, string>> = {
 
     'admin.panel': 'پنل ادمین',
     'admin.nav.dashboard': 'داشبورد',
+    'admin.nav.statistics': 'آمار و بودجه',
     'admin.nav.nodes': 'نودها',
     'admin.nav.users': 'کاربران',
     'admin.nav.plans': 'پلن‌ها',

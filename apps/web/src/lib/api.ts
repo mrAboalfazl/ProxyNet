@@ -108,9 +108,14 @@ export const api = {
 
   // Dashboard
   dashboard: () =>
-    request<{ totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number }>(
+    request<{ totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number; walletBalanceToman: string; revenueToman: string; requestCount: number; socksBandwidthBytes: string }>(
       'GET', '/admin/dashboard',
     ),
+  adminStatistics: () => request<AdminStatistics>('GET', '/admin/statistics'),
+  adminUserFinancial: (id: string, params: Partial<{ page: number; limit: number; usagePage: number; usageLimit: number; from: string; to: string; category: string }> = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)]));
+    return request<FinancialReport>('GET', `/admin/users/${id}/financial${query.toString() ? `?${query}` : ''}`);
+  },
 
   // Nodes (admin)
   nodes: {
@@ -288,6 +293,12 @@ export interface FinancialReport {
   usageTotal: number; usagePage: number; usageLimit: number;
   dailySpending: Array<{ day: string; spentToman: string }>;
   transactions: WalletTransaction[];
+}
+
+export interface AdminStatistics {
+  totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number;
+  walletBalanceToman: string; revenueToman: string; requestCount: number; socksBandwidthBytes: string;
+  activeSubscriptions: number; activeCredentials: number; activeForwarders: number; transactionCount: number; generatedAt: string;
 }
 
 export interface PricingResponse {
