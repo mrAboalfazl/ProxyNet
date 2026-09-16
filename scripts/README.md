@@ -11,6 +11,7 @@ registers it with the control plane.
 - An enrollment token from the admin panel (Admin → Nodes → your node → *Generate enrollment token*)
 - Outbound HTTPS to the control-plane URL
 - Port `9443/tcp` reachable from the control-plane server
+- Ports `1080/tcp` and `1080/udp` reachable by SOCKS5 clients
 
 ## Install
 
@@ -34,7 +35,7 @@ The installer:
 3. Calls the control-plane `/api/nodes/enroll` with your token → gets back your node ID and secret
 4. Downloads the platform-agent binary and node-relay
 5. Writes hardened systemd units (`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, private devices, restricted address families)
-6. Opens `9443/tcp` in `ufw` or `firewalld` if either is active
+6. Opens `9443/tcp` and SOCKS5 `1080/tcp+udp` in `ufw` or `firewalld` if either is active
 7. Enables the SELinux `nis_enabled` boolean on RHEL-family systems (needed for the service to reach the control-plane)
 8. Starts both services and verifies they're healthy
 9. Installs the `proxynetctl` management CLI
