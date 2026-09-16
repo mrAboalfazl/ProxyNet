@@ -15,6 +15,8 @@ export class NodesService {
         country: true,
         provider: true,
         capabilities: true,
+        heartbeats: { orderBy: { reportedAt: 'desc' }, take: 1 },
+        metrics: { orderBy: { recordedAt: 'desc' }, take: 1 },
         submittedBy: { select: { id: true, displayName: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -30,6 +32,7 @@ export class NodesService {
         capabilities: true,
         edgeEndpoints: true,
         healthChecks: { orderBy: { checkedAt: 'desc' }, take: 10 },
+        heartbeats: { orderBy: { reportedAt: 'desc' }, take: 20 },
         metrics: { orderBy: { recordedAt: 'desc' }, take: 5 },
         submittedBy: { select: { id: true, displayName: true } },
       },
@@ -185,20 +188,27 @@ export class NodesService {
     nodeId: bigint,
     data: {
       configVersion?: number;
-      activeSessions?: number;
       agentVersion?: string;
       cpuPct?: number;
       memPct?: number;
+      activeSessions?: number;
+      hostname?: string;
+      osName?: string;
+      architecture?: string;
+      cpuCores?: number;
+      memoryBytes?: string;
+      uptimeSeconds?: string;
     },
   ) {
     await this.prisma.nodeHeartbeat.create({
       data: { nodeId, configVersion: data.configVersion, agentVersion: data.agentVersion },
     });
 
-    if (data.cpuPct !== undefined || data.memPct !== undefined) {
+    if (data.cpuPct !== undefined || data.memPct !== undefined || data.activeSessions !== undefined) {
       await this.prisma.nodeMetric.create({
         data: {
           nodeId,
+          activeSessions: data.activeSessions,
           cpuPct: data.cpuPct,
           memPct: data.memPct,
         },
@@ -217,6 +227,12 @@ export class NodesService {
         updatedAt: lastSeen,
         // Only promote to healthy if already approved/active (not pending)
         ...(node?.status === 'active' ? { status: 'healthy' as never } : {}),
+        ...(data.hostname !== undefined ? { hostname: data.hostname } : {}),
+        ...(data.osName !== undefined ? { osName: data.osName } : {}),
+        ...(data.architecture !== undefined ? { architecture: data.architecture } : {}),
+        ...(data.cpuCores !== undefined ? { cpuCores: data.cpuCores } : {}),
+        ...(data.memoryBytes !== undefined ? { memoryBytes: BigInt(data.memoryBytes) } : {}),
+        ...(data.uptimeSeconds !== undefined ? { uptimeSeconds: BigInt(data.uptimeSeconds) } : {}),
       },
     });
   }

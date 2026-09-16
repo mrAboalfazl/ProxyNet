@@ -120,6 +120,7 @@ export const api = {
   // Nodes (admin)
   nodes: {
     list: (country?: string) => request<Node[]>('GET', country ? `/admin/nodes?country=${country}` : '/admin/nodes'),
+    get: (id: string) => request<NodeDetails>('GET', `/admin/nodes/${id}`),
     create: (data: { countryCode: string; label: string; roles: string[] }) =>
       request<Node & { token: string; expiresAt: string }>('POST', '/admin/nodes', data),
     setStatus: (id: string, status: string) =>
@@ -213,10 +214,32 @@ export interface Node {
   roles: string[];
   status: string;
   createdAt: string;
+  updatedAt?: string;
   submittedById?: string | null;
   submittedBy?: { id: string; displayName: string } | null;
   approvedAt?: string | null;
   nodeSecretHash?: string | null;
+  ipv4Address?: string | null;
+  ipv6Address?: string | null;
+  reportedCountry?: string | null;
+  lastGeoVerifiedAt?: string | null;
+  configVersion?: string;
+  hostname?: string | null;
+  osName?: string | null;
+  architecture?: string | null;
+  cpuCores?: number | null;
+  memoryBytes?: string | null;
+  uptimeSeconds?: string | null;
+  country?: { code: string; name: string } | null;
+  heartbeats?: Array<{ agentVersion: string | null; configVersion: string | null; reportedAt: string }>;
+  metrics?: Array<{ activeSessions: number | null; cpuPct: string | null; memPct: string | null; recordedAt: string }>;
+}
+
+export interface NodeDetails extends Node {
+  capabilities: Array<{ protocol: string; transport: string; port: number; enabled: boolean }>;
+  heartbeats: Array<{ agentVersion: string | null; configVersion: string | null; reportedAt: string }>;
+  metrics: Array<{ activeSessions: number | null; cpuPct: string | null; memPct: string | null; recordedAt: string }>;
+  healthChecks: Array<{ checkType: string; status: string; latencyMs: number | null; checkedAt: string }>;
 }
 
 export interface User {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, Node } from '../../../lib/api';
 import {
   PageHeader, Card, Table, Tr, Td, Badge, Button, Input,
@@ -181,17 +182,17 @@ export default function AdminNodesPage() {
               </h2>
             )}
             <Card>
-              <Table headers={['Label', 'Country', 'Roles', 'Status', 'Actions']}>
+              <Table headers={['Node', 'Country / IP', 'Roles', 'Health', 'Last heartbeat', 'Actions']}>
                 {otherNodes.length === 0 ? (
                   <Tr>
-                    <td colSpan={5} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
+                    <td colSpan={6} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
                       No nodes yet.
                     </td>
                   </Tr>
                 ) : otherNodes.map((node) => (
                   <Tr key={node.id}>
-                    <Td style={{ fontWeight: 600 }}>{node.label}</Td>
-                    <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
+                    <Td style={{ fontWeight: 600 }}><Link href={`/admin/nodes/${node.id}`} style={{ color: colors.primary, textDecoration: 'none' }}>{node.label}</Link></Td>
+                    <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span><div style={{ color: colors.textMuted, fontSize: 11, direction: 'ltr' }}>{node.ipv4Address ?? node.ipv6Address ?? 'IP pending'}</div></Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {node.roles.map((r) => (
@@ -201,7 +202,8 @@ export default function AdminNodesPage() {
                         ))}
                       </div>
                     </Td>
-                    <Td><Badge label={node.status} /></Td>
+                    <Td><Badge label={node.status} /><div style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{node.nodeSecretHash ? 'Connected' : 'Not enrolled'}{node.metrics?.[0]?.cpuPct != null && ` · CPU ${node.metrics[0].cpuPct}%`}</div></Td>
+                    <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? new Date(node.heartbeats[0].reportedAt).toLocaleString() : (node.updatedAt ? new Date(node.updatedAt).toLocaleString() : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">Get Token</Button>

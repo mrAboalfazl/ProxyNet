@@ -122,6 +122,12 @@ export class NodesController {
       agentVersion?: string;
       cpuPct?: number;
       memPct?: number;
+      hostname?: string;
+      osName?: string;
+      architecture?: string;
+      cpuCores?: number;
+      memoryBytes?: string;
+      uptimeSeconds?: string;
     },
   ) {
     return this.nodes.recordHeartbeat(BigInt(id), body);

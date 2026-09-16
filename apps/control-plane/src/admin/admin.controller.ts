@@ -80,6 +80,12 @@ export class AdminController {
     return this.nodes.findAll(country);
   }
 
+  /** Full node telemetry is restricted to administrators. */
+  @Get('nodes/:id')
+  getNode(@Param('id') id: string) {
+    return this.nodes.findById(BigInt(id));
+  }
+
   @Patch('nodes/:id/status')
   setNodeStatus(@Param('id') id: string, @Body() body: { status: string }) {
     return this.nodes.updateStatus(BigInt(id), body.status);

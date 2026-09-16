@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,7 +19,7 @@ import (
 	"github.com/proxy-platform/agent/internal/routing"
 )
 
-const agentVersion = "v1.1.0"
+const agentVersion = "v1.2.0"
 
 // Agent manages the connection to the Control Plane and coordinates
 // local data-plane subprocess management.
@@ -195,16 +198,69 @@ func buildXrayConfig(cfg *config.Config, snap *routing.Snapshot) *dataplane.Xray
 }
 
 type heartbeatPayload struct {
-	AgentVersion   string `json:"agentVersion"`
-	ConfigVersion  int64  `json:"configVersion"`
-	ActiveSessions int    `json:"activeSessions"`
+	AgentVersion   string  `json:"agentVersion"`
+	ConfigVersion  int64   `json:"configVersion"`
+	ActiveSessions int     `json:"activeSessions"`
+	Hostname       string  `json:"hostname,omitempty"`
+	OSName         string  `json:"osName,omitempty"`
+	Architecture   string  `json:"architecture,omitempty"`
+	CPUCores       int     `json:"cpuCores,omitempty"`
+	MemoryBytes    string  `json:"memoryBytes,omitempty"`
+	UptimeSeconds  string  `json:"uptimeSeconds,omitempty"`
+	CPUPct         float64 `json:"cpuPct,omitempty"`
+	MemPct         float64 `json:"memPct,omitempty"`
+}
+
+func systemInfo() (hostname, osName, architecture string, cpuCores int, memoryBytes, uptimeSeconds string, cpuPct, memPct float64) {
+	hostname, _ = os.Hostname()
+	osName, architecture, cpuCores = runtime.GOOS, runtime.GOARCH, runtime.NumCPU()
+	if raw, err := os.ReadFile("/proc/meminfo"); err == nil {
+		var total, available int64
+		for _, line := range strings.Split(string(raw), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[0] == "MemTotal:" {
+				if kb, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+					total = kb
+					memoryBytes = strconv.FormatInt(kb*1024, 10)
+				}
+			}
+			if len(fields) >= 2 && fields[0] == "MemAvailable:" {
+				available, _ = strconv.ParseInt(fields[1], 10, 64)
+			}
+		}
+		if total > 0 {
+			memPct = float64(total-available) * 100 / float64(total)
+		}
+	}
+	if raw, err := os.ReadFile("/proc/loadavg"); err == nil {
+		if fields := strings.Fields(string(raw)); len(fields) > 0 {
+			if load, e := strconv.ParseFloat(fields[0], 64); e == nil && cpuCores > 0 {
+				cpuPct = load * 100 / float64(cpuCores)
+				if cpuPct > 100 {
+					cpuPct = 100
+				}
+			}
+		}
+	}
+	if raw, err := os.ReadFile("/proc/uptime"); err == nil {
+		if fields := strings.Fields(string(raw)); len(fields) > 0 {
+			if seconds, err := strconv.ParseFloat(fields[0], 64); err == nil {
+				uptimeSeconds = strconv.FormatInt(int64(seconds), 10)
+			}
+		}
+	}
+	return
 }
 
 func (a *Agent) sendHeartbeat() error {
+	hostname, osName, architecture, cpuCores, memoryBytes, uptimeSeconds, cpuPct, memPct := systemInfo()
 	payload := heartbeatPayload{
 		AgentVersion:   agentVersion,
 		ConfigVersion:  a.activeConfigVersion,
 		ActiveSessions: a.activeSessions,
+		Hostname:       hostname, OSName: osName, Architecture: architecture, CPUCores: cpuCores,
+		MemoryBytes: memoryBytes, UptimeSeconds: uptimeSeconds,
+		CPUPct: cpuPct, MemPct: memPct,
 	}
 
 	body, err := json.Marshal(payload)
