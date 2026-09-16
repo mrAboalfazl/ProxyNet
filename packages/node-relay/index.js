@@ -19,6 +19,7 @@
 const http = require('http');
 const https = require('https');
 const net = require('net');
+const dgram = require('dgram');
 const dns = require('dns').promises;
 const fs = require('fs');
 const { URL } = require('url');
@@ -229,6 +230,51 @@ function socksReply(socket, code) {
   socket.write(Buffer.from([SOCKS_VERSION, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
 }
 
+function parseUdpPacket(packet) {
+  if (packet.length < 4 || packet.readUInt16BE(0) !== 0 || packet.readUInt8(2) !== 0) return null;
+  const type = packet[3]; let offset = 4; let host;
+  if (type === 1) { if (packet.length < offset + 4) return null; host = Array.from(packet.subarray(offset, offset + 4)).join('.'); offset += 4; }
+  else if (type === 3) { const length = packet[offset]; if (!length || packet.length < offset + 1 + length) return null; host = packet.subarray(offset + 1, offset + 1 + length).toString('utf8'); offset += 1 + length; }
+  else if (type === 4) { if (packet.length < offset + 16) return null; host = ipv6FromBuffer(packet.subarray(offset, offset + 16)); offset += 16; }
+  else return null;
+  if (packet.length < offset + 2) return null;
+  return { host, port: packet.readUInt16BE(offset), payload: packet.subarray(offset + 2) };
+}
+
+function udpEnvelope(host, port, payload) {
+  const ip = net.isIP(host);
+  if (ip === 4) return Buffer.concat([Buffer.from([0, 0, 0, 1]), Buffer.from(host.split('.').map(Number)), Buffer.from([(port >> 8) & 255, port & 255]), payload]);
+  return Buffer.concat([Buffer.from([0, 0, 0, 3, host.length]), Buffer.from(host), Buffer.from([(port >> 8) & 255, port & 255]), payload]);
+}
+
+function startUdpAssociate(controlSocket, context) {
+  const udp = dgram.createSocket('udp4');
+  const upstream = dgram.createSocket('udp4');
+  let clientAddress = controlSocket.remoteAddress?.replace(/^::ffff:/, '');
+  let clientPort = null; let bytesIn = 0; let bytesOut = 0; let closed = false;
+  const startedAt = Date.now();
+  const close = () => { if (closed) return; closed = true; try { udp.close(); } catch {} try { upstream.close(); } catch {} void reportSocksUsage(context, 'udp-associate', bytesIn, bytesOut, startedAt, 'udp_flow'); };
+  const enforce = (size, inbound) => { context.bytesRemaining -= BigInt(size); if (inbound) bytesIn += size; else bytesOut += size; return context.bytesRemaining >= 0n; };
+  udp.on('message', async (packet, peer) => {
+    if (clientAddress && peer.address !== clientAddress) return;
+    if (!clientPort) clientPort = peer.port;
+    if (peer.port !== clientPort) return;
+    const request = parseUdpPacket(packet); if (!request || request.payload.length === 0) return;
+    try {
+      const resolved = await resolveDestination(request.host);
+      if (!enforce(request.payload.length, false)) return close();
+      upstream.send(request.payload, request.port, resolved.address);
+    } catch { /* malformed/private destinations are silently dropped for UDP */ }
+  });
+  upstream.on('message', (payload, peer) => {
+    if (!clientAddress || !clientPort || closed || !enforce(payload.length, true)) return;
+    udp.send(udpEnvelope(peer.address, peer.port, payload), clientPort, clientAddress);
+  });
+  udp.once('error', close); controlSocket.once('close', close); controlSocket.once('error', close);
+  udp.bind(0, SOCKS_HOST, () => { const address = udp.address(); controlSocket.write(Buffer.from([SOCKS_VERSION, 0, 0, 1, 0, 0, 0, 0, (address.port >> 8) & 255, address.port & 255])); });
+  udp.unref();
+}
+
 async function controlRequest(path, body) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -273,12 +319,12 @@ async function authorizeSocksCredential(username, password) {
   return result.quotaToken;
 }
 
-function reportSocksUsage(context, destination, bytesIn, bytesOut, startedAt) {
+function reportSocksUsage(context, destination, bytesIn, bytesOut, startedAt, eventType = 'tcp_session') {
   const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
   return controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/usage-events`, {
     userId: context.userId,
     sessionId: context.sessionId,
-    eventType: 'tcp_session',
+    eventType,
     protocol: 'socks5',
     credentialUuid: context.credentialUuid,
     bytesIn: String(bytesIn),
@@ -377,8 +423,8 @@ function createSocksConnection(socket) {
     if (stage !== 'request') return;
     if (buffer.length < 4) return;
     const [version, command, reserved, addressType] = buffer;
-    if (version !== SOCKS_VERSION || reserved !== 0x00 || command !== 0x01) {
-      socksReply(socket, command === 0x01 ? 0x01 : 0x07);
+    if (version !== SOCKS_VERSION || reserved !== 0x00 || ![0x01, 0x03].includes(command)) {
+      socksReply(socket, command === 0x01 || command === 0x03 ? 0x01 : 0x07);
       socket.end();
       return;
     }
@@ -406,6 +452,7 @@ function createSocksConnection(socket) {
     }
     const port = buffer.readUInt16BE(offset);
     buffer = buffer.subarray(offset + 2);
+    if (command === 0x03) { startUdpAssociate(socket, context); stage = 'udp'; return; }
     stage = 'connecting';
     connectSocksDestination(socket, context, host, port);
   }

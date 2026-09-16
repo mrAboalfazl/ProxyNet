@@ -438,12 +438,14 @@ configure_firewall() {
   if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
     ufw allow 9443/tcp comment 'ProxyNet relay' >>"$LOG_FILE" 2>&1 || true
     ufw allow 1080/tcp comment 'ProxyNet SOCKS5' >>"$LOG_FILE" 2>&1 || true
-    ok "ufw: opened 9443/tcp and 1080/tcp"
+    ufw allow 1080/udp comment 'ProxyNet SOCKS5 UDP' >>"$LOG_FILE" 2>&1 || true
+    ok "ufw: opened 9443/tcp and 1080/tcp+udp"
   elif command -v firewall-cmd >/dev/null && systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-port=9443/tcp >>"$LOG_FILE" 2>&1 || true
     firewall-cmd --permanent --add-port=1080/tcp >>"$LOG_FILE" 2>&1 || true
+    firewall-cmd --permanent --add-port=1080/udp >>"$LOG_FILE" 2>&1 || true
     firewall-cmd --reload >>"$LOG_FILE" 2>&1 || true
-    ok "firewalld: opened 9443/tcp and 1080/tcp"
+    ok "firewalld: opened 9443/tcp and 1080/tcp+udp"
   else
     warn "no active firewall detected — make sure port 9443/tcp is reachable from $PANEL"
   fi

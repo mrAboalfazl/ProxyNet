@@ -29,7 +29,7 @@ pm2 save
 | `NODE_ID` | agent config | Node ID used to authorize SOCKS5 sessions |
 | `CONTROL_PLANE_URL` | agent config | Control-plane URL used by SOCKS5 |
 | `SOCKS_HOST` | `0.0.0.0` | SOCKS5 bind address |
-| `SOCKS_PORT` | `1080` | Public SOCKS5 TCP port |
+| `SOCKS_PORT` | `1080` | Public SOCKS5 TCP and UDP-associate port |
 
 ## Endpoints
 
@@ -49,6 +49,6 @@ users should use this port only from trusted networks or behind a trusted tunnel
 
 ## Firewall
 
-Open TCP `1080` for SOCKS5 users after installing the current node release.
+Open TCP and UDP `1080` for SOCKS5 users after installing the current node release.
 Open TCP `9443` inbound from the control-plane server only. Do NOT expose to the
 public internet — the relay is not rate-limited.
