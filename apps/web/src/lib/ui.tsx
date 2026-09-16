@@ -30,11 +30,11 @@ export function Card({
   style?: React.CSSProperties;
 }) {
   return (
-    <div
+    <div className="admin-card"
       style={{
         backgroundColor: colors.surface,
         borderRadius: 10,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
         ...style,
       }}
     >
@@ -92,7 +92,7 @@ export function Button({
     ghost: { backgroundColor: 'transparent', color: colors.primary, border: `1px solid ${colors.primary}` },
   };
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant] }}>
+    <button className="admin-ui-button" type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant] }}>
       {children}
     </button>
   );
@@ -138,8 +138,8 @@ export function Table({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+    <div className="admin-table-wrap" style={{ overflowX: 'auto' }}>
+      <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead>
           <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
             {headers.map((h) => (
@@ -186,7 +186,7 @@ export function Tr({ children, style }: { children: React.ReactNode; style?: Rea
 
 export function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <td style={{ padding: '12px 16px', color: colors.text, ...style }}>{children}</td>
+    <td className="admin-table-cell" style={{ padding: '12px 16px', color: colors.text, ...style }}>{children}</td>
   );
 }
 
@@ -215,7 +215,7 @@ export function Input({
           {label}
         </label>
       )}
-      <input
+      <input className="admin-input"
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -245,7 +245,7 @@ export function Alert({ message, type = 'error' }: { message: string; type?: 'er
   };
   const s = styles[type];
   return (
-    <div
+    <div className="admin-alert"
       style={{
         backgroundColor: s.bg,
         border: `1px solid ${s.border}`,
@@ -283,7 +283,7 @@ export function Modal({
       }}
       onClick={onClose}
     >
-      <div
+      <div className="admin-modal-content"
         style={{
           backgroundColor: '#fff',
           borderRadius: 12,
@@ -326,9 +326,9 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
       <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: colors.text }}>{title}</h1>
-      {action}
+      {action && <div className="admin-page-header-action">{action}</div>}
     </div>
   );
 }
