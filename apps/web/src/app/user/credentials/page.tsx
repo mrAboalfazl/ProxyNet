@@ -115,7 +115,7 @@ print(r.json()["body"])`;
         {requiresActivePlan ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#9a3412' }}>
             <ShieldAlert size={16} style={{ flex: '0 0 auto', marginTop: 1 }} />
-            <span>{lang === 'fa' ? 'برای استفاده از SOCKS5 ابتدا یک اشتراک فعال تهیه یا فعال کنید. نود آلمان آماده است، اما بدون اشتراک اتصال مجاز نیست.' : 'Activate a subscription before using SOCKS5. The German node is ready, but connections are blocked without an active subscription.'}</span>
+            <span>{lang === 'fa' ? 'برای استفاده از SOCKS5 ابتدا یک اشتراک فعال تهیه یا فعال کنید. نود آلمان آماده است و پس از فعال‌سازی اشتراک در دسترس خواهد بود.' : 'Activate a subscription before using SOCKS5. The German node is ready and will be available once your subscription is active.'}</span>
           </div>
         ) : endpoints.length === 0 ? (
           <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
