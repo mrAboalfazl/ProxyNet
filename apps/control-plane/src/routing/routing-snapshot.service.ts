@@ -53,6 +53,10 @@ export class RoutingSnapshotService {
       this.prisma.node.findMany({
         where: {
           status: { in: ['healthy', 'degraded', 'active'] },
+          // A disabled country must never remain routable through a stale
+          // snapshot. Manual preferences are validated separately, but this
+          // protects automatic routing and already-saved preferences too.
+          country: { enabled: true },
         },
         include: {
           edgeEndpoints: {
@@ -73,23 +77,25 @@ export class RoutingSnapshotService {
 
     const snapshot: ConfigSnapshot = {
       version: nextVersion,
-      nodes: nodes.map((node): SnapshotNode => ({
-        id: node.id.toString(),
-        countryCode: node.countryCode,
-        label: node.label,
-        roles: node.roles,
-        status: node.status,
-        weight: node.status === 'healthy' ? 1.0 : 0.5,
-        endpoints: node.edgeEndpoints.map((ep) => ({
-          id: ep.id.toString(),
-          transportType: ep.transportType,
-          ipAddress: ep.ipAddress,
-          port: ep.port,
-          domain: ep.domain ?? null,
-          publicKey: ep.publicKey ?? null,
-          reachabilityScore: Number(ep.reachabilityScore),
-        })),
-      })),
+      nodes: nodes.map(
+        (node): SnapshotNode => ({
+          id: node.id.toString(),
+          countryCode: node.countryCode,
+          label: node.label,
+          roles: node.roles,
+          status: node.status,
+          weight: node.status === 'healthy' ? 1.0 : 0.5,
+          endpoints: node.edgeEndpoints.map((ep) => ({
+            id: ep.id.toString(),
+            transportType: ep.transportType,
+            ipAddress: ep.ipAddress,
+            port: ep.port,
+            domain: ep.domain ?? null,
+            publicKey: ep.publicKey ?? null,
+            reachabilityScore: Number(ep.reachabilityScore),
+          })),
+        }),
+      ),
       policies: policies.map((policy) => ({
         id: policy.id.toString(),
         name: policy.name,

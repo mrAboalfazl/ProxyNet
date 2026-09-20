@@ -1,12 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { encryptRelaySecret } from './relay-secret.crypto';
+import { RoutingSnapshotService } from '../routing/routing-snapshot.service';
 
 @Injectable()
 export class NodesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly routingSnapshot: RoutingSnapshotService,
+  ) {}
 
   findAll(countryCode?: string) {
     return this.prisma.node.findMany({
@@ -81,7 +89,9 @@ export class NodesService {
     return { node, token, expiresAt };
   }
 
-  async generateEnrollmentToken(nodeId: bigint): Promise<{ token: string; expiresAt: Date }> {
+  async generateEnrollmentToken(
+    nodeId: bigint,
+  ): Promise<{ token: string; expiresAt: Date }> {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -95,7 +105,11 @@ export class NodesService {
 
   async consumeEnrollmentToken(
     token: string,
-    agentData: { ipv4Address?: string; ipv6Address?: string; agentVersion?: string },
+    agentData: {
+      ipv4Address?: string;
+      ipv6Address?: string;
+      agentVersion?: string;
+    },
   ) {
     const node = await this.prisma.node.findFirst({
       where: {
@@ -130,6 +144,8 @@ export class NodesService {
       data: { nodeId: node.id, agentVersion: agentData.agentVersion },
     });
 
+    await this.routingSnapshot.compileSnapshot();
+
     return { ...updated, nodeSecret };
   }
 
@@ -137,7 +153,7 @@ export class NodesService {
     const node = await this.prisma.node.findUnique({ where: { id: nodeId } });
     if (!node) throw new NotFoundException('Node not found');
 
-    return this.prisma.node.update({
+    const updated = await this.prisma.node.update({
       where: { id: nodeId },
       data: {
         status: 'active' as never,
@@ -146,16 +162,20 @@ export class NodesService {
       },
       include: { submittedBy: { select: { id: true, displayName: true } } },
     });
+    await this.routingSnapshot.compileSnapshot();
+    return updated;
   }
 
   async rejectNode(nodeId: bigint) {
     const node = await this.prisma.node.findUnique({ where: { id: nodeId } });
     if (!node) throw new NotFoundException('Node not found');
 
-    return this.prisma.node.update({
+    const updated = await this.prisma.node.update({
       where: { id: nodeId },
       data: { status: 'disabled' as never },
     });
+    await this.routingSnapshot.compileSnapshot();
+    return updated;
   }
 
   async verifyNodeSecret(nodeId: bigint, secret: string): Promise<boolean> {
@@ -187,12 +207,19 @@ export class NodesService {
     });
     if (!node) throw new NotFoundException('Node not found');
     if (status === 'pending' && node.nodeSecretHash) {
-      throw new BadRequestException('An enrolled node cannot be reset to pending');
+      throw new BadRequestException(
+        'An enrolled node cannot be reset to pending',
+      );
     }
     if (status === 'active' && !node.nodeSecretHash) {
       throw new BadRequestException('Enroll the node before activating it');
     }
-    return this.prisma.node.update({ where: { id }, data: { status: status as never } });
+    const updated = await this.prisma.node.update({
+      where: { id },
+      data: { status: status as never },
+    });
+    await this.routingSnapshot.compileSnapshot();
+    return updated;
   }
 
   async recordHeartbeat(
@@ -212,10 +239,18 @@ export class NodesService {
     },
   ) {
     await this.prisma.nodeHeartbeat.create({
-      data: { nodeId, configVersion: data.configVersion, agentVersion: data.agentVersion },
+      data: {
+        nodeId,
+        configVersion: data.configVersion,
+        agentVersion: data.agentVersion,
+      },
     });
 
-    if (data.cpuPct !== undefined || data.memPct !== undefined || data.activeSessions !== undefined) {
+    if (
+      data.cpuPct !== undefined ||
+      data.memPct !== undefined ||
+      data.activeSessions !== undefined
+    ) {
       await this.prisma.nodeMetric.create({
         data: {
           nodeId,
@@ -240,10 +275,16 @@ export class NodesService {
         ...(node?.status === 'active' ? { status: 'healthy' as never } : {}),
         ...(data.hostname !== undefined ? { hostname: data.hostname } : {}),
         ...(data.osName !== undefined ? { osName: data.osName } : {}),
-        ...(data.architecture !== undefined ? { architecture: data.architecture } : {}),
+        ...(data.architecture !== undefined
+          ? { architecture: data.architecture }
+          : {}),
         ...(data.cpuCores !== undefined ? { cpuCores: data.cpuCores } : {}),
-        ...(data.memoryBytes !== undefined ? { memoryBytes: BigInt(data.memoryBytes) } : {}),
-        ...(data.uptimeSeconds !== undefined ? { uptimeSeconds: BigInt(data.uptimeSeconds) } : {}),
+        ...(data.memoryBytes !== undefined
+          ? { memoryBytes: BigInt(data.memoryBytes) }
+          : {}),
+        ...(data.uptimeSeconds !== undefined
+          ? { uptimeSeconds: BigInt(data.uptimeSeconds) }
+          : {}),
       },
     });
   }

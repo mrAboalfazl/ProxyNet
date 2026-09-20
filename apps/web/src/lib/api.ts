@@ -37,7 +37,9 @@ async function request<T>(
     const text = await res.text();
     try {
       const json = JSON.parse(text);
-      const msg = Array.isArray(json.message) ? json.message.join(', ') : (json.message || text);
+      const msg = Array.isArray(json.message)
+        ? json.message.join(', ')
+        : json.message || text;
       throw new Error(msg);
     } catch (parseErr) {
       if (parseErr instanceof SyntaxError) throw new Error(text);
@@ -61,89 +63,199 @@ export const api = {
 
   // Auth
   login: (identifier: string, password: string) =>
-    request<{ accessToken: string }>('POST', '/auth/login', { identifier, password }),
+    request<{ accessToken: string }>('POST', '/auth/login', {
+      identifier,
+      password,
+    }),
 
-  startRegistration: (data: { displayName: string; email: string; phone: string; password: string }) =>
-    request<{ registrationId: string; expiresInSeconds: number }>('POST', '/auth/registration/start', data),
+  startRegistration: (data: {
+    displayName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) =>
+    request<{ registrationId: string; expiresInSeconds: number }>(
+      'POST',
+      '/auth/registration/start',
+      data,
+    ),
 
   confirmRegistration: (registrationId: string, code: string) =>
-    request<{ accessToken: string }>('POST', '/auth/registration/confirm', { registrationId, code }),
+    request<{ accessToken: string }>('POST', '/auth/registration/confirm', {
+      registrationId,
+      code,
+    }),
 
   sendOtp: (identifier: string, method: string) =>
-    request<{ sent: boolean }>('POST', '/auth/otp/send', { identifier, method }),
+    request<{ sent: boolean }>('POST', '/auth/otp/send', {
+      identifier,
+      method,
+    }),
 
   verifyOtp: (identifier: string, method: string, code: string) =>
-    request<{ accessToken: string }>('POST', '/auth/otp/verify', { identifier, method, code }),
+    request<{ accessToken: string }>('POST', '/auth/otp/verify', {
+      identifier,
+      method,
+      code,
+    }),
 
   logout: () => request<void>('POST', '/auth/logout'),
 
   // Current user
-  me: () => request<User & { routingPreference?: { routingMode: string; preferredCountry: string | null } }>('GET', '/users/me'),
+  me: () =>
+    request<
+      User & {
+        routingPreference?: {
+          routingMode: string;
+          preferredCountry: string | null;
+        };
+      }
+    >('GET', '/users/me'),
 
   updateRoutingPreference: (routingMode: string, preferredCountry?: string) =>
-    request<unknown>('PATCH', '/users/me/routing', { routingMode, preferredCountry }),
+    request<unknown>('PATCH', '/users/me/routing', {
+      routingMode,
+      preferredCountry,
+    }),
 
   // Usage
   myUsage: () =>
-    request<{ bytesUsed: number; connectionsUsed: number; periodStart: string; periodEnd: string; plan?: { name: string; monthlyBandwidthGb: number } }>(
-      'GET', '/metering/usage/me',
-    ),
-  financialReport: (params: Partial<{ page: number; limit: number; usagePage: number; usageLimit: number; from: string; to: string; category: string }> = {}) => {
-    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)]));
-    return request<FinancialReport>('GET', `/metering/financial/me${query.toString() ? `?${query}` : ''}`);
+    request<{
+      bytesUsed: number;
+      connectionsUsed: number;
+      periodStart: string;
+      periodEnd: string;
+      plan?: { name: string; monthlyBandwidthGb: number };
+    }>('GET', '/metering/usage/me'),
+  financialReport: (
+    params: Partial<{
+      page: number;
+      limit: number;
+      usagePage: number;
+      usageLimit: number;
+      from: string;
+      to: string;
+      category: string;
+    }> = {},
+  ) => {
+    const query = new URLSearchParams(
+      Object.entries(params)
+        .filter(([, value]) => value !== undefined && value !== '')
+        .map(([key, value]) => [key, String(value)]),
+    );
+    return request<FinancialReport>(
+      'GET',
+      `/metering/financial/me${query.toString() ? `?${query}` : ''}`,
+    );
   },
 
   // Proxy credentials
   myCredentials: () => request<ProxyCredential[]>('GET', '/proxy-credentials'),
 
   createCredential: (label?: string) =>
-    request<ProxyCredential & { secret?: string }>('POST', '/proxy-credentials', { label }),
+    request<ProxyCredential & { secret?: string }>(
+      'POST',
+      '/proxy-credentials',
+      { label },
+    ),
 
   revokeCredential: (id: string) =>
     request<void>('DELETE', `/proxy-credentials/${id}`),
 
   socks5: {
-    endpoints: () => request<Socks5EndpointResult>('GET', '/proxy-credentials/socks5/endpoints'),
+    endpoints: () =>
+      request<Socks5EndpointResult>(
+        'GET',
+        '/proxy-credentials/socks5/endpoints',
+      ),
   },
 
   // Dashboard
   dashboard: () =>
-    request<{ totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number; walletBalanceToman: string; revenueToman: string; requestCount: number; socksBandwidthBytes: string }>(
-      'GET', '/admin/dashboard',
-    ),
+    request<{
+      totalUsers: number;
+      totalNodes: number;
+      healthyNodes: number;
+      activeCountries: number;
+      walletBalanceToman: string;
+      revenueToman: string;
+      requestCount: number;
+      socksBandwidthBytes: string;
+    }>('GET', '/admin/dashboard'),
   adminStatistics: () => request<AdminStatistics>('GET', '/admin/statistics'),
-  adminUserFinancial: (id: string, params: Partial<{ page: number; limit: number; usagePage: number; usageLimit: number; from: string; to: string; category: string }> = {}) => {
-    const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== '').map(([key, value]) => [key, String(value)]));
-    return request<FinancialReport>('GET', `/admin/users/${id}/financial${query.toString() ? `?${query}` : ''}`);
+  adminUserFinancial: (
+    id: string,
+    params: Partial<{
+      page: number;
+      limit: number;
+      usagePage: number;
+      usageLimit: number;
+      from: string;
+      to: string;
+      category: string;
+    }> = {},
+  ) => {
+    const query = new URLSearchParams(
+      Object.entries(params)
+        .filter(([, value]) => value !== undefined && value !== '')
+        .map(([key, value]) => [key, String(value)]),
+    );
+    return request<FinancialReport>(
+      'GET',
+      `/admin/users/${id}/financial${query.toString() ? `?${query}` : ''}`,
+    );
   },
 
   // Nodes (admin)
   nodes: {
-    list: (country?: string) => request<Node[]>('GET', country ? `/admin/nodes?country=${country}` : '/admin/nodes'),
+    list: (country?: string) =>
+      request<Node[]>(
+        'GET',
+        country ? `/admin/nodes?country=${country}` : '/admin/nodes',
+      ),
     get: (id: string) => request<NodeDetails>('GET', `/admin/nodes/${id}`),
     create: (data: { countryCode: string; label: string; roles: string[] }) =>
-      request<Node & { token: string; expiresAt: string }>('POST', '/admin/nodes', data),
+      request<Node & { token: string; expiresAt: string }>(
+        'POST',
+        '/admin/nodes',
+        data,
+      ),
     setStatus: (id: string, status: string) =>
       request<Node>('PATCH', `/admin/nodes/${id}/status`, { status }),
     enrollmentToken: (id: string) =>
-      request<{ token: string; expiresAt: string }>('POST', `/admin/nodes/${id}/enrollment-token`),
-    approve: (id: string) => request<Node>('POST', `/admin/nodes/${id}/approve`, {}),
-    reject: (id: string) => request<Node>('POST', `/admin/nodes/${id}/reject`, {}),
+      request<{ token: string; expiresAt: string }>(
+        'POST',
+        `/admin/nodes/${id}/enrollment-token`,
+      ),
+    approve: (id: string) =>
+      request<Node>('POST', `/admin/nodes/${id}/approve`, {}),
+    reject: (id: string) =>
+      request<Node>('POST', `/admin/nodes/${id}/reject`, {}),
   },
 
   // Nodes (user self-service)
   myNodes: {
     list: () => request<Node[]>('GET', '/nodes/my'),
     create: (data: { countryCode: string; label: string }) =>
-      request<{ node: Node; token: string; expiresAt: string }>('POST', '/nodes/my', data),
+      request<{ node: Node; token: string; expiresAt: string }>(
+        'POST',
+        '/nodes/my',
+        data,
+      ),
   },
 
   // Users
   users: {
-    list: (page = 1) => request<{ users: User[]; total: number; page: number }>('GET', `/admin/users?page=${page}&limit=20`),
+    list: (page = 1) =>
+      request<{ users: User[]; total: number; page: number }>(
+        'GET',
+        `/admin/users?page=${page}&limit=20`,
+      ),
     get: (id: string) => request<AdminUserDetails>('GET', `/admin/users/${id}`),
-    getVless: (id: string) => request<AdminVlessBundle>('GET', `/admin/users/${id}/vless`),
-    setStatus: (id: string, status: string) => request<User>('PATCH', `/admin/users/${id}/status`, { status }),
+    getVless: (id: string) =>
+      request<AdminVlessBundle>('GET', `/admin/users/${id}/vless`),
+    setStatus: (id: string, status: string) =>
+      request<User>('PATCH', `/admin/users/${id}/status`, { status }),
   },
 
   // Health check (authenticated — verifies auth + returns account status/usage/wallet)
@@ -152,41 +264,84 @@ export const api = {
   // Wallet (user)
   wallet: {
     me: () => request<WalletMeResponse>('GET', '/wallet/me'),
-    transactions: (limit = 50) => request<WalletTransaction[]>('GET', `/wallet/me/transactions?limit=${limit}`),
+    transactions: (limit = 50) =>
+      request<WalletTransaction[]>(
+        'GET',
+        `/wallet/me/transactions?limit=${limit}`,
+      ),
   },
 
   // Wallet + pricing (admin)
   adminWallet: {
-    get: (userId: string) => request<AdminWalletBundle>('GET', `/admin/users/${userId}/wallet`),
-    topup: (userId: string, amountToman: number | string, description?: string) =>
-      request<{ wallet: { balanceToman: string; currency: string }; transactionId: string }>(
-        'POST', `/admin/users/${userId}/wallet/topup`, { amountToman, description },
-      ),
-    adjust: (userId: string, amountToman: number | string, description?: string) =>
-      request<{ wallet: { balanceToman: string; currency: string }; transactionId: string }>(
-        'POST', `/admin/users/${userId}/wallet/adjust`, { amountToman, description },
-      ),
+    get: (userId: string) =>
+      request<AdminWalletBundle>('GET', `/admin/users/${userId}/wallet`),
+    topup: (
+      userId: string,
+      amountToman: number | string,
+      description?: string,
+    ) =>
+      request<{
+        wallet: { balanceToman: string; currency: string };
+        transactionId: string;
+      }>('POST', `/admin/users/${userId}/wallet/topup`, {
+        amountToman,
+        description,
+      }),
+    adjust: (
+      userId: string,
+      amountToman: number | string,
+      description?: string,
+    ) =>
+      request<{
+        wallet: { balanceToman: string; currency: string };
+        transactionId: string;
+      }>('POST', `/admin/users/${userId}/wallet/adjust`, {
+        amountToman,
+        description,
+      }),
   },
   adminPricing: {
     get: () => request<PricingResponse>('GET', '/admin/pricing'),
-    update: (patch: Partial<PricingResponse>) => request<PricingResponse>('PATCH', '/admin/pricing', patch),
+    update: (patch: Partial<PricingResponse>) =>
+      request<PricingResponse>('PATCH', '/admin/pricing', patch),
   },
 
   // Forwarders (user)
   forwarders: {
-    list: () => request<{ userSlug: string; forwarders: Forwarder[] }>('GET', '/forwarders'),
-    create: (data: { label: string; targetUrl: string; forwardAuthHeader?: boolean; preservePath?: boolean; preserveQuery?: boolean }) =>
-      request<Forwarder>('POST', '/forwarders', data),
-    update: (id: string, data: Partial<{ label: string; targetUrl: string; enabled: boolean; forwardAuthHeader: boolean; preservePath: boolean; preserveQuery: boolean }>) =>
-      request<Forwarder>('PATCH', `/forwarders/${id}`, data),
+    list: () =>
+      request<{ userSlug: string; forwarders: Forwarder[] }>(
+        'GET',
+        '/forwarders',
+      ),
+    create: (data: {
+      label: string;
+      targetUrl: string;
+      forwardAuthHeader?: boolean;
+      preservePath?: boolean;
+      preserveQuery?: boolean;
+    }) => request<Forwarder>('POST', '/forwarders', data),
+    update: (
+      id: string,
+      data: Partial<{
+        label: string;
+        targetUrl: string;
+        enabled: boolean;
+        forwardAuthHeader: boolean;
+        preservePath: boolean;
+        preserveQuery: boolean;
+      }>,
+    ) => request<Forwarder>('PATCH', `/forwarders/${id}`, data),
     remove: (id: string) => request<void>('DELETE', `/forwarders/${id}`),
   },
 
   // Plans
   plans: {
     list: () => request<Plan[]>('GET', '/plans'),
-    create: (data: { name: string; monthlyBandwidthGb: number; maxConcurrentSessions?: number }) =>
-      request<Plan>('POST', '/admin/plans', data),
+    create: (data: {
+      name: string;
+      monthlyBandwidthGb: number;
+      maxConcurrentSessions?: number;
+    }) => request<Plan>('POST', '/admin/plans', data),
     assignToUser: (userId: string, planId: string) =>
       request<unknown>('POST', `/admin/users/${userId}/assign-plan/${planId}`),
   },
@@ -199,13 +354,20 @@ export const api = {
     list: () => request<Country[]>('GET', '/countries'),
     listAdmin: () => request<Country[]>('GET', '/admin/countries'),
     setEnabled: (code: string, enabled: boolean) =>
-      request<Country>('PATCH', `/admin/countries/${code}/enabled`, { enabled }),
+      request<Country>('PATCH', `/admin/countries/${code}/enabled`, {
+        enabled,
+      }),
     status: () => request<CountryStatus[]>('GET', '/admin/countries/status'),
   },
 
   // Routing snapshot
-  snapshot: () => request<{ version: string; nodes: unknown[]; compiledAt: string }>('GET', '/routing/snapshot'),
-  recompileSnapshot: () => request<{ version: string }>('POST', '/routing/snapshot/recompile'),
+  snapshot: () =>
+    request<{ version: string; nodes: unknown[]; compiledAt: string }>(
+      'GET',
+      '/routing/snapshot',
+    ),
+  recompileSnapshot: () =>
+    request<{ version: string }>('POST', '/routing/snapshot/recompile'),
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -234,15 +396,43 @@ export interface Node {
   memoryBytes?: string | null;
   uptimeSeconds?: string | null;
   country?: { code: string; name: string } | null;
-  heartbeats?: Array<{ agentVersion: string | null; configVersion: string | null; reportedAt: string }>;
-  metrics?: Array<{ activeSessions: number | null; cpuPct: string | null; memPct: string | null; recordedAt: string }>;
+  heartbeats?: Array<{
+    agentVersion: string | null;
+    configVersion: string | null;
+    reportedAt: string;
+  }>;
+  metrics?: Array<{
+    activeSessions: number | null;
+    cpuPct: string | null;
+    memPct: string | null;
+    recordedAt: string;
+  }>;
 }
 
 export interface NodeDetails extends Node {
-  capabilities: Array<{ protocol: string; transport: string; port: number; enabled: boolean }>;
-  heartbeats: Array<{ agentVersion: string | null; configVersion: string | null; reportedAt: string }>;
-  metrics: Array<{ activeSessions: number | null; cpuPct: string | null; memPct: string | null; recordedAt: string }>;
-  healthChecks: Array<{ checkType: string; status: string; latencyMs: number | null; checkedAt: string }>;
+  capabilities: Array<{
+    protocol: string;
+    transport: string;
+    port: number;
+    enabled: boolean;
+  }>;
+  heartbeats: Array<{
+    agentVersion: string | null;
+    configVersion: string | null;
+    reportedAt: string;
+  }>;
+  metrics: Array<{
+    activeSessions: number | null;
+    cpuPct: string | null;
+    memPct: string | null;
+    recordedAt: string;
+  }>;
+  healthChecks: Array<{
+    checkType: string;
+    status: string;
+    latencyMs: number | null;
+    checkedAt: string;
+  }>;
 }
 
 export interface User {
@@ -265,12 +455,18 @@ export interface Country {
   code: string;
   name: string;
   enabled: boolean;
+  autoModeEligible?: boolean;
 }
 
 export interface CountryStatus {
   code: string;
+  name?: string;
   total: number;
   healthy: number;
+  active?: number;
+  degraded?: number;
+  unhealthy?: number;
+  available?: boolean;
 }
 
 export interface ProxyCredential {
@@ -314,17 +510,38 @@ export interface WalletTransaction {
 export interface FinancialReport {
   categories: Array<{ category: string; spentToman: string }>;
   transactionsTotal: number;
-  page: number; limit: number;
-  usage: Array<{ id: string; eventType: string; protocol: string; requests: number; bytesIn: string; bytesOut: string; occurredAt: string }>;
-  usageTotal: number; usagePage: number; usageLimit: number;
+  page: number;
+  limit: number;
+  usage: Array<{
+    id: string;
+    eventType: string;
+    protocol: string;
+    requests: number;
+    bytesIn: string;
+    bytesOut: string;
+    occurredAt: string;
+  }>;
+  usageTotal: number;
+  usagePage: number;
+  usageLimit: number;
   dailySpending: Array<{ day: string; spentToman: string }>;
   transactions: WalletTransaction[];
 }
 
 export interface AdminStatistics {
-  totalUsers: number; totalNodes: number; healthyNodes: number; activeCountries: number;
-  walletBalanceToman: string; revenueToman: string; requestCount: number; socksBandwidthBytes: string;
-  activeSubscriptions: number; activeCredentials: number; activeForwarders: number; transactionCount: number; generatedAt: string;
+  totalUsers: number;
+  totalNodes: number;
+  healthyNodes: number;
+  activeCountries: number;
+  walletBalanceToman: string;
+  revenueToman: string;
+  requestCount: number;
+  socksBandwidthBytes: string;
+  activeSubscriptions: number;
+  activeCredentials: number;
+  activeForwarders: number;
+  transactionCount: number;
+  generatedAt: string;
 }
 
 export interface PricingResponse {
@@ -389,8 +606,19 @@ export interface Forwarder {
 }
 
 export interface AdminVlessBundle {
-  user: { id: string; displayName: string; email: string | null; phone: string | null };
-  credentials: Array<{ id: string; uuid: string; label: string | null; createdAt: string; vlessUri: string }>;
+  user: {
+    id: string;
+    displayName: string;
+    email: string | null;
+    phone: string | null;
+  };
+  credentials: Array<{
+    id: string;
+    uuid: string;
+    label: string | null;
+    createdAt: string;
+    vlessUri: string;
+  }>;
 }
 
 export interface AdminUserDetails {
@@ -403,7 +631,25 @@ export interface AdminUserDetails {
   role: string;
   createdAt: string;
   subscriptions: Array<{ status: string; plan: Plan }>;
-  routingPreference: { routingMode: string; preferredCountry: string | null } | null;
-  proxyCredentials: Array<{ id: string; uuid: string; label: string | null; enabled: boolean; createdAt: string }>;
-  forwarders: Array<{ id: string; slug: string; label: string; targetUrl: string; enabled: boolean; callCount: string; lastUsedAt: string | null; createdAt: string }>;
+  routingPreference: {
+    routingMode: string;
+    preferredCountry: string | null;
+  } | null;
+  proxyCredentials: Array<{
+    id: string;
+    uuid: string;
+    label: string | null;
+    enabled: boolean;
+    createdAt: string;
+  }>;
+  forwarders: Array<{
+    id: string;
+    slug: string;
+    label: string;
+    targetUrl: string;
+    enabled: boolean;
+    callCount: string;
+    lastUsedAt: string | null;
+    createdAt: string;
+  }>;
 }

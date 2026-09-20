@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
@@ -33,7 +38,8 @@ export class UsersService {
         ].filter(Boolean),
       },
     });
-    if (existing) throw new ConflictException('User already exists with this identifier');
+    if (existing)
+      throw new ConflictException('User already exists with this identifier');
 
     const user = await this.prisma.user.create({
       data: {
@@ -85,7 +91,11 @@ export class UsersService {
   async findMany(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     const [users, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' } }),
+      this.prisma.user.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.user.count(),
     ]);
     return { users, total, page, limit };
@@ -97,12 +107,40 @@ export class UsersService {
 
   async updateRoutingPreference(
     userId: bigint,
-    preference: { routingMode?: string; preferredCountry?: string },
+    preference: { routingMode?: string; preferredCountry?: string | null },
   ) {
+    const routingMode = (preference.routingMode ?? 'auto').trim().toLowerCase();
+    if (!['auto', 'country', 'local'].includes(routingMode)) {
+      throw new BadRequestException(
+        'routingMode must be auto, country, or local',
+      );
+    }
+
+    let preferredCountry: string | null = null;
+    if (routingMode === 'country') {
+      preferredCountry =
+        preference.preferredCountry?.trim().toUpperCase() || null;
+      if (!preferredCountry || !/^[A-Z]{2}$/.test(preferredCountry)) {
+        throw new BadRequestException(
+          'A valid ISO 3166-1 alpha-2 country code is required',
+        );
+      }
+
+      const country = await this.prisma.country.findUnique({
+        where: { code: preferredCountry },
+        select: { enabled: true },
+      });
+      if (!country?.enabled) {
+        throw new BadRequestException(
+          'The selected country is not currently available',
+        );
+      }
+    }
+
     return this.prisma.userRoutingPreference.upsert({
       where: { userId },
-      create: { userId, ...preference },
-      update: preference,
+      create: { userId, routingMode, preferredCountry },
+      update: { routingMode, preferredCountry },
     });
   }
 
@@ -110,17 +148,33 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
-        subscriptions: { where: { status: 'active' }, include: { plan: true }, take: 1 },
+        subscriptions: {
+          where: { status: 'active' },
+          include: { plan: true },
+          take: 1,
+        },
         routingPreference: true,
         usageAccount: true,
         proxyCredentials: {
           where: { revokedAt: null },
-          select: { id: true, uuid: true, label: true, enabled: true, createdAt: true },
+          select: {
+            id: true,
+            uuid: true,
+            label: true,
+            enabled: true,
+            createdAt: true,
+          },
         },
         forwarders: {
           select: {
-            id: true, slug: true, label: true, targetUrl: true,
-            enabled: true, callCount: true, lastUsedAt: true, createdAt: true,
+            id: true,
+            slug: true,
+            label: true,
+            targetUrl: true,
+            enabled: true,
+            callCount: true,
+            lastUsedAt: true,
+            createdAt: true,
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -138,7 +192,10 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, displayName: true, email: true, phone: true,
+        id: true,
+        displayName: true,
+        email: true,
+        phone: true,
         proxyCredentials: {
           where: { revokedAt: null, enabled: true },
           select: { id: true, uuid: true, label: true, createdAt: true },
@@ -153,19 +210,32 @@ export class UsersService {
     const host = process.env.PROXY_SERVER_HOST ?? 'api.civonex.ir';
     const port = process.env.PROXY_SERVER_PORT ?? '443';
     const sni = process.env.REALITY_SNI ?? 'www.cloudflare.com';
-    const pbk = process.env.REALITY_PUBLIC_KEY ?? 'omSaAuvrDD7GCpU5yOK2GUZUc5N4rxnlvGlpklPCuSo';
+    const pbk =
+      process.env.REALITY_PUBLIC_KEY ??
+      'omSaAuvrDD7GCpU5yOK2GUZUc5N4rxnlvGlpklPCuSo';
     const sid = process.env.REALITY_SHORT_ID ?? '3c421f5e';
 
     const buildUri = (uuid: string, label: string | null) => {
       const params = new URLSearchParams({
-        encryption: 'none', security: 'reality', sni, fp: 'chrome',
-        pbk, sid, type: 'tcp', flow: 'xtls-rprx-vision',
+        encryption: 'none',
+        security: 'reality',
+        sni,
+        fp: 'chrome',
+        pbk,
+        sid,
+        type: 'tcp',
+        flow: 'xtls-rprx-vision',
       });
       return `vless://${uuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(label ?? 'ProxyNet')}`;
     };
 
     return {
-      user: { id: user.id, displayName: user.displayName, email: user.email, phone: user.phone },
+      user: {
+        id: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        phone: user.phone,
+      },
       credentials: user.proxyCredentials.map((c) => ({
         id: c.id.toString(),
         uuid: c.uuid,

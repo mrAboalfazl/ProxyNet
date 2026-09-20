@@ -7,10 +7,15 @@ export interface SelectedNode {
   id: number;
   countryCode: string;
   label: string;
-  host: string;      // ipv4 or ipv6 address to reach the node's relay
+  host: string; // ipv4 or ipv6 address to reach the node's relay
   relayPort: number; // convention: 9443
   relaySecret: string;
-  isLocal: boolean;  // true if this is the control-plane's own host — skip the network hop
+  isLocal: boolean; // true if this is the control-plane's own host — skip the network hop
+}
+
+export interface RoutingPreference {
+  mode: 'auto' | 'country' | 'local';
+  preferredCountry: string | null;
 }
 
 @Injectable()
@@ -24,17 +29,26 @@ export class NodeSelectorService {
   ) {}
 
   /**
-   * Pick an active/healthy node to route a user's outbound request through.
-   * Returns null when the user's mode is 'local' or when nothing is available;
-   * caller should then fall back to fetching from the control-plane itself.
+   * Read the normalized routing preference used by both the selector and
+   * callers that need to distinguish an explicit country from auto mode.
    */
-  async selectForUser(userId: bigint): Promise<SelectedNode | null> {
+  async getPreference(userId: bigint): Promise<RoutingPreference> {
     const pref = await this.prisma.userRoutingPreference.findUnique({
       where: { userId },
     });
 
-    const mode = pref?.routingMode ?? 'auto';
-    const preferredCountry = pref?.preferredCountry ?? null;
+    const mode =
+      pref?.routingMode === 'country' || pref?.routingMode === 'local'
+        ? pref.routingMode
+        : 'auto';
+    const preferredCountry =
+      pref?.preferredCountry?.trim().toUpperCase() || null;
+
+    return { mode, preferredCountry };
+  }
+
+  async selectForUser(userId: bigint): Promise<SelectedNode | null> {
+    const { mode, preferredCountry } = await this.getPreference(userId);
 
     if (mode === 'local') return null;
 
@@ -48,11 +62,15 @@ export class NodeSelectorService {
     }
 
     if (!candidates.length) {
-      this.logger.debug(`no candidates for user=${userId} mode=${mode} country=${preferredCountry ?? '-'}`);
+      this.logger.debug(
+        `no candidates for user=${userId} mode=${mode} country=${preferredCountry ?? '-'}`,
+      );
       return null;
     }
 
-    // Round-robin. The snapshot ordering is stable per version.
+    // Automatic mode currently uses round-robin over healthy/active candidates.
+    // The snapshot is rebuilt when node/country status changes, so disabled
+    // countries and unavailable nodes do not remain eligible until the TTL.
     const pick = candidates[this.rrCursor % candidates.length];
     this.rrCursor = (this.rrCursor + 1) % Number.MAX_SAFE_INTEGER;
 
@@ -82,7 +100,9 @@ export class NodeSelectorService {
     const isLocal = !!controlPlaneHost && host === controlPlaneHost;
 
     if (!node.relaySecretEncrypted) {
-      this.logger.warn(`selected node ${pick.id} has not registered a relay credential`);
+      this.logger.warn(
+        `selected node ${pick.id} has not registered a relay credential`,
+      );
       return null;
     }
 
@@ -90,7 +110,9 @@ export class NodeSelectorService {
     try {
       relaySecret = decryptRelaySecret(node.relaySecretEncrypted);
     } catch {
-      this.logger.error(`selected node ${pick.id} has an unreadable relay credential`);
+      this.logger.error(
+        `selected node ${pick.id} has an unreadable relay credential`,
+      );
       return null;
     }
 

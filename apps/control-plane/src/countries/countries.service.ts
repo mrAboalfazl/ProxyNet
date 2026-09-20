@@ -27,10 +27,15 @@ export class CountriesService {
       code: c.code,
       name: c.name,
       healthy: c.nodes.filter((n) => n.status === 'healthy').length,
+      active: c.nodes.filter((n) => n.status === 'active').length,
       degraded: c.nodes.filter((n) => n.status === 'degraded').length,
       unhealthy: c.nodes.filter((n) => n.status === 'unhealthy').length,
       total: c.nodes.length,
-      available: c.nodes.some((n) => n.status === 'healthy' || n.status === 'degraded'),
+      // Node selection accepts healthy nodes and newly enrolled active nodes.
+      // Degraded nodes remain visible for diagnostics but are not selected.
+      available: c.nodes.some(
+        (n) => n.status === 'healthy' || n.status === 'active',
+      ),
     }));
   }
 

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { NodesService } from '../nodes/nodes.service';
@@ -10,6 +20,7 @@ import { PricingService } from '../wallet/pricing.service';
 import { AdminGuard } from './guards/admin.guard';
 import { MeteringService } from '../metering/metering.service';
 import { PlansService } from '../plans/plans.service';
+import { RoutingSnapshotService } from '../routing/routing-snapshot.service';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -25,6 +36,7 @@ export class AdminController {
     private pricing: PricingService,
     private metering: MeteringService,
     private plans: PlansService,
+    private routingSnapshot: RoutingSnapshotService,
   ) {}
 
   @Get('dashboard')
@@ -44,7 +56,10 @@ export class AdminController {
   }
 
   @Patch('users/:id/status')
-  setUserStatus(@Param('id') id: string, @Body() body: { status: 'active' | 'suspended' | 'banned' }) {
+  setUserStatus(
+    @Param('id') id: string,
+    @Body() body: { status: 'active' | 'suspended' | 'banned' },
+  ) {
     return this.users.updateStatus(BigInt(id), body.status);
   }
 
@@ -54,11 +69,18 @@ export class AdminController {
   }
 
   @Get('users/:id/financial')
-  getUserFinancial(@Param('id') id: string, @Query() query: Record<string, string>) {
+  getUserFinancial(
+    @Param('id') id: string,
+    @Query() query: Record<string, string>,
+  ) {
     return this.metering.getFinancialReport(BigInt(id), {
-      page: query.page ? Number(query.page) : undefined, limit: query.limit ? Number(query.limit) : undefined,
-      usagePage: query.usagePage ? Number(query.usagePage) : undefined, usageLimit: query.usageLimit ? Number(query.usageLimit) : undefined,
-      from: query.from, to: query.to, category: query.category,
+      page: query.page ? Number(query.page) : undefined,
+      limit: query.limit ? Number(query.limit) : undefined,
+      usagePage: query.usagePage ? Number(query.usagePage) : undefined,
+      usageLimit: query.usageLimit ? Number(query.usageLimit) : undefined,
+      from: query.from,
+      to: query.to,
+      category: query.category,
     });
   }
 
@@ -73,7 +95,15 @@ export class AdminController {
 
   // ── Nodes ──
   @Post('nodes')
-  createNode(@Body() body: { countryCode: string; label: string; roles: string[]; providerId?: string }) {
+  createNode(
+    @Body()
+    body: {
+      countryCode: string;
+      label: string;
+      roles: string[];
+      providerId?: string;
+    },
+  ) {
     return this.admin.createNode(body);
   }
 
@@ -110,7 +140,14 @@ export class AdminController {
 
   // ── Plans ──
   @Post('plans')
-  createPlan(@Body() body: { name: string; monthlyBandwidthGb: number; maxConcurrentSessions?: number }) {
+  createPlan(
+    @Body()
+    body: {
+      name: string;
+      monthlyBandwidthGb: number;
+      maxConcurrentSessions?: number;
+    },
+  ) {
     return this.admin.createPlan(body);
   }
 
@@ -137,8 +174,13 @@ export class AdminController {
   }
 
   @Patch('countries/:code/enabled')
-  setCountryEnabled(@Param('code') code: string, @Body() body: { enabled: boolean }) {
-    return this.countries.setEnabled(code, body.enabled);
+  async setCountryEnabled(
+    @Param('code') code: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    const country = await this.countries.setEnabled(code, body.enabled);
+    await this.routingSnapshot.compileSnapshot();
+    return country;
   }
 
   @Get('countries/status')
@@ -206,9 +248,22 @@ export class AdminController {
     @Req() req: { user: { id: bigint } },
   ) {
     const amt = BigInt(body.amountToman);
-    const result = amt >= 0n
-      ? await this.wallet.credit(BigInt(id), amt, 'adjustment_admin', body.description ?? 'Admin adjustment', { adminUserId: req.user.id.toString() })
-      : await this.wallet.debit(BigInt(id), -amt, 'adjustment_admin', body.description ?? 'Admin adjustment', { adminUserId: req.user.id.toString() });
+    const result =
+      amt >= 0n
+        ? await this.wallet.credit(
+            BigInt(id),
+            amt,
+            'adjustment_admin',
+            body.description ?? 'Admin adjustment',
+            { adminUserId: req.user.id.toString() },
+          )
+        : await this.wallet.debit(
+            BigInt(id),
+            -amt,
+            'adjustment_admin',
+            body.description ?? 'Admin adjustment',
+            { adminUserId: req.user.id.toString() },
+          );
     return {
       wallet: {
         balanceToman: result.wallet.balanceToman.toString(),
@@ -231,7 +286,12 @@ export class AdminController {
 
   @Patch('pricing')
   async updatePricing(
-    @Body() body: Partial<{ perRequestToman: string; perMbToman: string; minBalanceToman: string }>,
+    @Body()
+    body: Partial<{
+      perRequestToman: string;
+      perMbToman: string;
+      minBalanceToman: string;
+    }>,
   ) {
     const p = await this.pricing.update(body);
     return {

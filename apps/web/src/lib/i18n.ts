@@ -22,39 +22,50 @@ const tr: Record<Lang, Record<string, string>> = {
     // Landing hero
     'hero.badge': 'Network online · 1 active node',
     'hero.title': 'A secure, reliable network for modern applications',
-    'hero.subtitle': 'Secure connectivity, flexible routing through managed infrastructure, and clear usage controls for teams and individuals.',
+    'hero.subtitle':
+      'Secure connectivity, flexible routing through managed infrastructure, and clear usage controls for teams and individuals.',
     'hero.cta_primary': 'Create free account',
     'hero.cta_secondary': 'Sign in',
 
     // Landing features
     'features.title': 'Everything you need',
-    'features.subtitle': 'Purpose-built for privacy, performance, reliability, and transparent network management.',
+    'features.subtitle':
+      'Purpose-built for privacy, performance, reliability, and transparent network management.',
     'feat.0.title': 'Secure Connections',
-    'feat.0.desc': 'Strong encryption and privacy-focused design for dependable connections.',
+    'feat.0.desc':
+      'Strong encryption and privacy-focused design for dependable connections.',
     'feat.1.title': 'Global Exit Nodes',
-    'feat.1.desc': 'Route through verified exit nodes across multiple countries. Choose a specific country or let the platform pick the optimal path.',
+    'feat.1.desc':
+      'Route through verified exit nodes across multiple countries. Choose a specific country or let the platform pick the optimal path.',
     'feat.2.title': 'Zero-Overhead Forwarding',
-    'feat.2.desc': 'Efficient routing helps deliver responsive performance while keeping connections protected.',
+    'feat.2.desc':
+      'Efficient routing helps deliver responsive performance while keeping connections protected.',
     'feat.3.title': 'Reliable Connectivity',
-    'feat.3.desc': 'Health-aware routing and adaptable endpoints help maintain stable service as network conditions change.',
+    'feat.3.desc':
+      'Health-aware routing and adaptable endpoints help maintain stable service as network conditions change.',
     'feat.4.title': 'Usage Monitoring',
-    'feat.4.desc': 'Real-time bandwidth and connection counters per credential. Know exactly how your allocation is being used.',
+    'feat.4.desc':
+      'Real-time bandwidth and connection counters per credential. Know exactly how your allocation is being used.',
     'feat.5.title': 'Multiple Credentials',
-    'feat.5.desc': 'Generate separate proxy credentials for different devices. Revoke a single credential without affecting others.',
+    'feat.5.desc':
+      'Generate separate proxy credentials for different devices. Revoke a single credential without affecting others.',
 
     // Landing steps
     'steps.title': 'Up and running in minutes',
-    'steps.subtitle': 'No configuration headaches. Three steps and you\'re connected.',
+    'steps.subtitle':
+      "No configuration headaches. Three steps and you're connected.",
     'step.1.title': 'Create an account',
     'step.1.desc': 'Register with your email and set a password.',
     'step.2.title': 'Generate a credential',
     'step.2.desc': 'Create a connection credential from your dashboard.',
     'step.3.title': 'Connect',
-    'step.3.desc': 'Use the connection details with your preferred compatible client.',
+    'step.3.desc':
+      'Use the connection details with your preferred compatible client.',
 
     // Landing CTA
     'cta.title': 'Ready to connect?',
-    'cta.subtitle': 'Create your free account and generate your first credential in under 2 minutes.',
+    'cta.subtitle':
+      'Create your free account and generate your first credential in under 2 minutes.',
     'cta.btn': 'Get started for free',
 
     // Landing footer
@@ -136,7 +147,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'udash.no_plan': 'No active plan',
     'udash.no_plan_msg': 'Contact your administrator to get a plan assigned.',
     'udash.proxy_title': 'Proxy Credentials',
-    'udash.proxy_msg': 'Manage your VLESS credentials and copy connection URIs.',
+    'udash.proxy_msg':
+      'Manage your VLESS credentials and copy connection URIs.',
     'udash.manage': 'Manage credentials',
     'udash.account_title': 'Account Settings',
     'udash.account_msg': 'Update your display name and routing preferences.',
@@ -166,8 +178,10 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.title': 'Wallet',
     'wallet.balance': 'Balance',
     'wallet.currency': 'toman',
-    'wallet.low_balance_warning': 'Your balance is below the minimum required to make a call. Top up to continue using the API.',
-    'wallet.zero_balance': 'Your wallet is empty. Every request needs at least {min} toman.',
+    'wallet.low_balance_warning':
+      'Your balance is below the minimum required to make a call. Top up to continue using the API.',
+    'wallet.zero_balance':
+      'Your wallet is empty. Every request needs at least {min} toman.',
     'wallet.pricing_title': 'Current pricing',
     'wallet.pricing_per_request': 'per request',
     'wallet.pricing_per_mb': 'per MB SOCKS5 bandwidth',
@@ -179,7 +193,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.tx.description': 'Description',
     'wallet.tx.amount': 'Amount',
     'wallet.tx.balance': 'Balance',
-    'wallet.topup_note': 'To add funds, contact support. Automatic payment integration is coming soon.',
+    'wallet.topup_note':
+      'To add funds, contact support. Automatic payment integration is coming soon.',
     'wallet.type.topup_admin': 'Admin top-up',
     'wallet.type.forwarder_call': 'Forwarder call',
     'wallet.type.gateway_call': 'Gateway call',
@@ -188,20 +203,23 @@ const tr: Record<Lang, Record<string, string>> = {
 
     // Forwarders page
     'fwd.title': 'URL Forwarders',
-    'fwd.intro': 'Create a short URL that routes through our network to any external destination. Perfect for API calls in your code — paste our URL where you\'d normally use the target URL.',
+    'fwd.intro':
+      "Create a short URL that routes through our network to any external destination. Perfect for API calls in your code — paste our URL where you'd normally use the target URL.",
     'fwd.new': 'New Forwarder',
     'fwd.empty': 'You have no forwarders yet.',
     'fwd.form.label': 'Label',
     'fwd.form.label_ph': 'e.g., "Weather API" or "GitHub calls"',
     'fwd.form.target': 'Target URL',
     'fwd.form.target_ph': 'https://api.example.com/data',
-    'fwd.form.target_help': 'The destination where forwarded requests will be sent.',
+    'fwd.form.target_help':
+      'The destination where forwarded requests will be sent.',
     'fwd.form.forward_auth': 'Forward Authorization header to target',
-    'fwd.form.preserve_path': 'Append client\'s path suffix to target URL',
+    'fwd.form.preserve_path': "Append client's path suffix to target URL",
     'fwd.form.preserve_query': 'Forward query string to target',
     'fwd.form.create': 'Create',
     'fwd.your_url': 'Your forwarder URL',
-    'fwd.your_url_help': 'Paste this into your code in place of the target URL. Any HTTP method, headers, body, path suffix, and query string are proxied through.',
+    'fwd.your_url_help':
+      'Paste this into your code in place of the target URL. Any HTTP method, headers, body, path suffix, and query string are proxied through.',
     'fwd.calls': 'calls',
     'fwd.last_used': 'last used',
     'fwd.never_used': 'never used',
@@ -210,7 +228,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'fwd.disable': 'Disable',
     'fwd.enable': 'Enable',
     'fwd.delete': 'Delete',
-    'fwd.confirm_delete': 'Delete this forwarder? The URL will stop working immediately.',
+    'fwd.confirm_delete':
+      'Delete this forwarder? The URL will stop working immediately.',
     'fwd.example': 'Example',
     'fwd.test': 'Test',
     'fwd.testing': 'Testing…',
@@ -220,17 +239,21 @@ const tr: Record<Lang, Record<string, string>> = {
 
     // Usage examples panel
     'examples.title': 'How to use',
-    'examples.intro.forwarder': 'Copy your forwarder URL into your code — no auth headers, no wrapper. Any method works.',
-    'examples.intro.gateway': 'POST any URL to /gateway/fetch with your UUID + Secret as Basic auth. Response comes back JSON-wrapped so your code can inspect status + headers.',
+    'examples.intro.forwarder':
+      'Copy your forwarder URL into your code — no auth headers, no wrapper. Any method works.',
+    'examples.intro.gateway':
+      'POST any URL to /gateway/fetch with your UUID + Secret as Basic auth. Response comes back JSON-wrapped so your code can inspect status + headers.',
     'examples.tab.curl': 'cURL',
     'examples.tab.python': 'Python',
     'examples.tab.js': 'JavaScript',
     'examples.tab.node': 'Node.js',
     'examples.tab.php': 'PHP',
     'examples.select_forwarder': 'Select a forwarder',
-    'examples.no_forwarder': 'Create a forwarder above to see paste-ready examples.',
+    'examples.no_forwarder':
+      'Create a forwarder above to see paste-ready examples.',
     'examples.select_credential': 'Select a credential',
-    'examples.no_credential': 'Create a credential above to see paste-ready examples.',
+    'examples.no_credential':
+      'Create a credential above to see paste-ready examples.',
 
     // Health check
     'health.check': 'Health check',
@@ -263,7 +286,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'nodes.enrolled': 'Agent connected',
     'nodes.not_enrolled': 'Waiting for agent',
     'nodes.token_title': 'Enrollment token',
-    'nodes.token_hint': 'Run this command on your server to connect the agent. Token expires in 7 days.',
+    'nodes.token_hint':
+      'Run this command on your server to connect the agent. Token expires in 7 days.',
     'nodes.copy_cmd': 'Copy command',
     'nodes.copied': 'Copied!',
     'nodes.dismiss': 'Dismiss',
@@ -282,8 +306,18 @@ const tr: Record<Lang, Record<string, string>> = {
     'prof.routing': 'Routing Settings',
     'prof.mode': 'Mode',
     'prof.auto': 'Auto',
+    'prof.auto_desc':
+      'Use an available healthy or active relay selected automatically by the platform.',
     'prof.country': 'Specific Country',
+    'prof.country_desc': 'Keep requests on a relay in the country you choose.',
     'prof.country_label': 'Country code (e.g. DE, US)',
+    'prof.country_search': 'Search countries…',
+    'prof.country_help':
+      'Only enabled countries are shown. A route is used only when a healthy relay is available there.',
+    'prof.country_nodes': '{healthy} healthy · {total} total',
+    'prof.country_unavailable': 'No available relay',
+    'prof.country_none': 'No matching countries',
+    'prof.country_selected': 'Selected: {country}',
     'prof.save': 'Save settings',
     'prof.saving': 'Saving…',
     'prof.saved': 'Saved!',
@@ -307,24 +341,32 @@ const tr: Record<Lang, Record<string, string>> = {
 
     'hero.badge': 'شبکه آنلاین · ۱ نود فعال',
     'hero.title': 'شبکه‌ای امن و پایدار برای برنامه‌های مدرن',
-    'hero.subtitle': 'اتصال امن، مسیریابی انعطاف‌پذیر از طریق زیرساخت مدیریت‌شده و کنترل شفاف مصرف برای افراد و تیم‌ها.',
+    'hero.subtitle':
+      'اتصال امن، مسیریابی انعطاف‌پذیر از طریق زیرساخت مدیریت‌شده و کنترل شفاف مصرف برای افراد و تیم‌ها.',
     'hero.cta_primary': 'ایجاد حساب رایگان',
     'hero.cta_secondary': 'ورود',
 
     'features.title': 'همه چیزی که نیاز دارید',
-    'features.subtitle': 'طراحی‌شده برای حفظ حریم خصوصی، عملکرد، پایداری و مدیریت شفاف شبکه.',
+    'features.subtitle':
+      'طراحی‌شده برای حفظ حریم خصوصی، عملکرد، پایداری و مدیریت شفاف شبکه.',
     'feat.0.title': 'اتصال‌های امن',
-    'feat.0.desc': 'رمزنگاری قدرتمند و طراحی مبتنی بر حریم خصوصی برای اتصال‌های پایدار.',
+    'feat.0.desc':
+      'رمزنگاری قدرتمند و طراحی مبتنی بر حریم خصوصی برای اتصال‌های پایدار.',
     'feat.1.title': 'نودهای خروجی جهانی',
-    'feat.1.desc': 'از طریق نودهای خروجی تأیید شده در کشورهای مختلف مسیریابی کنید. کشور خاصی انتخاب کنید یا بگذارید پلتفرم بهترین مسیر را انتخاب کند.',
+    'feat.1.desc':
+      'از طریق نودهای خروجی تأیید شده در کشورهای مختلف مسیریابی کنید. کشور خاصی انتخاب کنید یا بگذارید پلتفرم بهترین مسیر را انتخاب کند.',
     'feat.2.title': 'ارسال بدون سربار',
-    'feat.2.desc': 'مسیریابی کارآمد، عملکردی سریع و پاسخ‌گو را در کنار اتصال‌های محافظت‌شده فراهم می‌کند.',
+    'feat.2.desc':
+      'مسیریابی کارآمد، عملکردی سریع و پاسخ‌گو را در کنار اتصال‌های محافظت‌شده فراهم می‌کند.',
     'feat.3.title': 'اتصال پایدار',
-    'feat.3.desc': 'مسیریابی آگاه از سلامت نودها و نقاط پایانی سازگار، پایداری سرویس را با تغییر شرایط شبکه حفظ می‌کند.',
+    'feat.3.desc':
+      'مسیریابی آگاه از سلامت نودها و نقاط پایانی سازگار، پایداری سرویس را با تغییر شرایط شبکه حفظ می‌کند.',
     'feat.4.title': 'نظارت بر مصرف',
-    'feat.4.desc': 'شمارنده‌های پهنای باند و اتصال بلادرنگ به ازای هر اعتبارنامه. دقیقاً بدانید تخصیص شما چگونه استفاده می‌شود.',
+    'feat.4.desc':
+      'شمارنده‌های پهنای باند و اتصال بلادرنگ به ازای هر اعتبارنامه. دقیقاً بدانید تخصیص شما چگونه استفاده می‌شود.',
     'feat.5.title': 'اعتبارنامه‌های متعدد',
-    'feat.5.desc': 'اعتبارنامه‌های پراکسی جداگانه برای دستگاه‌های مختلف ایجاد کنید. یک اعتبارنامه را بدون تأثیر بر بقیه لغو کنید.',
+    'feat.5.desc':
+      'اعتبارنامه‌های پراکسی جداگانه برای دستگاه‌های مختلف ایجاد کنید. یک اعتبارنامه را بدون تأثیر بر بقیه لغو کنید.',
 
     'steps.title': 'در چند دقیقه آماده به کار',
     'steps.subtitle': 'بدون دردسر تنظیمات. سه مرحله و متصل می‌شوید.',
@@ -336,7 +378,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'step.3.desc': 'جزئیات اتصال را در کلاینت سازگار موردنظر خود استفاده کنید.',
 
     'cta.title': 'آماده اتصال هستید؟',
-    'cta.subtitle': 'حساب رایگان خود را ایجاد کنید و اولین اعتبارنامه را در کمتر از ۲ دقیقه بسازید.',
+    'cta.subtitle':
+      'حساب رایگان خود را ایجاد کنید و اولین اعتبارنامه را در کمتر از ۲ دقیقه بسازید.',
     'cta.btn': 'شروع رایگان',
 
     'footer.rights': '© ۲۰۲۶ پروکسی‌نت. تمام حقوق محفوظ است.',
@@ -412,7 +455,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'udash.no_plan': 'پلن فعالی ندارید',
     'udash.no_plan_msg': 'برای دریافت پلن با ادمین تماس بگیرید.',
     'udash.proxy_title': 'اعتبارنامه‌های پراکسی',
-    'udash.proxy_msg': 'اعتبارنامه‌های VLESS خود را مدیریت کنید و آدرس اتصال را کپی کنید.',
+    'udash.proxy_msg':
+      'اعتبارنامه‌های VLESS خود را مدیریت کنید و آدرس اتصال را کپی کنید.',
     'udash.manage': 'مدیریت اعتبارنامه‌ها',
     'udash.account_title': 'تنظیمات حساب',
     'udash.account_msg': 'نام نمایشی و تنظیمات مسیریابی خود را به‌روز کنید.',
@@ -441,8 +485,10 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.title': 'کیف پول',
     'wallet.balance': 'موجودی',
     'wallet.currency': 'تومان',
-    'wallet.low_balance_warning': 'موجودی شما کمتر از حداقل مورد نیاز برای هر فراخوانی است. برای ادامه استفاده از API، شارژ کنید.',
-    'wallet.zero_balance': 'موجودی کیف پول شما صفر است. هر درخواست حداقل به {min} تومان نیاز دارد.',
+    'wallet.low_balance_warning':
+      'موجودی شما کمتر از حداقل مورد نیاز برای هر فراخوانی است. برای ادامه استفاده از API، شارژ کنید.',
+    'wallet.zero_balance':
+      'موجودی کیف پول شما صفر است. هر درخواست حداقل به {min} تومان نیاز دارد.',
     'wallet.pricing_title': 'تعرفه فعلی',
     'wallet.pricing_per_request': 'به ازای هر درخواست',
     'wallet.pricing_per_mb': 'به ازای هر مگابایت انتقالی',
@@ -454,7 +500,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.tx.description': 'توضیح',
     'wallet.tx.amount': 'مبلغ',
     'wallet.tx.balance': 'موجودی',
-    'wallet.topup_note': 'برای افزایش موجودی با پشتیبانی تماس بگیرید. اتصال به درگاه پرداخت به‌زودی اضافه می‌شود.',
+    'wallet.topup_note':
+      'برای افزایش موجودی با پشتیبانی تماس بگیرید. اتصال به درگاه پرداخت به‌زودی اضافه می‌شود.',
     'wallet.type.topup_admin': 'شارژ توسط مدیر',
     'wallet.type.forwarder_call': 'فراخوانی فورواردر',
     'wallet.type.gateway_call': 'فراخوانی گیت‌وی',
@@ -463,20 +510,23 @@ const tr: Record<Lang, Record<string, string>> = {
 
     // Forwarders page (FA)
     'fwd.title': 'فوروارد آدرس‌ها',
-    'fwd.intro': 'یک URL کوتاه بسازید که درخواست را از طریق شبکه ما به هر مقصد خارجی هدایت می‌کند. برای فراخوانی API در کد شما عالی است — URL ما را در جای URL مقصد در کد قرار دهید.',
+    'fwd.intro':
+      'یک URL کوتاه بسازید که درخواست را از طریق شبکه ما به هر مقصد خارجی هدایت می‌کند. برای فراخوانی API در کد شما عالی است — URL ما را در جای URL مقصد در کد قرار دهید.',
     'fwd.new': 'فوروارد جدید',
     'fwd.empty': 'هنوز فورواردی ندارید.',
     'fwd.form.label': 'برچسب',
     'fwd.form.label_ph': 'مثال: «API آب و هوا» یا «تماس با GitHub»',
     'fwd.form.target': 'URL مقصد',
     'fwd.form.target_ph': 'https://api.example.com/data',
-    'fwd.form.target_help': 'مقصد نهایی که درخواست‌های فوروارد شده به آن ارسال می‌شود.',
+    'fwd.form.target_help':
+      'مقصد نهایی که درخواست‌های فوروارد شده به آن ارسال می‌شود.',
     'fwd.form.forward_auth': 'ارسال هدر Authorization به مقصد',
     'fwd.form.preserve_path': 'افزودن پسوند مسیر کلاینت به URL مقصد',
     'fwd.form.preserve_query': 'ارسال کوئری استرینگ به مقصد',
     'fwd.form.create': 'ایجاد',
     'fwd.your_url': 'URL فورواردر شما',
-    'fwd.your_url_help': 'این را در کد خود به جای URL مقصد بگذارید. هر متد HTTP، هدر، بدنه، پسوند مسیر و کوئری استرینگ عبور داده می‌شود.',
+    'fwd.your_url_help':
+      'این را در کد خود به جای URL مقصد بگذارید. هر متد HTTP، هدر، بدنه، پسوند مسیر و کوئری استرینگ عبور داده می‌شود.',
     'fwd.calls': 'فراخوانی',
     'fwd.last_used': 'آخرین استفاده',
     'fwd.never_used': 'استفاده نشده',
@@ -491,12 +541,15 @@ const tr: Record<Lang, Record<string, string>> = {
     'fwd.testing': 'در حال تست…',
     'fwd.test_ok': 'موفق',
     'fwd.test_fail': 'ناموفق',
-    'fwd.test_hint': 'یک درخواست GET به URL شما ارسال می‌کند و به عنوان یک فراخوانی شمرده می‌شود.',
+    'fwd.test_hint':
+      'یک درخواست GET به URL شما ارسال می‌کند و به عنوان یک فراخوانی شمرده می‌شود.',
 
     // Usage examples panel (FA)
     'examples.title': 'نحوه استفاده',
-    'examples.intro.forwarder': 'URL فورواردر خود را در کد قرار دهید — بدون هدر Auth و بدون Wrapper. با هر متد HTTP کار می‌کند.',
-    'examples.intro.gateway': 'هر URL را با متد POST به /gateway/fetch بفرستید و UUID و Secret را به‌عنوان Basic Auth استفاده کنید. پاسخ در قالب JSON برگردانده می‌شود تا کد شما بتواند وضعیت و هدرها را بررسی کند.',
+    'examples.intro.forwarder':
+      'URL فورواردر خود را در کد قرار دهید — بدون هدر Auth و بدون Wrapper. با هر متد HTTP کار می‌کند.',
+    'examples.intro.gateway':
+      'هر URL را با متد POST به /gateway/fetch بفرستید و UUID و Secret را به‌عنوان Basic Auth استفاده کنید. پاسخ در قالب JSON برگردانده می‌شود تا کد شما بتواند وضعیت و هدرها را بررسی کند.',
     'examples.tab.curl': 'cURL',
     'examples.tab.python': 'پایتون',
     'examples.tab.js': 'جاوااسکریپت',
@@ -505,7 +558,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'examples.select_forwarder': 'یک فورواردر انتخاب کنید',
     'examples.no_forwarder': 'برای دیدن مثال آماده، ابتدا یک فورواردر بسازید.',
     'examples.select_credential': 'یک اعتبارنامه انتخاب کنید',
-    'examples.no_credential': 'برای دیدن مثال آماده، ابتدا یک اعتبارنامه بسازید.',
+    'examples.no_credential':
+      'برای دیدن مثال آماده، ابتدا یک اعتبارنامه بسازید.',
 
     // Health check (FA)
     'health.check': 'بررسی سلامت',
@@ -538,7 +592,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'nodes.enrolled': 'ایجنت متصل است',
     'nodes.not_enrolled': 'منتظر ایجنت',
     'nodes.token_title': 'توکن ثبت‌نام',
-    'nodes.token_hint': 'این دستور را روی سرور خود اجرا کنید تا ایجنت متصل شود. توکن ۷ روز اعتبار دارد.',
+    'nodes.token_hint':
+      'این دستور را روی سرور خود اجرا کنید تا ایجنت متصل شود. توکن ۷ روز اعتبار دارد.',
     'nodes.copy_cmd': 'کپی دستور',
     'nodes.copied': 'کپی شد!',
     'nodes.dismiss': 'بستن',
@@ -555,8 +610,19 @@ const tr: Record<Lang, Record<string, string>> = {
     'prof.routing': 'تنظیمات مسیریابی',
     'prof.mode': 'حالت',
     'prof.auto': 'خودکار',
+    'prof.auto_desc':
+      'یک رله سالم یا فعال را به‌صورت خودکار توسط سامانه انتخاب کنید.',
     'prof.country': 'کشور خاص',
+    'prof.country_desc':
+      'درخواست‌ها را از یک رله در کشور انتخابی شما عبور می‌دهد.',
     'prof.country_label': 'کد کشور (مثلاً DE، US)',
+    'prof.country_search': 'جستجوی کشورها...',
+    'prof.country_help':
+      'فقط کشورهای فعال نمایش داده می‌شوند. مسیر فقط زمانی استفاده می‌شود که رله سالمی در آن کشور در دسترس باشد.',
+    'prof.country_nodes': '{healthy} سالم · {total} کل',
+    'prof.country_unavailable': 'رله‌ای در دسترس نیست',
+    'prof.country_none': 'کشور منطبقی پیدا نشد',
+    'prof.country_selected': 'انتخاب‌شده: {country}',
     'prof.save': 'ذخیره تنظیمات',
     'prof.saving': 'در حال ذخیره...',
     'prof.saved': 'ذخیره شد!',
