@@ -68,9 +68,9 @@ export default function AdminUsersPage() {
                 <Tr key={user.id}>
                   <Td style={{ fontWeight: 500 }}>{user.email}</Td>
                   <Td style={{ color: colors.textMuted }}>{user.displayName || '—'}</Td>
-                  <Td><Badge label={user.status} /></Td>
+                  <Td><Badge label={user.status === 'active' ? tx('active', 'فعال') : user.status === 'suspended' ? tx('suspended', 'معلق') : user.status === 'banned' ? tx('banned', 'مسدود') : user.status} /></Td>
                   <Td style={{ fontSize: 13, color: colors.textMuted }}>
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {new Date(user.createdAt).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US')}
                   </Td>
                   <Td>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
