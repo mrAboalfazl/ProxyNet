@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, User } from '../../../lib/api';
 import { PageHeader, Card, Table, Tr, Td, Badge, Button, Alert, Spinner, colors } from '../../../lib/ui';
+import { useLang } from '../../../lib/lang-context';
 
 export default function AdminUsersPage() {
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -47,18 +50,18 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <PageHeader title={`Users (${total})`} />
+      <PageHeader title={`${tx('Users', 'کاربران')} (${total})`} />
 
       {error && <div style={{ marginBottom: 16 }}><Alert message={error} /></div>}
 
       {loading ? <Spinner /> : (
         <>
           <Card>
-            <Table headers={['Email', 'Name', 'Status', 'Joined', 'Actions']}>
+            <Table headers={[tx('Email', 'ایمیل'), tx('Name', 'نام'), tx('Status', 'وضعیت'), tx('Joined', 'عضویت'), tx('Actions', 'عملیات')]}>
               {users.length === 0 ? (
                 <Tr>
                   <td colSpan={5} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
-                    No users found.
+                    {tx('No users found.', 'کاربری پیدا نشد.')}
                   </td>
                 </Tr>
               ) : users.map((user) => (
@@ -72,16 +75,16 @@ export default function AdminUsersPage() {
                   <Td>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <Link href={`/admin/users/${user.id}`}>
-                        <Button variant="primary" size="sm">Details</Button>
+                        <Button variant="primary" size="sm">{tx('Details', 'جزئیات')}</Button>
                       </Link>
                       {user.status === 'active' && (
-                        <Button onClick={() => setStatus(user.id, 'suspended')} variant="secondary" size="sm">Suspend</Button>
+                        <Button onClick={() => setStatus(user.id, 'suspended')} variant="secondary" size="sm">{tx('Suspend', 'تعلیق')}</Button>
                       )}
                       {user.status === 'suspended' && (
-                        <Button onClick={() => setStatus(user.id, 'active')} variant="primary" size="sm">Restore</Button>
+                        <Button onClick={() => setStatus(user.id, 'active')} variant="primary" size="sm">{tx('Restore', 'فعال‌سازی')}</Button>
                       )}
                       {user.status !== 'banned' && (
-                        <Button onClick={() => setStatus(user.id, 'banned')} variant="danger" size="sm">Ban</Button>
+                        <Button onClick={() => setStatus(user.id, 'banned')} variant="danger" size="sm">{tx('Ban', 'مسدود کردن')}</Button>
                       )}
                     </div>
                   </Td>

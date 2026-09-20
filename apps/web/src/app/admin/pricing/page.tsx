@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { api, PricingResponse } from '../../../lib/api';
 import { PageHeader, Card, Button, Alert, Spinner, colors } from '../../../lib/ui';
+import { useLang } from '../../../lib/lang-context';
 
 export default function AdminPricingPage() {
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [current, setCurrent] = useState<PricingResponse | null>(null);
   const [form, setForm] = useState<PricingResponse>({ perRequestToman: '', perMbToman: '', minBalanceToman: '' });
   const [busy, setBusy] = useState(false);
@@ -47,53 +50,52 @@ export default function AdminPricingPage() {
 
   return (
     <div>
-      <PageHeader title="Pricing" />
+      <PageHeader title={tx('Pricing', 'قیمت‌گذاری')} />
 
       {error && <Alert message={error} />}
 
       <Card style={{ padding: '24px 28px', marginBottom: 16, maxWidth: 640 }}>
         <p style={{ margin: '0 0 20px', fontSize: 13, color: colors.textMuted, lineHeight: 1.6 }}>
-          Set the per-request and per-MB charge for every proxy call (gateway + forwarder). Changes take
-          effect within 60 seconds. All values are in toman (integer, no decimals).
+          {tx('Set the per-request and per-MB charge for every service call. Changes take effect within 60 seconds. All values are in toman (integer, no decimals).', 'هزینه هر درخواست و هر مگابایت را تنظیم کنید. تغییرات حداکثر طی ۶۰ ثانیه اعمال می‌شوند و همه مقادیر به تومان و بدون اعشار هستند.')}
         </p>
 
         <Field
-          label="Per request"
+          label={tx('Per request', 'هزینه هر درخواست')}
           value={form.perRequestToman}
           onChange={(v) => setForm((f) => ({ ...f, perRequestToman: v }))}
-          hint="Charged for every call regardless of size."
+          hint={tx('Charged for every call regardless of size.', 'برای هر درخواست، صرف‌نظر از اندازه آن، محاسبه می‌شود.')}
         />
         <Field
-          label="Per MB transferred"
+          label={tx('Per MB transferred', 'هزینه هر مگابایت انتقال')}
           value={form.perMbToman}
           onChange={(v) => setForm((f) => ({ ...f, perMbToman: v }))}
-          hint="Applied to ceil((bytesIn + bytesOut) / 1MB). A 500KB call = 1MB."
+          hint={tx('Applied to ceil((bytesIn + bytesOut) / 1MB). A 500KB call = 1MB.', 'بر اساس سقف مجموع داده ورودی و خروجی محاسبه می‌شود؛ یک درخواست ۵۰۰ کیلوبایتی برابر یک مگابایت است.')}
         />
         <Field
-          label="Minimum balance to make a call"
+          label={tx('Minimum balance to make a call', 'حداقل موجودی برای درخواست')}
           value={form.minBalanceToman}
           onChange={(v) => setForm((f) => ({ ...f, minBalanceToman: v }))}
-          hint="Users with less than this in their wallet get 402 Payment Required."
+          hint={tx('Users with less than this in their wallet cannot make new requests.', 'کاربرانی که موجودی کیف پولشان کمتر از این مقدار باشد نمی‌توانند درخواست جدید ارسال کنند.')}
         />
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 20 }}>
           <Button onClick={save} disabled={busy || !dirty}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? tx('Saving…', 'در حال ذخیره…') : tx('Save', 'ذخیره')}
           </Button>
           {dirty && !busy && (
             <button onClick={() => setForm(current)} style={{
               background: 'none', border: 'none', color: colors.textMuted, fontSize: 13, cursor: 'pointer',
             }}>
-              Reset
+              {tx('Reset', 'بازنشانی')}
             </button>
           )}
-          {saved && <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>✓ Saved</span>}
+          {saved && <span style={{ fontSize: 13, color: '#166534', fontWeight: 600 }}>✓ {tx('Saved', 'ذخیره شد')}</span>}
         </div>
       </Card>
 
       <Card style={{ padding: '18px 22px', background: '#f8fafc', maxWidth: 640 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: colors.textMuted, marginBottom: 8 }}>
-          Example: a call that returns 250 KB of data
+          {tx('Example: a call that returns 250 KB of data', 'نمونه: درخواستی که ۲۵۰ کیلوبایت داده برمی‌گرداند')}
         </div>
         <div style={{ fontSize: 13, color: colors.text, fontFamily: 'ui-monospace, Menlo, monospace' }}>
           {form.perRequestToman} + ceil(250KB / 1MB) × {form.perMbToman} = {form.perRequestToman} + 1 × {form.perMbToman} = <strong>{Number(form.perRequestToman) + Number(form.perMbToman)}</strong> toman

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { StatCard, Alert, Spinner, Button, colors } from '../../../lib/ui';
+import { useLang } from '../../../lib/lang-context';
 
 interface DashboardStats {
   totalUsers: number;
@@ -16,6 +17,8 @@ interface DashboardStats {
 }
 
 export default function AdminDashboardPage() {
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [snapshotVersion, setSnapshotVersion] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,21 +57,21 @@ export default function AdminDashboardPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#111' }}>Dashboard</h1>
-        <Button onClick={load} variant="secondary" size="sm">Refresh</Button>
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#111' }}>{tx('Dashboard', 'داشبورد')}</h1>
+        <Button onClick={load} variant="secondary" size="sm">{tx('Refresh', 'تازه‌سازی')}</Button>
       </div>
 
       {error && <Alert message={error} />}
 
       {stats && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-          <StatCard label="Active Users" value={stats.totalUsers} />
-          <StatCard label="Total Nodes" value={stats.totalNodes} />
-          <StatCard label="Healthy Nodes" value={stats.healthyNodes} color={stats.healthyNodes > 0 ? '#16a34a' : '#dc2626'} />
-          <StatCard label="Active Countries" value={stats.activeCountries} />
-          <StatCard label="Wallet balances (toman)" value={Number(stats.walletBalanceToman).toLocaleString()} color="#166534" />
-          <StatCard label="Usage revenue (toman)" value={Number(stats.revenueToman).toLocaleString()} color="#1d4ed8" />
-          <StatCard label="Requests billed" value={stats.requestCount} />
+          <StatCard label={tx('Active Users', 'کاربران فعال')} value={stats.totalUsers} />
+          <StatCard label={tx('Total Nodes', 'کل نودها')} value={stats.totalNodes} />
+          <StatCard label={tx('Healthy Nodes', 'نودهای سالم')} value={stats.healthyNodes} color={stats.healthyNodes > 0 ? '#16a34a' : '#dc2626'} />
+          <StatCard label={tx('Active Countries', 'کشورهای فعال')} value={stats.activeCountries} />
+          <StatCard label={tx('Wallet balances (toman)', 'موجودی کیف پول‌ها (تومان)')} value={Number(stats.walletBalanceToman).toLocaleString()} color="#166534" />
+          <StatCard label={tx('Usage revenue (toman)', 'درآمد مصرف (تومان)')} value={Number(stats.revenueToman).toLocaleString()} color="#1d4ed8" />
+          <StatCard label={tx('Requests billed', 'درخواست‌های محاسبه‌شده')} value={stats.requestCount} />
         </div>
       )}
 
@@ -79,17 +82,17 @@ export default function AdminDashboardPage() {
       }}>
         <div>
           <p style={{ margin: '0 0 4px', fontSize: 13, color: colors.textMuted, fontWeight: 500 }}>
-            Routing Snapshot
+            {tx('Routing Snapshot', 'نسخه مسیریابی')}
           </p>
           <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: colors.navy }}>
             v{snapshotVersion ?? '—'}
           </p>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: colors.textMuted }}>
-            Agents fetch this every 60 s and restart Xray-core on version change
+            {tx('Agents fetch this every 60 s and restart the routing service when the version changes', 'ایجنت‌ها هر ۶۰ ثانیه آن را دریافت می‌کنند و در صورت تغییر نسخه، سرویس مسیریابی را بازراه‌اندازی می‌کنند')}
           </p>
         </div>
         <Button onClick={recompile} disabled={recompiling} variant="ghost" size="sm">
-          {recompiling ? 'Recompiling…' : 'Recompile Now'}
+          {recompiling ? tx('Recompiling…', 'در حال بازسازی…') : tx('Recompile Now', 'بازسازی اکنون')}
         </Button>
       </div>
     </div>

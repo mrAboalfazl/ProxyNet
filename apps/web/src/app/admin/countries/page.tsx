@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { api, Country } from '../../../lib/api';
 import { PageHeader, Card, Table, Tr, Td, Badge, Button, Alert, Spinner, colors } from '../../../lib/ui';
+import { useLang } from '../../../lib/lang-context';
 
 export default function AdminCountriesPage() {
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [countries, setCountries] = useState<Country[]>([]);
   const [poolStatus, setPoolStatus] = useState<Record<string, { totalNodes: number; healthyNodes: number }>>({});
   const [loading, setLoading] = useState(true);
@@ -47,13 +50,13 @@ export default function AdminCountriesPage() {
 
   return (
     <div>
-      <PageHeader title={`Countries (${enabled.length} active)`} action={<Button onClick={load} variant="secondary" size="sm">Refresh</Button>} />
+      <PageHeader title={`${tx('Countries', 'کشورها')} (${enabled.length} ${tx('active', 'فعال')})`} action={<Button onClick={load} variant="secondary" size="sm">{tx('Refresh', 'تازه‌سازی')}</Button>} />
 
       {error && <div style={{ marginBottom: 16 }}><Alert message={error} /></div>}
 
       {loading ? <Spinner /> : (
         <Card>
-          <Table headers={['Code', 'Name', 'Nodes', 'Healthy', 'Status', 'Actions']}>
+          <Table headers={[tx('Code', 'کد'), tx('Name', 'نام'), tx('Nodes', 'نودها'), tx('Healthy', 'سالم'), tx('Status', 'وضعیت'), tx('Actions', 'عملیات')]}>
             {countries.map((country) => {
               const pool = poolStatus[country.code] || { totalNodes: 0, healthyNodes: 0 };
               return (
@@ -66,10 +69,10 @@ export default function AdminCountriesPage() {
                       ? <span style={{ color: '#16a34a', fontWeight: 600 }}>{pool.healthyNodes}</span>
                       : <span style={{ color: colors.textMuted }}>0</span>}
                   </Td>
-                  <Td><Badge label={country.enabled ? 'enabled' : 'disabled'} /></Td>
+                  <Td><Badge label={country.enabled ? tx('enabled', 'فعال') : tx('disabled', 'غیرفعال')} /></Td>
                   <Td>
                     <Button onClick={() => toggle(country.code, country.enabled)} disabled={toggling === country.code} variant={country.enabled ? 'secondary' : 'primary'} size="sm">
-                      {toggling === country.code ? '…' : country.enabled ? 'Disable' : 'Enable'}
+                      {toggling === country.code ? '…' : country.enabled ? tx('Disable', 'غیرفعال کردن') : tx('Enable', 'فعال کردن')}
                     </Button>
                   </Td>
                 </Tr>
@@ -78,7 +81,7 @@ export default function AdminCountriesPage() {
             {countries.length === 0 && (
               <Tr>
                 <td colSpan={6} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
-                  No countries configured.
+                  {tx('No countries configured.', 'هیچ کشوری پیکربندی نشده است.')}
                 </td>
               </Tr>
             )}

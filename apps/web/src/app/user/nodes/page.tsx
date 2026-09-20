@@ -121,7 +121,7 @@ export default function UserNodesPage() {
               <li>ایجنت را روی سرور لینوکسی خود دانلود کنید و دستور را اجرا کنید</li>
               <li>منتظر تایید ادمین باشید — پس از تایید نود فعال می‌شود</li>
             </> : <>
-              <li>Click <strong>+ Add Node</strong>, enter a label and your server's country code</li>
+              <li>Click <strong>+ Add Node</strong>, enter a label and your server&apos;s country code</li>
               <li>Copy the enrollment command that appears</li>
               <li>Download the agent on your Linux server and run the command</li>
               <li>Wait for admin approval — your node goes live once approved</li>

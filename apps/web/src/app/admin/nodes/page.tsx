@@ -7,8 +7,11 @@ import {
   PageHeader, Card, Table, Tr, Td, Badge, Button, Input,
   Alert, Spinner, Modal, colors,
 } from '../../../lib/ui';
+import { useLang } from '../../../lib/lang-context';
 
 export default function AdminNodesPage() {
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [nodes, setNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,7 +99,7 @@ export default function AdminNodesPage() {
 
   return (
     <div>
-      <PageHeader title="Nodes" action={<Button onClick={() => setShowCreate(true)}>+ Add Node</Button>} />
+      <PageHeader title={tx('Nodes', 'نودها')} action={<Button onClick={() => setShowCreate(true)}>+ {tx('Add Node', 'افزودن نود')}</Button>} />
 
       {error && <div style={{ marginBottom: 16 }}><Alert message={error} /></div>}
 
@@ -109,7 +112,7 @@ export default function AdminNodesPage() {
             </code>
           </p>
           <Button onClick={() => setEnrollmentToken(null)} variant="ghost" size="sm" style={{ marginTop: 8 }}>
-            Dismiss
+            {tx('Dismiss', 'بستن')}
           </Button>
         </div>
       )}
@@ -123,7 +126,7 @@ export default function AdminNodesPage() {
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
               }}>
                 <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: colors.text }}>
-                  Pending Approval
+                  {tx('Pending Approval', 'در انتظار تأیید')}
                 </h2>
                 <span style={{
                   background: '#fef3c7', color: '#92400e', borderRadius: 12,
@@ -133,7 +136,7 @@ export default function AdminNodesPage() {
                 </span>
               </div>
               <Card>
-                <Table headers={['Label', 'Country', 'Submitted by', 'Agent', 'Actions']}>
+                <Table headers={[tx('Label', 'برچسب'), tx('Country', 'کشور'), tx('Submitted by', 'ارسال‌کننده'), tx('Agent', 'ایجنت'), tx('Actions', 'عملیات')]}>
                   {pendingUserNodes.map((node) => (
                     <Tr key={node.id}>
                       <Td style={{ fontWeight: 600 }}>{node.label}</Td>
@@ -155,7 +158,7 @@ export default function AdminNodesPage() {
                             size="sm"
                             style={{ background: '#22c55e', color: '#fff', border: 'none' }}
                           >
-                            Approve
+                            {tx('Approve', 'تأیید')}
                           </Button>
                           <Button
                             onClick={() => rejectNode(node.id)}
@@ -163,7 +166,7 @@ export default function AdminNodesPage() {
                             size="sm"
                             style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                           >
-                            Reject
+                            {tx('Reject', 'رد')}
                           </Button>
                         </div>
                       </Td>
@@ -178,15 +181,15 @@ export default function AdminNodesPage() {
           <div>
             {pendingUserNodes.length > 0 && (
               <h2 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: colors.text }}>
-                All Nodes
+                {tx('All Nodes', 'همه نودها')}
               </h2>
             )}
             <Card>
-              <Table headers={['Node', 'Country / IP', 'Roles', 'Health', 'Last heartbeat', 'Actions']}>
+              <Table headers={[tx('Node', 'نود'), tx('Country / IP', 'کشور / IP'), tx('Roles', 'نقش‌ها'), tx('Health', 'سلامت'), tx('Last heartbeat', 'آخرین ضربان'), tx('Actions', 'عملیات')]}>
                 {otherNodes.length === 0 ? (
                   <Tr>
                     <td colSpan={6} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
-                      No nodes yet.
+                      {tx('No nodes yet.', 'هنوز نودی وجود ندارد.')}
                     </td>
                   </Tr>
                 ) : otherNodes.map((node) => (
@@ -206,11 +209,11 @@ export default function AdminNodesPage() {
                     <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? new Date(node.heartbeats[0].reportedAt).toLocaleString() : (node.updatedAt ? new Date(node.updatedAt).toLocaleString() : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">Get Token</Button>
+                        <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">{tx('Get Token', 'دریافت توکن')}</Button>
                         {node.status !== 'disabled' ? (
-                          <Button onClick={() => setStatus(node.id, 'disabled')} variant="secondary" size="sm">Disable</Button>
+                          <Button onClick={() => setStatus(node.id, 'disabled')} variant="secondary" size="sm">{tx('Disable', 'غیرفعال کردن')}</Button>
                         ) : (
-                          <Button onClick={() => setStatus(node.id, 'active')} variant="primary" size="sm">Enable</Button>
+                          <Button onClick={() => setStatus(node.id, 'active')} variant="primary" size="sm">{tx('Enable', 'فعال کردن')}</Button>
                         )}
                       </div>
                     </Td>
@@ -223,15 +226,15 @@ export default function AdminNodesPage() {
       )}
 
       {showCreate && (
-        <Modal title="Add Node" onClose={() => setShowCreate(false)}>
+        <Modal title={tx('Add Node', 'افزودن نود')} onClose={() => setShowCreate(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Input label="Label" value={label} onChange={setLabel} placeholder="frankfurt-01" required />
-            <Input label="Country Code (ISO 2)" value={countryCode} onChange={setCountryCode} placeholder="DE" required />
-            <Input label="Roles (comma-separated)" value={roles} onChange={setRoles} placeholder="edge, relay, exit" />
+            <Input label={tx('Label', 'برچسب')} value={label} onChange={setLabel} placeholder="frankfurt-01" required />
+            <Input label={tx('Country Code (ISO 2)', 'کد کشور (ISO 2)')} value={countryCode} onChange={setCountryCode} placeholder="DE" required />
+            <Input label={tx('Roles (comma-separated)', 'نقش‌ها (جداشده با ویرگول)')} value={roles} onChange={setRoles} placeholder="edge, relay, exit" />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <Button onClick={() => setShowCreate(false)} variant="secondary">Cancel</Button>
+              <Button onClick={() => setShowCreate(false)} variant="secondary">{tx('Cancel', 'لغو')}</Button>
               <Button onClick={createNode} disabled={creating || !label || !countryCode}>
-                {creating ? 'Creating…' : 'Create & Get Token'}
+                {creating ? tx('Creating…', 'در حال ایجاد…') : tx('Create & Get Token', 'ایجاد و دریافت توکن')}
               </Button>
             </div>
           </div>

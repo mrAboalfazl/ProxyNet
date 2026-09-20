@@ -13,6 +13,7 @@
   min-height: 100vh;
 }
 .user-shell { display: flex; min-height: 100vh; }
+[data-user-panel][dir='rtl'] .user-shell { flex-direction: row-reverse; }
 .user-sidebar { display: flex; flex: 0 0 17.5rem; flex-direction: column; background: #0f172a; color: #e2e8f0; border-inline-start: 1px solid rgba(255,255,255,.08); min-height: 100vh; }
 [data-user-panel][dir='ltr'] .user-sidebar { border-inline-start: 0; border-inline-end: 1px solid rgba(255,255,255,.08); }
 .user-main { flex: 1 1 auto; min-width: 0; padding: 2rem clamp(1rem, 3vw, 3rem); }
