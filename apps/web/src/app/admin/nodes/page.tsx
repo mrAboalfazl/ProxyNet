@@ -74,6 +74,16 @@ export default function AdminNodesPage() {
     }
   }
 
+  async function resetEnrollment(nodeId: string) {
+    try {
+      await api.nodes.setStatus(nodeId, 'pending');
+      await genToken(nodeId);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to reset enrollment');
+    }
+  }
+
   async function approveNode(nodeId: string) {
     try {
       await api.nodes.approve(nodeId);
@@ -209,12 +219,16 @@ export default function AdminNodesPage() {
                     <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? new Date(node.heartbeats[0].reportedAt).toLocaleString() : (node.updatedAt ? new Date(node.updatedAt).toLocaleString() : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">{tx('Get Token', 'دریافت توکن')}</Button>
-                        {node.status !== 'disabled' ? (
+                        {!node.nodeSecretHash && node.status !== 'pending' ? (
+                          <Button onClick={() => resetEnrollment(node.id)} variant="primary" size="sm">{tx('Reset enrollment', 'بازنشانی ثبت نود')}</Button>
+                        ) : (
+                          <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">{tx('Get Token', 'دریافت توکن')}</Button>
+                        )}
+                        {node.nodeSecretHash && (node.status !== 'disabled' ? (
                           <Button onClick={() => setStatus(node.id, 'disabled')} variant="secondary" size="sm">{tx('Disable', 'غیرفعال کردن')}</Button>
                         ) : (
                           <Button onClick={() => setStatus(node.id, 'active')} variant="primary" size="sm">{tx('Enable', 'فعال کردن')}</Button>
-                        )}
+                        ))}
                       </div>
                     </Td>
                   </Tr>

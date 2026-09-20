@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -181,6 +181,17 @@ export class NodesService {
   }
 
   async updateStatus(id: bigint, status: string) {
+    const node = await this.prisma.node.findUnique({
+      where: { id },
+      select: { nodeSecretHash: true },
+    });
+    if (!node) throw new NotFoundException('Node not found');
+    if (status === 'pending' && node.nodeSecretHash) {
+      throw new BadRequestException('An enrolled node cannot be reset to pending');
+    }
+    if (status === 'active' && !node.nodeSecretHash) {
+      throw new BadRequestException('Enroll the node before activating it');
+    }
     return this.prisma.node.update({ where: { id }, data: { status: status as never } });
   }
 
