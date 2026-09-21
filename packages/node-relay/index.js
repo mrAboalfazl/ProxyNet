@@ -214,16 +214,24 @@ function isBlockedAddress(address) {
     value.startsWith('::ffff:172.');
 }
 
-async function resolveDestination(host) {
+async function resolveDestinations(host) {
   if (isBlockedHost(host)) throw new Error('blocked destination host');
   if (net.isIP(host)) {
     if (isBlockedAddress(host)) throw new Error('blocked destination address');
-    return { address: host, family: net.isIP(host) };
+    return [{ address: host, family: net.isIP(host) }];
   }
   const addresses = await dns.lookup(host, { all: true, verbatim: true });
-  const publicAddress = addresses.find((entry) => !isBlockedAddress(entry.address));
-  if (!publicAddress) throw new Error('destination resolves only to private addresses');
-  return publicAddress;
+  const publicAddresses = addresses.filter((entry) => !isBlockedAddress(entry.address));
+  if (publicAddresses.length === 0) throw new Error('destination resolves only to private addresses');
+
+  // Prefer IPv4 when both families are available. Some nodes have an AAAA
+  // record but no working IPv6 route; the TCP connector still falls back to
+  // the remaining addresses if the preferred family is unavailable.
+  return publicAddresses.sort((a, b) => a.family - b.family);
+}
+
+async function resolveDestination(host) {
+  return (await resolveDestinations(host))[0];
 }
 
 function socksReply(socket, code) {
@@ -346,9 +354,13 @@ function createSocksConnection(socket) {
   let authorizing = false;
   let context = null;
 
+  socket.setNoDelay(true);
   socket.setTimeout(SOCKS_IDLE_TIMEOUT_MS, () => socket.destroy());
   socket.on('error', () => {});
   socket.on('data', (chunk) => {
+    // Once CONNECT has succeeded, the socket is piped directly to the
+    // destination. Do not append application bytes to the SOCKS parser buffer.
+    if (stage === 'streaming') return;
     buffer = Buffer.concat([buffer, chunk]);
     processBuffer();
   });
@@ -454,15 +466,23 @@ function createSocksConnection(socket) {
     buffer = buffer.subarray(offset + 2);
     if (command === 0x03) { startUdpAssociate(socket, context); stage = 'udp'; return; }
     stage = 'connecting';
-    connectSocksDestination(socket, context, host, port);
+    connectSocksDestination(socket, context, host, port, () => {
+      // A client is allowed to pipeline bytes after the CONNECT request. Keep
+      // those bytes until the upstream TCP connection is ready instead of
+      // silently dropping the beginning of an SSH handshake.
+      const pending = buffer;
+      buffer = Buffer.alloc(0);
+      stage = 'streaming';
+      return pending;
+    });
   }
 }
 
-async function connectSocksDestination(client, context, host, port) {
+async function connectSocksDestination(client, context, host, port, takePendingData) {
   const destination = `${host}:${port}`;
-  let resolved;
+  let resolvedAddresses;
   try {
-    resolved = await resolveDestination(host);
+    resolvedAddresses = await resolveDestinations(host);
   } catch (error) {
     console.warn(`[socks5] blocked destination ${destination}: ${error.message}`);
     socksReply(client, 0x02);
@@ -470,11 +490,12 @@ async function connectSocksDestination(client, context, host, port) {
     return;
   }
 
-  const upstream = net.createConnection({ host: resolved.address, port, family: resolved.family });
   let bytesIn = 0;
   let bytesOut = 0;
   let completed = false;
-  const startedAt = Date.now();
+  let upstream;
+  let connected = false;
+  let startedAt = Date.now();
 
   function finish() {
     if (completed) return;
@@ -488,24 +509,82 @@ async function connectSocksDestination(client, context, host, port) {
     else bytesOut += size;
     if (context.bytesRemaining < 0n) {
       client.destroy();
-      upstream.destroy();
+      upstream?.destroy();
+      return false;
+    }
+    return true;
+  }
+
+  function failBeforeConnect() {
+    if (!client.destroyed) {
+      socksReply(client, 0x05);
+      client.end();
     }
   }
 
-  upstream.setTimeout(SOCKS_IDLE_TIMEOUT_MS, () => upstream.destroy());
-  upstream.once('connect', () => {
-    socksReply(client, 0x00);
-    client.on('data', (chunk) => enforceQuota(chunk.length, true));
-    upstream.on('data', (chunk) => enforceQuota(chunk.length, false));
-    client.pipe(upstream);
-    upstream.pipe(client);
-  });
-  upstream.once('error', () => {
-    if (!completed) socksReply(client, 0x05);
-    client.destroy();
-  });
-  client.once('close', () => { upstream.destroy(); finish(); });
-  upstream.once('close', () => { client.destroy(); finish(); });
+  function connectNext(index) {
+    if (index >= resolvedAddresses.length) {
+      failBeforeConnect();
+      return;
+    }
+
+    const resolved = resolvedAddresses[index];
+    const candidate = net.createConnection({ host: resolved.address, port, family: resolved.family });
+    let attemptFinished = false;
+
+    const retry = () => {
+      if (attemptFinished || connected) return;
+      attemptFinished = true;
+      candidate.destroy();
+      connectNext(index + 1);
+    };
+
+    candidate.setTimeout(REQUEST_TIMEOUT_MS, () => retry());
+    candidate.once('connect', () => {
+      if (attemptFinished) return;
+      attemptFinished = true;
+      connected = true;
+      upstream = candidate;
+      candidate.setNoDelay(true);
+      startedAt = Date.now();
+      candidate.setTimeout(SOCKS_IDLE_TIMEOUT_MS, () => candidate.destroy());
+
+      if (client.destroyed) {
+        candidate.destroy();
+        return;
+      }
+
+      const pending = takePendingData();
+      if (pending.length > 0 && !enforceQuota(pending.length, false)) return;
+
+      socksReply(client, 0x00);
+      client.on('data', (chunk) => enforceQuota(chunk.length, false));
+      candidate.on('data', (chunk) => enforceQuota(chunk.length, true));
+
+      // Write pipelined bytes before attaching the pipe so the beginning of
+      // an SSH protocol exchange keeps its original order.
+      if (pending.length > 0) candidate.write(pending);
+      client.pipe(candidate);
+      candidate.pipe(client);
+    });
+    candidate.once('error', () => {
+      if (!connected) {
+        retry();
+      } else {
+        candidate.destroy();
+      }
+    });
+    candidate.once('close', () => {
+      if (!connected) retry();
+      else {
+        client.destroy();
+        finish();
+      }
+    });
+  }
+
+  client.once('close', () => { upstream?.destroy(); finish(); });
+  connectNext(0);
 }
 
 if (CONTROL_PLANE_URL && NODE_ID && Number.isInteger(SOCKS_PORT) && SOCKS_PORT > 0 && SOCKS_PORT < 65536) {
