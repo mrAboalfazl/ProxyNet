@@ -567,8 +567,9 @@ async function connectSocksDestination(client, context, host, port, takePendingD
       client.pipe(candidate);
       candidate.pipe(client);
     });
-    candidate.once('error', () => {
+    candidate.once('error', (error) => {
       if (!connected) {
+        console.warn(`[socks5] connect failed ${destination} via ${resolved.address}: ${error.code || error.message}`);
         retry();
       } else {
         candidate.destroy();

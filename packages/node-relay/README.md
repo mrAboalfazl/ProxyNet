@@ -47,6 +47,17 @@ destinations are blocked.
 SOCKS5 credentials are sent in cleartext by the SOCKS5 protocol. Operators and
 users should use this port only from trusted networks or behind a trusted tunnel.
 
+For SSH, use an SSH client that supports SOCKS5 username/password authentication,
+such as Ncat:
+
+```bash
+ssh -o "ProxyCommand=ncat --proxy NODE_IP:1080 --proxy-type socks5 --proxy-auth UUID:SECRET %h %p" user@target-host
+```
+
+Replace `NODE_IP`, `UUID`, and `SECRET` with the endpoint and credential shown in
+the user panel. OpenSSH's built-in `ProxyJump` is an SSH-to-SSH hop, not a SOCKS5
+client, so it cannot be used directly for this endpoint.
+
 ## Firewall
 
 Open TCP and UDP `1080` for SOCKS5 users after installing the current node release.
