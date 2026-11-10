@@ -71,17 +71,17 @@ export default function LandingPage() {
 
   const steps = [
     {
-      step: '۰۱',
+      step: isRTL ? '۰۱' : '01',
       title: t(lang, 'step.1.title'),
       desc: t(lang, 'step.1.desc'),
     },
     {
-      step: '۰۲',
+      step: isRTL ? '۰۲' : '02',
       title: t(lang, 'step.2.title'),
       desc: t(lang, 'step.2.desc'),
     },
     {
-      step: '۰۳',
+      step: isRTL ? '۰۳' : '03',
       title: t(lang, 'step.3.title'),
       desc: t(lang, 'step.3.desc'),
     },
@@ -90,10 +90,10 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/20">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-md">
-        <div className="container max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/95 backdrop-blur-md">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Brand Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center transition-all group-hover:scale-105 shadow-sm">
               <Shield className="h-5 w-5" />
             </div>
@@ -118,13 +118,13 @@ export default function LandingPage() {
           </nav>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button
               onClick={() => setLang(isRTL ? 'en' : 'fa')}
-              className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-md border border-border bg-card hover:bg-muted text-[11px] sm:text-xs font-semibold text-muted-foreground hover:text-foreground transition-all"
+              className="px-2.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-[11px] sm:text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-xs"
+              title={isRTL ? 'Switch to English' : 'تغییر به فارسی'}
             >
-              <span className="hidden sm:inline">{isRTL ? 'English' : 'فارسی'}</span>
-              <span className="sm:hidden">{isRTL ? 'EN' : 'فا'}</span>
+              <span>{isRTL ? 'English' : 'فارسی'}</span>
             </button>
 
             <Link href="/login" className="hidden sm:inline-flex">
@@ -148,7 +148,7 @@ export default function LandingPage() {
         {/* Subtle Ambient Glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-primary/10 blur-[120px] rounded-full pointer-events-none -z-10" />
 
-        <div className="container max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
+        <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
           {/* Status Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold shadow-sm">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -156,7 +156,7 @@ export default function LandingPage() {
           </div>
 
           {/* Main Hero Headline */}
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.18] text-balance">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.2] text-balance">
             {t(lang, 'hero.title')}
           </h1>
 
@@ -182,19 +182,19 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Technical Code Preview Card */}
-          <div className="pt-8 max-w-2xl mx-auto text-left" dir="ltr">
-            <div className="rounded-xl border border-zinc-800 bg-[#0d1117] text-zinc-100 shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 text-xs font-mono text-zinc-400">
+          {/* Code Showcase Terminal */}
+          <div className="pt-8 max-w-2xl mx-auto">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden text-left" dir="ltr">
+              <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/90 border-b border-zinc-800/80">
                 <div className="flex items-center gap-1.5">
                   <span className="h-3 w-3 rounded-full bg-rose-500/80 inline-block" />
                   <span className="h-3 w-3 rounded-full bg-amber-500/80 inline-block" />
                   <span className="h-3 w-3 rounded-full bg-emerald-500/80 inline-block" />
-                  <span className="ml-2 text-zinc-300 font-sans text-xs">proxynet-request.sh</span>
+                  <span className="ml-2 text-zinc-300 font-mono text-xs">proxynet-request.sh</span>
                 </div>
                 <span className="text-[10px] uppercase font-bold text-emerald-400">200 OK</span>
               </div>
-              <pre className="p-4 text-xs font-mono leading-relaxed text-zinc-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <pre className="p-4 text-xs font-mono leading-relaxed text-zinc-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" dir="ltr">
                 <code>{`# Outbound API Request via ProxyNet Gateway
 curl -X POST "http://localhost:3000/api/gateway/fetch" \\
   -H "Authorization: Basic base64(uuid:secret)" \\
@@ -202,7 +202,7 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
   -d '{"url": "https://api.ipify.org?format=json"}'
 
 # Verified Response (Status: 200 OK, Latency: 28ms)
-{ "ip": "185.220.101.5", "country": "DE", "status": "healthy" }`}</code>
+{ "ip": "185.140.12.192", "country": "DE", "status": "healthy" }`}</code>
               </pre>
             </div>
           </div>
@@ -211,22 +211,30 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
 
       {/* Technical Metric Strip */}
       <section className="border-y border-border/60 bg-muted/30 py-8">
-        <div className="container max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono">۹۹.۹٪</p>
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
+                {tx('99.9%', '۹۹.۹٪')}
+              </p>
               <p className="text-xs text-muted-foreground">{tx('Uptime SLA', 'پایداری شبکه (SLA)')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">+6</p>
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
+                +6
+              </p>
               <p className="text-xs text-muted-foreground">{tx('Global Exit Regions', 'لوکیشن‌های خروج بین‌المللی')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">&lt; 35ms</p>
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
+                &lt; 35ms
+              </p>
               <p className="text-xs text-muted-foreground">{tx('Routing Latency', 'میانگین زمان پاسخگویی')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">SOCKS5 / HTTP</p>
+              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono" dir="ltr">
+                SOCKS5 / HTTP
+              </p>
               <p className="text-xs text-muted-foreground">{tx('Standard Protocols', 'پروتکل‌های ارتباطی استاندارد')}</p>
             </div>
           </div>
@@ -235,7 +243,7 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
 
       {/* Features Grid */}
       <section id="features" className="py-16 sm:py-24">
-        <div className="container max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
             <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
               {t(lang, 'features.title')}
@@ -275,7 +283,7 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
 
       {/* How It Works Steps */}
       <section id="how-it-works" className="py-16 sm:py-24 bg-muted/20 border-t border-border/70">
-        <div className="container max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="w-full max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-xl mx-auto mb-14 space-y-3">
             <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
               {t(lang, 'steps.title')}
@@ -301,7 +309,7 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
 
       {/* Bottom CTA Banner */}
       <section className="py-16 border-t border-border/70 bg-gradient-to-b from-card to-muted/30 text-center">
-        <div className="container max-w-3xl mx-auto px-4 space-y-6">
+        <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 space-y-6">
           <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
             {t(lang, 'cta.title')}
           </h2>
@@ -321,7 +329,7 @@ curl -X POST "http://localhost:3000/api/gateway/fetch" \\
 
       {/* Footer */}
       <footer className="border-t border-border/60 py-8 bg-background text-xs text-muted-foreground">
-        <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
             <span className="font-semibold text-foreground">{t(lang, 'brand')}</span>
