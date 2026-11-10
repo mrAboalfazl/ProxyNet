@@ -1,231 +1,345 @@
 'use client';
 
 import Link from 'next/link';
-import { colors } from '../lib/ui';
 import { useLang } from '../lib/lang-context';
 import { t } from '../lib/i18n';
-
-const NAV_H = 64;
-
-function Shield() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
+import {
+  Shield,
+  Globe2,
+  Zap,
+  Activity,
+  KeyRound,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Sparkles,
+} from 'lucide-react';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 export default function LandingPage() {
   const { lang, setLang } = useLang();
-  const isFA = lang === 'fa';
+  const isRTL = lang === 'fa';
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
 
   const features = [
-    { icon: '🔒', title: t(lang, 'feat.0.title'), desc: t(lang, 'feat.0.desc') },
-    { icon: '🌍', title: t(lang, 'feat.1.title'), desc: t(lang, 'feat.1.desc') },
-    { icon: '⚡', title: t(lang, 'feat.2.title'), desc: t(lang, 'feat.2.desc') },
-    { icon: '🛡️', title: t(lang, 'feat.3.title'), desc: t(lang, 'feat.3.desc') },
-    { icon: '📊', title: t(lang, 'feat.4.title'), desc: t(lang, 'feat.4.desc') },
-    { icon: '🔑', title: t(lang, 'feat.5.title'), desc: t(lang, 'feat.5.desc') },
+    {
+      icon: Lock,
+      title: t(lang, 'feat.0.title'),
+      desc: t(lang, 'feat.0.desc'),
+      badge: tx('Encryption', 'رمزنگاری قدرتمند'),
+    },
+    {
+      icon: Globe2,
+      title: t(lang, 'feat.1.title'),
+      desc: t(lang, 'feat.1.desc'),
+      badge: tx('Multi-Region', 'نودهای چندمنطقه‌ای'),
+    },
+    {
+      icon: Zap,
+      title: t(lang, 'feat.2.title'),
+      desc: t(lang, 'feat.2.desc'),
+      badge: tx('Zero Overhead', 'بدون سربار'),
+    },
+    {
+      icon: Activity,
+      title: t(lang, 'feat.3.title'),
+      desc: t(lang, 'feat.3.desc'),
+      badge: tx('Smart Failover', 'پایش خودکار'),
+    },
+    {
+      icon: BarChart3,
+      title: t(lang, 'feat.4.title'),
+      desc: t(lang, 'feat.4.desc'),
+      badge: tx('Real-time Metrics', 'پایش بلادرنگ'),
+    },
+    {
+      icon: KeyRound,
+      title: t(lang, 'feat.5.title'),
+      desc: t(lang, 'feat.5.desc'),
+      badge: tx('Granular Keys', 'اعتبارنامه‌های مجزا'),
+    },
   ];
 
   const steps = [
-    { n: '01', title: t(lang, 'step.1.title'), desc: t(lang, 'step.1.desc') },
-    { n: '02', title: t(lang, 'step.2.title'), desc: t(lang, 'step.2.desc') },
-    { n: '03', title: t(lang, 'step.3.title'), desc: t(lang, 'step.3.desc') },
+    {
+      step: '۰۱',
+      title: t(lang, 'step.1.title'),
+      desc: t(lang, 'step.1.desc'),
+    },
+    {
+      step: '۰۲',
+      title: t(lang, 'step.2.title'),
+      desc: t(lang, 'step.2.desc'),
+    },
+    {
+      step: '۰۳',
+      title: t(lang, 'step.3.title'),
+      desc: t(lang, 'step.3.desc'),
+    },
   ];
 
   return (
-    <div style={{ color: colors.text, backgroundColor: '#fff' }}>
-      {/* Navbar */}
-      <nav style={{
-        height: NAV_H,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 40px',
-        borderBottom: `1px solid ${colors.border}`,
-        position: 'sticky',
-        top: 0,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 100,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 36, height: 36, backgroundColor: colors.navy, borderRadius: 9,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-          }}>
-            <Shield />
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 18, color: colors.navy }}>{t(lang, 'brand')}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button
-            onClick={() => setLang(isFA ? 'en' : 'fa')}
-            style={{
-              padding: '6px 14px', fontSize: 12, fontWeight: 700,
-              color: colors.textMuted, background: 'none',
-              border: `1px solid ${colors.border}`, borderRadius: 6, cursor: 'pointer',
-            }}
-          >
-            {isFA ? 'EN' : 'فا'}
-          </button>
-          <Link href="/login" style={{
-            padding: '8px 18px', fontSize: 14, fontWeight: 500,
-            color: colors.navy, textDecoration: 'none',
-            border: `1px solid ${colors.border}`, borderRadius: 7,
-          }}>
-            {t(lang, 'nav.signin')}
+    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/20">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-md">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          {/* Brand Logo */}
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center transition-all group-hover:scale-105 shadow-sm">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-extrabold text-base sm:text-lg tracking-tight">
+                {t(lang, 'brand')}
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono leading-none">
+                Platform v1.2
+              </span>
+            </div>
           </Link>
-          <Link href="/register" style={{
-            padding: '8px 18px', fontSize: 14, fontWeight: 600,
-            color: '#fff', textDecoration: 'none',
-            backgroundColor: colors.primary, borderRadius: 7,
-          }}>
-            {t(lang, 'nav.getstarted')}
-          </Link>
-        </div>
-      </nav>
 
-      {/* Hero */}
-      <section style={{
-        background: `linear-gradient(135deg, ${colors.navy} 0%, #1e3a70 100%)`,
-        color: '#fff',
-        padding: '100px 40px',
-        textAlign: 'center',
-      }}>
-        <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(255,255,255,0.12)', borderRadius: 100,
-            padding: '6px 16px', fontSize: 13, fontWeight: 500, marginBottom: 28,
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#4ade80', display: 'inline-block' }} />
-            {t(lang, 'hero.badge')}
+          {/* Quick Nav Links (Desktop) */}
+          <nav className="hidden md:flex items-center gap-6 text-xs sm:text-sm font-medium text-muted-foreground">
+            <a href="#features" className="hover:text-foreground transition-colors">
+              {t(lang, 'features.title')}
+            </a>
+            <a href="#how-it-works" className="hover:text-foreground transition-colors">
+              {t(lang, 'steps.title')}
+            </a>
+          </nav>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
+            <button
+              onClick={() => setLang(isRTL ? 'en' : 'fa')}
+              className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-md border border-border bg-card hover:bg-muted text-[11px] sm:text-xs font-semibold text-muted-foreground hover:text-foreground transition-all"
+            >
+              <span className="hidden sm:inline">{isRTL ? 'English' : 'فارسی'}</span>
+              <span className="sm:hidden">{isRTL ? 'EN' : 'فا'}</span>
+            </button>
+
+            <Link href="/login" className="hidden sm:inline-flex">
+              <Button variant="ghost" size="sm" className="text-xs">
+                {t(lang, 'nav.signin')}
+              </Button>
+            </Link>
+
+            <Link href="/register">
+              <Button size="sm" className="text-xs shadow-sm gap-1 sm:gap-1.5 px-3">
+                <span>{t(lang, 'nav.getstarted')}</span>
+                {isRTL ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </Button>
+            </Link>
           </div>
-          <h1 style={{ margin: '0 0 20px', fontSize: 48, fontWeight: 800, lineHeight: 1.2, letterSpacing: isFA ? 0 : '-1px' }}>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28">
+        {/* Subtle Ambient Glow */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-primary/10 blur-[120px] rounded-full pointer-events-none -z-10" />
+
+        <div className="container max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-6">
+          {/* Status Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold shadow-sm">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>{t(lang, 'hero.badge')}</span>
+          </div>
+
+          {/* Main Hero Headline */}
+          <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight leading-[1.18] text-balance">
             {t(lang, 'hero.title')}
           </h1>
-          <p style={{ margin: '0 0 40px', fontSize: 18, opacity: 0.8, lineHeight: 1.7 }}>
+
+          {/* Subtitle */}
+          <p className="max-w-2xl mx-auto text-muted-foreground text-sm sm:text-lg leading-relaxed text-balance">
             {t(lang, 'hero.subtitle')}
           </p>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/register" style={{
-              padding: '14px 32px', fontSize: 16, fontWeight: 700,
-              backgroundColor: colors.primary, color: '#fff',
-              borderRadius: 9, textDecoration: 'none',
-              boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
-            }}>
-              {t(lang, 'hero.cta_primary')}
+
+          {/* Hero CTAs */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <Link href="/register" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto text-sm font-semibold gap-2 shadow-lg shadow-primary/25">
+                <Sparkles className="h-4 w-4" />
+                <span>{t(lang, 'hero.cta_primary')}</span>
+                {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
             </Link>
-            <Link href="/login" style={{
-              padding: '14px 32px', fontSize: 16, fontWeight: 600,
-              backgroundColor: 'rgba(255,255,255,0.12)', color: '#fff',
-              borderRadius: 9, textDecoration: 'none',
-              border: '1px solid rgba(255,255,255,0.25)',
-            }}>
-              {t(lang, 'hero.cta_secondary')}
+
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto text-sm font-semibold gap-2">
+                <span>{t(lang, 'hero.cta_secondary')}</span>
+              </Button>
             </Link>
+          </div>
+
+          {/* Technical Code Preview Card */}
+          <div className="pt-8 max-w-2xl mx-auto text-left" dir="ltr">
+            <div className="rounded-xl border border-zinc-800 bg-[#0d1117] text-zinc-100 shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 text-xs font-mono text-zinc-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-rose-500/80 inline-block" />
+                  <span className="h-3 w-3 rounded-full bg-amber-500/80 inline-block" />
+                  <span className="h-3 w-3 rounded-full bg-emerald-500/80 inline-block" />
+                  <span className="ml-2 text-zinc-300 font-sans text-xs">proxynet-request.sh</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold text-emerald-400">200 OK</span>
+              </div>
+              <pre className="p-4 text-xs font-mono leading-relaxed text-zinc-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <code>{`# Outbound API Request via ProxyNet Gateway
+curl -X POST "http://localhost:3000/api/gateway/fetch" \\
+  -H "Authorization: Basic base64(uuid:secret)" \\
+  -H "Content-Type: application/json" \\
+  -d '{"url": "https://api.ipify.org?format=json"}'
+
+# Verified Response (Status: 200 OK, Latency: 28ms)
+{ "ip": "185.220.101.5", "country": "DE", "status": "healthy" }`}</code>
+              </pre>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section style={{ padding: '80px 40px', maxWidth: 1100, margin: '0 auto' }}>
-        <h2 style={{ textAlign: 'center', margin: '0 0 12px', fontSize: 34, fontWeight: 700, color: colors.navy }}>
-          {t(lang, 'features.title')}
-        </h2>
-        <p style={{ textAlign: 'center', margin: '0 0 56px', fontSize: 16, color: colors.textMuted }}>
-          {t(lang, 'features.subtitle')}
-        </p>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 24,
-        }}>
-          {features.map((f) => (
-            <div key={f.title} style={{
-              padding: '28px 28px',
-              border: `1px solid ${colors.border}`,
-              borderRadius: 12,
-              background: '#fff',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-            }}>
-              <div style={{ fontSize: 28, marginBottom: 14 }}>{f.icon}</div>
-              <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700, color: colors.navy }}>{f.title}</h3>
-              <p style={{ margin: 0, fontSize: 14, color: colors.textMuted, lineHeight: 1.7 }}>{f.desc}</p>
+      {/* Technical Metric Strip */}
+      <section className="border-y border-border/60 bg-muted/30 py-8">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div className="space-y-1">
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono">۹۹.۹٪</p>
+              <p className="text-xs text-muted-foreground">{tx('Uptime SLA', 'پایداری شبکه (SLA)')}</p>
             </div>
-          ))}
+            <div className="space-y-1">
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">+6</p>
+              <p className="text-xs text-muted-foreground">{tx('Global Exit Regions', 'لوکیشن‌های خروج بین‌المللی')}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">&lt; 35ms</p>
+              <p className="text-xs text-muted-foreground">{tx('Routing Latency', 'میانگین زمان پاسخگویی')}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono">SOCKS5 / HTTP</p>
+              <p className="text-xs text-muted-foreground">{tx('Standard Protocols', 'پروتکل‌های ارتباطی استاندارد')}</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section style={{ padding: '60px 40px 80px', backgroundColor: colors.bg }}>
-        <div style={{ maxWidth: 800, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', margin: '0 0 12px', fontSize: 34, fontWeight: 700, color: colors.navy }}>
-            {t(lang, 'steps.title')}
-          </h2>
-          <p style={{ textAlign: 'center', margin: '0 0 56px', fontSize: 16, color: colors.textMuted }}>
-            {t(lang, 'steps.subtitle')}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {steps.map((s) => (
-              <div key={s.n} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 24,
-                padding: '24px 28px', backgroundColor: '#fff',
-                borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-              }}>
-                <div style={{
-                  fontSize: 28, fontWeight: 800, color: colors.primary,
-                  minWidth: 52, lineHeight: 1,
-                }}>
-                  {s.n}
-                </div>
-                <div>
-                  <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 700, color: colors.navy }}>{s.title}</h3>
-                  <p style={{ margin: 0, fontSize: 14, color: colors.textMuted }}>{s.desc}</p>
-                </div>
+      {/* Features Grid */}
+      <section id="features" className="py-16 sm:py-24">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
+            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
+              {t(lang, 'features.title')}
+            </h2>
+            <p className="text-xs sm:text-base text-muted-foreground">
+              {t(lang, 'features.subtitle')}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <Card key={idx} className="border-border/80 shadow-sm hover:border-primary/50 transition-all flex flex-col justify-between">
+                  <CardHeader className="space-y-3 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <Badge variant="outline" className="text-[11px] font-medium">
+                        {item.badge}
+                      </Badge>
+                    </div>
+                    <CardTitle className="text-base sm:text-lg font-bold">{item.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <CardDescription className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      {item.desc}
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Steps */}
+      <section id="how-it-works" className="py-16 sm:py-24 bg-muted/20 border-t border-border/70">
+        <div className="container max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center max-w-xl mx-auto mb-14 space-y-3">
+            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
+              {t(lang, 'steps.title')}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              {t(lang, 'steps.subtitle')}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {steps.map((st, i) => (
+              <div key={i} className="p-6 rounded-2xl border border-border/80 bg-card space-y-3 relative shadow-sm">
+                <span className="font-mono text-2xl font-black text-primary/40 block">
+                  {st.step}
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-foreground">{st.title}</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{st.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section style={{
-        padding: '80px 40px',
-        background: `linear-gradient(135deg, ${colors.navy} 0%, #1e3a70 100%)`,
-        textAlign: 'center',
-        color: '#fff',
-      }}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 38, fontWeight: 800 }}>{t(lang, 'cta.title')}</h2>
-        <p style={{ margin: '0 0 36px', fontSize: 17, opacity: 0.8 }}>{t(lang, 'cta.subtitle')}</p>
-        <Link href="/register" style={{
-          padding: '15px 40px', fontSize: 16, fontWeight: 700,
-          backgroundColor: '#fff', color: colors.navy,
-          borderRadius: 9, textDecoration: 'none',
-          display: 'inline-block',
-        }}>
-          {t(lang, 'cta.btn')}
-        </Link>
+      {/* Bottom CTA Banner */}
+      <section className="py-16 border-t border-border/70 bg-gradient-to-b from-card to-muted/30 text-center">
+        <div className="container max-w-3xl mx-auto px-4 space-y-6">
+          <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
+            {t(lang, 'cta.title')}
+          </h2>
+          <p className="text-xs sm:text-base text-muted-foreground max-w-xl mx-auto">
+            {t(lang, 'cta.subtitle')}
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Link href="/register">
+              <Button size="lg" className="shadow-lg gap-2">
+                <span>{t(lang, 'cta.btn')}</span>
+                {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </Link>
+          </div>
+        </div>
       </section>
 
       {/* Footer */}
-      <footer style={{
-        padding: '28px 40px',
-        borderTop: `1px solid ${colors.border}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: 13,
-        color: colors.textMuted,
-        flexWrap: 'wrap',
-        gap: 12,
-      }}>
-        <span>{t(lang, 'footer.rights')}</span>
-        <div style={{ display: 'flex', gap: 20 }}>
-          <Link href="/login" style={{ color: colors.textMuted, textDecoration: 'none' }}>{t(lang, 'footer.signin')}</Link>
-          <Link href="/register" style={{ color: colors.textMuted, textDecoration: 'none' }}>{t(lang, 'footer.register')}</Link>
+      <footer className="border-t border-border/60 py-8 bg-background text-xs text-muted-foreground">
+        <div className="container max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            <span className="font-semibold text-foreground">{t(lang, 'brand')}</span>
+            <span>·</span>
+            <span>{t(lang, 'footer.rights')}</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Link href="/login" className="hover:text-foreground transition-colors">
+              {t(lang, 'footer.signin')}
+            </Link>
+            <Link href="/register" className="hover:text-foreground transition-colors">
+              {t(lang, 'footer.register')}
+            </Link>
+            <Link href="/user/dashboard" className="hover:text-foreground transition-colors">
+              {tx('Dashboard', 'داشبورد')}
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

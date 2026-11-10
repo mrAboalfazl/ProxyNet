@@ -1,23 +1,42 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api, Country } from '../../../lib/api';
-import { PageHeader, Card, Table, Tr, Td, Badge, Button, Alert, Spinner, colors } from '../../../lib/ui';
+import {
+  PageHeader,
+  Card,
+  Table,
+  Tr,
+  Td,
+  Badge,
+  Button,
+  Alert,
+  Spinner,
+  Input,
+} from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
+import { toast } from 'sonner';
+import { Globe2, RefreshCw, Power } from 'lucide-react';
 
 export default function AdminCountriesPage() {
   const { lang } = useLang();
-  const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
   const [countries, setCountries] = useState<Country[]>([]);
-  const [poolStatus, setPoolStatus] = useState<Record<string, { totalNodes: number; healthyNodes: number }>>({});
+  const [poolStatus, setPoolStatus] = useState<
+    Record<string, { totalNodes: number; healthyNodes: number }>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
-  async function load() {
+  async function load(showToast = false) {
     setLoading(true);
     try {
-      const [c, s] = await Promise.all([api.countries.listAdmin(), api.countries.status().catch(() => [])]);
+      const [c, s] = await Promise.all([
+        api.countries.listAdmin(),
+        api.countries.status().catch(() => []),
+      ]);
       setCountries(c);
       const statusMap: typeof poolStatus = {};
       for (const entry of s) {
@@ -25,8 +44,13 @@ export default function AdminCountriesPage() {
       }
       setPoolStatus(statusMap);
       setError('');
+      if (showToast) {
+        toast.success(tx('Countries updated', 'لیست کشورها به‌روزرسانی شد'));
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load countries');
+      const msg = e instanceof Error ? e.message : 'Failed to load countries';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -36,55 +60,138 @@ export default function AdminCountriesPage() {
     setToggling(code);
     try {
       await api.countries.setEnabled(code, !enabled);
-      setCountries((prev) => prev.map((c) => c.code === code ? { ...c, enabled: !enabled } : c));
+      setCountries((prev) =>
+        prev.map((c) => (c.code === code ? { ...c, enabled: !enabled } : c))
+      );
+      toast.success(
+        !enabled
+          ? tx(`Location ${code} enabled`, `موقعیت ${code} فعال شد`)
+          : tx(`Location ${code} disabled`, `موقعیت ${code} غیرفعال شد`)
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update country');
+      const msg = e instanceof Error ? e.message : 'Failed to update country';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setToggling(null);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  const enabled = countries.filter((c) => c.enabled);
+  const filtered = useMemo(() => {
+    if (!search.trim()) return countries;
+    const q = search.toLowerCase();
+    return countries.filter(
+      (c) => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+    );
+  }, [countries, search]);
+
+  const enabledCount = countries.filter((c) => c.enabled).length;
 
   return (
-    <div>
-      <PageHeader title={`${tx('Countries', 'کشورها')} (${enabled.length} ${tx('active', 'فعال')})`} action={<Button onClick={load} variant="secondary" size="sm">{tx('Refresh', 'تازه‌سازی')}</Button>} />
+    <div className="space-y-6">
+      <PageHeader
+        title={`${tx('Exit Locations & Countries', 'موقعیت‌های خروج و کشورها')} (${enabledCount} ${tx('Active', 'فعال')})`}
+        description={tx(
+          'Manage geographic relay endpoints and enable/disable specific country pools.',
+          'مدیریت نقاط خروج جغرافیایی و فعال یا غیرفعال‌سازی استخرهای پروکسی کشورها.'
+        )}
+        action={
+          <Button onClick={() => load(true)} variant="secondary" size="sm">
+            <RefreshCw className="h-4 w-4" />
+            {tx('Refresh', 'تازه‌سازی')}
+          </Button>
+        }
+      />
 
-      {error && <div style={{ marginBottom: 16 }}><Alert message={error} /></div>}
+      {error && <Alert message={error} type="error" />}
 
-      {loading ? <Spinner /> : (
-        <Card>
-          <Table headers={[tx('Code', 'کد'), tx('Name', 'نام'), tx('Nodes', 'نودها'), tx('Healthy', 'سالم'), tx('Status', 'وضعیت'), tx('Actions', 'عملیات')]}>
-            {countries.map((country) => {
+      {/* Filter Bar */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="relative w-full max-w-sm">
+          <Input
+            placeholder={tx('Search by code or name…', 'جستجو بر اساس نام یا کد کشور…')}
+            value={search}
+            onChange={setSearch}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground whitespace-nowrap">
+          {tx(`Showing ${filtered.length} locations`, `نمایش ${filtered.length} موقعیت`)}
+        </div>
+      </div>
+
+      {loading ? (
+        <Spinner />
+      ) : (
+        <Card className="overflow-hidden">
+          <Table
+            headers={[
+              tx('Country Code', 'کد کشور'),
+              tx('Location Name', 'نام موقعیت'),
+              tx('Total Relays', 'کل نودها'),
+              tx('Healthy Relays', 'نودهای آنلاین'),
+              tx('Routing Status', 'وضعیت مسیریابی'),
+              tx('Actions', 'عملیات'),
+            ]}
+          >
+            {filtered.map((country) => {
               const pool = poolStatus[country.code] || { totalNodes: 0, healthyNodes: 0 };
               return (
                 <Tr key={country.code}>
-                  <Td><span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700 }}>{country.code}</span></Td>
-                  <Td>{country.name}</Td>
-                  <Td style={{ color: pool.totalNodes > 0 ? colors.text : colors.textMuted }}>{pool.totalNodes}</Td>
                   <Td>
-                    {pool.healthyNodes > 0
-                      ? <span style={{ color: '#16a34a', fontWeight: 600 }}>{pool.healthyNodes}</span>
-                      : <span style={{ color: colors.textMuted }}>0</span>}
+                    <div className="flex items-center gap-2 font-mono font-bold text-sm">
+                      <span className="p-1 px-1.5 rounded bg-muted/60 text-xs">
+                        {country.code}
+                      </span>
+                    </div>
                   </Td>
-                  <Td><Badge label={country.enabled ? tx('enabled', 'فعال') : tx('disabled', 'غیرفعال')} /></Td>
                   <Td>
-                    <Button onClick={() => toggle(country.code, country.enabled)} disabled={toggling === country.code} variant={country.enabled ? 'secondary' : 'primary'} size="sm">
-                      {toggling === country.code ? '…' : country.enabled ? tx('Disable', 'غیرفعال کردن') : tx('Enable', 'فعال کردن')}
+                    <div className="flex items-center gap-2 font-medium">
+                      <Globe2 className="h-4 w-4 text-muted-foreground" />
+                      <span>{country.name}</span>
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className="text-muted-foreground font-mono">
+                      {pool.totalNodes}
+                    </span>
+                  </Td>
+                  <Td>
+                    {pool.healthyNodes > 0 ? (
+                      <span className="font-semibold text-emerald-600 font-mono">
+                        {pool.healthyNodes}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground font-mono">0</span>
+                    )}
+                  </Td>
+                  <Td>
+                    <Badge
+                      label={country.enabled ? tx('Active', 'فعال') : tx('Disabled', 'غیرفعال')}
+                      variant={country.enabled ? 'success' : 'secondary'}
+                    />
+                  </Td>
+                  <Td>
+                    <Button
+                      onClick={() => toggle(country.code, country.enabled)}
+                      disabled={toggling === country.code}
+                      variant={country.enabled ? 'outline' : 'primary'}
+                      size="sm"
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                      {toggling === country.code
+                        ? '…'
+                        : country.enabled
+                        ? tx('Disable', 'غیرفعال‌سازی')
+                        : tx('Enable', 'فعال‌سازی')}
                     </Button>
                   </Td>
                 </Tr>
               );
             })}
-            {countries.length === 0 && (
-              <Tr>
-                <td colSpan={6} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
-                  {tx('No countries configured.', 'هیچ کشوری پیکربندی نشده است.')}
-                </td>
-              </Tr>
-            )}
           </Table>
         </Card>
       )}

@@ -1,4 +1,6 @@
+import './global.css';
 import { LangProvider } from '../lib/lang-context';
+import { Toaster } from '@/components/ui/sonner';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,8 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
         `}</style>
       </head>
-      <body style={{ margin: 0, padding: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-        <LangProvider>{children}</LangProvider>
+      <body style={{ margin: 0, padding: 0 }}>
+        <LangProvider>
+          {children}
+          <Toaster position="top-center" richColors closeButton />
+        </LangProvider>
       </body>
     </html>
   );

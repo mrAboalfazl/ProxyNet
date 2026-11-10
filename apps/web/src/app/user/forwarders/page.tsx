@@ -2,61 +2,70 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api, Forwarder } from '../../../lib/api';
-import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../components/user-ui';
+import {
+  PageHeader,
+  Card,
+  CardHeader,
+  CardContent,
+  Button,
+  Alert,
+  Spinner,
+  Badge,
+  Input,
+  Modal,
+  Checkbox,
+} from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t, Lang } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildForwarderSnippets } from '../../../lib/code-examples';
 import { AccountStatusStrip } from '../../../lib/account-status';
+import { toast } from 'sonner';
+import {
+  Network,
+  Plus,
+  Play,
+  Copy,
+  Check,
+  Power,
+  Trash2,
+} from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'https://panel.civonex.ir/api';
+const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'http://localhost:3000/api';
 
-type TestState = { loading: true } | { loading: false; ok: boolean; status?: number; timeMs?: number; msg?: string };
+type TestState =
+  | { loading: true }
+  | { loading: false; ok: boolean; status?: number; timeMs?: number; msg?: string };
 
 function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }) {
   if (!state || state.loading) return null;
   const good = state.ok;
-  const bg = good ? '#dcfce7' : '#fee2e2';
-  const fg = good ? '#166534' : '#991b1b';
-  const border = good ? '#86efac' : '#fca5a5';
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '4px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-      background: bg, color: fg, border: `1px solid ${border}`, direction: 'ltr',
-      fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-    }}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium border ${
+        good
+          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+          : 'bg-destructive/10 text-destructive border-destructive/30'
+      }`}
+      dir="ltr"
+    >
       {good ? '✓' : '✗'}
       {state.status && <span>{state.status}</span>}
-      {state.timeMs !== undefined && <span style={{ opacity: 0.8 }}>· {state.timeMs}ms</span>}
-      {state.msg && <span title={state.msg}>· {state.msg.slice(0, 24)}</span>}
+      {state.timeMs !== undefined && <span className="opacity-80">· {state.timeMs}ms</span>}
+      {state.msg && <span title={state.msg}>· {state.msg.slice(0, 20)}</span>}
     </span>
-  );
-}
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      style={{
-        fontSize: 12, padding: '3px 10px', borderRadius: 4, cursor: 'pointer',
-        border: `1px solid ${colors.border}`, background: copied ? '#dcfce7' : '#f8fafc',
-        color: copied ? '#166534' : colors.textMuted, whiteSpace: 'nowrap',
-      }}
-    >
-      {copied ? '✓' : label}
-    </button>
   );
 }
 
 export default function ForwardersPage() {
   const { lang } = useLang();
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
   const [userSlug, setUserSlug] = useState('');
   const [fwds, setFwds] = useState<Forwarder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [form, setForm] = useState({
     label: '',
     targetUrl: '',
@@ -90,11 +99,20 @@ export default function ForwardersPage() {
         preservePath: form.preservePath,
         preserveQuery: form.preserveQuery,
       });
-      setForm({ label: '', targetUrl: '', forwardAuthHeader: true, preservePath: true, preserveQuery: true });
+      setForm({
+        label: '',
+        targetUrl: '',
+        forwardAuthHeader: true,
+        preservePath: true,
+        preserveQuery: true,
+      });
       setShowCreate(false);
+      toast.success(tx('Forwarder created successfully', 'مسیر جدید با موفقیت ایجاد شد'));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create forwarder');
+      const msg = e instanceof Error ? e.message : 'Failed to create forwarder';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -103,9 +121,16 @@ export default function ForwardersPage() {
   async function toggle(fwd: Forwarder) {
     try {
       await api.forwarders.update(fwd.id, { enabled: !fwd.enabled });
+      toast.success(
+        !fwd.enabled
+          ? tx('Forwarder activated', 'مسیر فعال شد')
+          : tx('Forwarder deactivated', 'مسیر غیرفعال شد')
+      );
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update');
+      const msg = e instanceof Error ? e.message : 'Failed to update';
+      setError(msg);
+      toast.error(msg);
     }
   }
 
@@ -113,13 +138,15 @@ export default function ForwardersPage() {
     if (!confirm(t(lang, 'fwd.confirm_delete'))) return;
     try {
       await api.forwarders.remove(fwd.id);
+      toast.success(tx('Forwarder deleted', 'مسیر حذف شد'));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
+      const msg = e instanceof Error ? e.message : 'Failed to delete';
+      setError(msg);
+      toast.error(msg);
     }
   }
 
-  // Per-forwarder test state: keyed by forwarder id
   const [testResults, setTestResults] = useState<Record<string, TestState>>({});
 
   async function testForwarder(fwd: Forwarder, url: string) {
@@ -132,199 +159,310 @@ export default function ForwardersPage() {
         ...s,
         [fwd.id]: { loading: false, ok: r.ok, status: r.status, timeMs },
       }));
-      // Refresh the callCount after a successful test
-      if (r.ok) setTimeout(load, 500);
+      if (r.ok) {
+        toast.success(tx(`Forwarder OK (${timeMs}ms)`, `تست موفق بود (${timeMs} میلی‌ثانیه)`));
+        setTimeout(load, 500);
+      } else {
+        toast.error(tx(`HTTP error: ${r.status}`, `خطای پاسخ سرور: ${r.status}`));
+      }
     } catch (e) {
       const timeMs = Math.round(performance.now() - started);
+      const errMsg = e instanceof Error ? e.message : 'network error';
       setTestResults((s) => ({
         ...s,
-        [fwd.id]: { loading: false, ok: false, timeMs, msg: e instanceof Error ? e.message : 'network error' },
+        [fwd.id]: { loading: false, ok: false, timeMs, msg: errMsg },
       }));
+      toast.error(tx(`Connection failed: ${errMsg}`, `عدم برقراری ارتباط: ${errMsg}`));
     }
   }
 
-  useEffect(() => { load(); }, []);
+  function copyUrl(text: string, id: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    toast.success(tx('Gateway URL copied to clipboard', 'آدرس درگاه در کلیپ‌بورد کپی شد'));
+    setTimeout(() => setCopiedId(null), 2000);
+  }
 
-  // Pick which forwarder to feature in the examples panel — the first enabled one if any,
-  // else the first one at all
+  useEffect(() => {
+    load();
+  }, []);
+
   const [exampleFwdId, setExampleFwdId] = useState<string | null>(null);
   const featuredForwarder = useMemo(() => {
     if (!fwds.length) return null;
     if (exampleFwdId) return fwds.find((f) => f.id === exampleFwdId) ?? fwds[0];
     return fwds.find((f) => f.enabled) ?? fwds[0];
   }, [fwds, exampleFwdId]);
-  const featuredUrl = featuredForwarder && userSlug
-    ? `${API_BASE}/f/${userSlug}/${featuredForwarder.slug}`
-    : null;
+  const featuredUrl =
+    featuredForwarder && userSlug ? `${API_BASE}/f/${userSlug}/${featuredForwarder.slug}` : null;
 
   return (
-    <div>
+    <div className="space-y-6">
       <AccountStatusStrip lang={lang} />
+
       <PageHeader
         title={t(lang, 'fwd.title')}
+        description={tx(
+          'Create secure webhook endpoints that relay traffic through proxy exits.',
+          'ایجاد درگاه‌های اختصاصی امن جهت هدایت ترافیک به سرورهای مقصد از طریق شبکه پروکسی.'
+        )}
         action={
-          <Button onClick={() => setShowCreate((v) => !v)}>
-            {showCreate ? t(lang, 'cancel') : `+ ${t(lang, 'fwd.new')}`}
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" />
+            <span>{t(lang, 'fwd.new')}</span>
           </Button>
         }
       />
 
-      <Card style={{ padding: '16px 22px', marginBottom: 20, background: '#f0f9ff', border: '1px solid #bae6fd' }}>
-        <p style={{ margin: 0, fontSize: 13, color: '#0c4a6e', lineHeight: 1.6 }}>
-          {t(lang, 'fwd.intro')}
-        </p>
+      {error && <Alert message={error} type="error" />}
+
+      {/* Info Callout */}
+      <Card className="bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800">
+        <CardContent className="p-4 flex items-center gap-3 text-sky-900 dark:text-sky-200 text-xs sm:text-sm">
+          <Network className="h-5 w-5 text-sky-600 shrink-0" />
+          <p>{t(lang, 'fwd.intro')}</p>
+        </CardContent>
       </Card>
 
+      {/* Create Modal Dialog */}
       {showCreate && (
-        <Card style={{ padding: '22px 26px', marginBottom: 22 }}>
-          <p style={{ margin: '0 0 16px', fontWeight: 600, fontSize: 15, color: colors.navy }}>
-            {t(lang, 'fwd.new')}
-          </p>
-
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: colors.textMuted }}>
-              {t(lang, 'fwd.form.label')}
-            </label>
-            <input
-              type="text"
-              value={form.label}
-              onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+        <Modal
+          title={t(lang, 'fwd.new')}
+          onClose={() => setShowCreate(false)}
+          open={showCreate}
+        >
+          <div className="space-y-4 pt-2">
+            <Input
+              label={t(lang, 'fwd.form.label')}
               placeholder={t(lang, 'fwd.form.label_ph')}
-              style={{ width: '100%', padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 14 }}
+              value={form.label}
+              onChange={(v) => setForm((f) => ({ ...f, label: v }))}
+              required
             />
-          </div>
 
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: colors.textMuted }}>
-              {t(lang, 'fwd.form.target')}
-            </label>
-            <input
-              type="url"
-              value={form.targetUrl}
-              onChange={(e) => setForm((f) => ({ ...f, targetUrl: e.target.value }))}
+            <Input
+              label={t(lang, 'fwd.form.target')}
               placeholder={t(lang, 'fwd.form.target_ph')}
-              style={{ width: '100%', padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 14, direction: 'ltr' }}
+              value={form.targetUrl}
+              onChange={(v) => setForm((f) => ({ ...f, targetUrl: v }))}
+              hint={t(lang, 'fwd.form.target_help')}
+              dir="ltr"
+              required
             />
-            <p style={{ margin: '4px 0 0', fontSize: 11, color: colors.textMuted }}>
-              {t(lang, 'fwd.form.target_help')}
-            </p>
-          </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-            {[
-              { key: 'preservePath' as const, label: t(lang, 'fwd.form.preserve_path') },
-              { key: 'preserveQuery' as const, label: t(lang, 'fwd.form.preserve_query') },
-              { key: 'forwardAuthHeader' as const, label: t(lang, 'fwd.form.forward_auth') },
-            ].map((opt) => (
-              <label key={opt.key} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', fontSize: 13, color: colors.text }}>
-                <input
-                  type="checkbox"
-                  checked={form[opt.key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [opt.key]: e.target.checked }))}
+            <div className="space-y-3 pt-3 border-t border-border/50">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="preservePath"
+                  checked={form.preservePath}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, preservePath: !!checked }))
+                  }
                 />
-                {opt.label}
-              </label>
-            ))}
-          </div>
+                <label
+                  htmlFor="preservePath"
+                  className="text-xs font-medium leading-none cursor-pointer select-none text-foreground"
+                >
+                  {t(lang, 'fwd.form.preserve_path')}
+                </label>
+              </div>
 
-          <Button onClick={create} disabled={creating || !form.label.trim() || !form.targetUrl.trim()}>
-            {creating ? '...' : t(lang, 'fwd.form.create')}
-          </Button>
-        </Card>
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="preserveQuery"
+                  checked={form.preserveQuery}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, preserveQuery: !!checked }))
+                  }
+                />
+                <label
+                  htmlFor="preserveQuery"
+                  className="text-xs font-medium leading-none cursor-pointer select-none text-foreground"
+                >
+                  {t(lang, 'fwd.form.preserve_query')}
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="forwardAuthHeader"
+                  checked={form.forwardAuthHeader}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, forwardAuthHeader: !!checked }))
+                  }
+                />
+                <label
+                  htmlFor="forwardAuthHeader"
+                  className="text-xs font-medium leading-none cursor-pointer select-none text-foreground"
+                >
+                  {t(lang, 'fwd.form.forward_auth')}
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
+                {t(lang, 'cancel')}
+              </Button>
+              <Button
+                size="sm"
+                onClick={create}
+                disabled={creating || !form.label.trim() || !form.targetUrl.trim()}
+              >
+                {creating ? '...' : t(lang, 'fwd.form.create')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
-      {error && <Alert message={error} />}
-
+      {/* Forwarders List */}
       {loading ? (
         <Spinner />
       ) : fwds.length === 0 ? (
-        <Card style={{ padding: '32px 24px', textAlign: 'center' }}>
-          <p style={{ margin: 0, color: colors.textMuted, fontSize: 14 }}>{t(lang, 'fwd.empty')}</p>
+        <Card className="p-8 text-center text-muted-foreground text-sm">
+          <p>{t(lang, 'fwd.empty')}</p>
         </Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="space-y-4">
           {fwds.map((fwd) => {
             const publicUrl = `${API_BASE}/f/${userSlug}/${fwd.slug}`;
+            const isCopied = copiedId === fwd.id;
+
             return (
-              <Card key={fwd.id} style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 16, color: colors.navy, marginBottom: 6 }}>
-                      {fwd.label}
+              <Card key={fwd.id} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-base">{fwd.label}</span>
+                        <Badge
+                          label={fwd.enabled ? tx('Active', 'فعال') : tx('Inactive', 'غیرفعال')}
+                          variant={fwd.enabled ? 'success' : 'secondary'}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>
+                          {fwd.callCount} {t(lang, 'fwd.calls')}
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {t(lang, 'fwd.last_used')}:{' '}
+                          {fwd.lastUsedAt
+                            ? new Date(fwd.lastUsedAt).toLocaleString(
+                                lang === 'fa' ? 'fa-IR' : 'en-US'
+                              )
+                            : t(lang, 'fwd.never_used')}
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Badge label={fwd.enabled ? 'active' : 'inactive'} />
-                      <span style={{ fontSize: 12, color: colors.textMuted }}>
-                        {fwd.callCount} {t(lang, 'fwd.calls')}
-                      </span>
-                      <span style={{ fontSize: 12, color: colors.textMuted }}>
-                        {t(lang, 'fwd.last_used')}: {fwd.lastUsedAt
-                          ? new Date(fwd.lastUsedAt).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')
-                          : t(lang, 'fwd.never_used')}
-                      </span>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <TestBadge state={testResults[fwd.id]} lang={lang} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => testForwarder(fwd, publicUrl)}
+                        disabled={testResults[fwd.id]?.loading}
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        <span>
+                          {testResults[fwd.id]?.loading
+                            ? t(lang, 'fwd.testing')
+                            : t(lang, 'fwd.test')}
+                        </span>
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => toggle(fwd)}
+                      >
+                        <Power className="h-3.5 w-3.5" />
+                        <span>
+                          {fwd.enabled ? t(lang, 'fwd.disable') : t(lang, 'fwd.enable')}
+                        </span>
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => remove(fwd)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>{t(lang, 'fwd.delete')}</span>
+                      </Button>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-                    <TestBadge state={testResults[fwd.id]} lang={lang} />
-                    <Button
-                      variant="secondary"
-                      onClick={() => testForwarder(fwd, publicUrl)}
-                    >
-                      {testResults[fwd.id]?.loading ? t(lang, 'fwd.testing') : `▶ ${t(lang, 'fwd.test')}`}
-                    </Button>
-                    <Button variant="secondary" onClick={() => toggle(fwd)}>
-                      {fwd.enabled ? t(lang, 'fwd.disable') : t(lang, 'fwd.enable')}
-                    </Button>
-                    <Button variant="danger" onClick={() => remove(fwd)}>
-                      {t(lang, 'fwd.delete')}
-                    </Button>
-                  </div>
-                </div>
+                </CardHeader>
 
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase' }}>
-                    {t(lang, 'fwd.your_url')}
+                <CardContent className="space-y-3 pt-0">
+                  {/* Public URL Box */}
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {t(lang, 'fwd.your_url')}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <code
+                        className="flex-1 p-2 rounded-md bg-muted/60 text-xs font-mono break-all border"
+                        dir="ltr"
+                      >
+                        {publicUrl}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyUrl(publicUrl, fwd.id)}
+                        className="shrink-0"
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            <span className="text-emerald-600">{tx('Copied', 'کپی شد')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{tx('Copy', 'کپی')}</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <code style={{
-                      flex: 1, background: '#f8fafc', border: `1px solid ${colors.border}`, borderRadius: 6,
-                      padding: '8px 12px', fontSize: 12, wordBreak: 'break-all', direction: 'ltr',
-                    }}>{publicUrl}</code>
-                    <CopyButton text={publicUrl} label={lang === 'fa' ? 'کپی' : 'Copy'} />
-                  </div>
-                  <p style={{ margin: '6px 0 0', fontSize: 11, color: colors.textMuted, lineHeight: 1.5 }}>
-                    {t(lang, 'fwd.your_url_help')}
-                  </p>
-                </div>
 
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase' }}>
-                    → {fwd.targetUrl}
+                  {/* Upstream Target */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-semibold uppercase tracking-wider">
+                      {tx('Target:', 'مقصد:')}
+                    </span>
+                    <code className="font-mono text-foreground" dir="ltr">
+                      {fwd.targetUrl}
+                    </code>
                   </div>
-                </div>
+                </CardContent>
               </Card>
             );
           })}
         </div>
       )}
 
-      {/* Usage examples — visible even when no forwarder exists, but URL is filled in
-          when a forwarder is available. */}
-      <div style={{ marginTop: 28 }}>
+      {/* Code Snippets Section */}
+      <div className="pt-4">
         {featuredUrl ? (
-          <>
+          <div className="space-y-3">
             {fwds.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: colors.textMuted }}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-muted-foreground">
                   {t(lang, 'examples.select_forwarder')}:
-                </label>
+                </span>
                 <select
                   value={featuredForwarder?.id ?? ''}
                   onChange={(e) => setExampleFwdId(e.target.value)}
-                  style={{ padding: '4px 8px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 13 }}
+                  className="p-1.5 rounded-md border text-xs bg-background"
                 >
                   {fwds.map((f) => (
-                    <option key={f.id} value={f.id}>{f.label}</option>
+                    <option key={f.id} value={f.id}>
+                      {f.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -334,12 +472,10 @@ export default function ForwardersPage() {
               intro={t(lang, 'examples.intro.forwarder')}
               snippets={buildForwarderSnippets(featuredUrl)}
             />
-          </>
+          </div>
         ) : (
-          <Card style={{ padding: '24px', textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 13, color: colors.textMuted }}>
-              {t(lang, 'examples.no_forwarder')}
-            </p>
+          <Card className="p-6 text-center text-xs text-muted-foreground">
+            <p>{t(lang, 'examples.no_forwarder')}</p>
           </Card>
         )}
       </div>

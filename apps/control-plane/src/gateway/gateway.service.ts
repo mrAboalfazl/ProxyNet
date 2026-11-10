@@ -27,24 +27,52 @@ const BLOCKED_HOSTS = [
 ];
 
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 30_000;
-const NODE_HOP_TIMEOUT_MS = 35_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const MAX_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface FetchResult {
   status: number;
   headers: Record<string, string>;
   body: string;
+  isBase64?: boolean;
   bytesIn: number;
   bytesOut: number;
   viaNodeId?: number;
   viaCountry?: string;
+  redirectsFollowed?: number;
 }
 
-interface FetchParams {
+export interface FetchParams {
   url: string;
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  isBase64?: boolean;
+  responseEncoding?: 'utf8' | 'base64' | 'auto';
+  followRedirects?: boolean;
+  maxRedirects?: number;
+  insecure?: boolean;
+  timeoutMs?: number;
+}
+
+function isBinaryContentType(contentType?: string): boolean {
+  if (!contentType) return false;
+  const ct = contentType.toLowerCase().split(';')[0].trim();
+  if (
+    ct.startsWith('text/') ||
+    ct === 'application/json' ||
+    ct === 'application/javascript' ||
+    ct === 'application/xml' ||
+    ct === 'application/xhtml+xml' ||
+    ct === 'application/x-yaml' ||
+    ct === 'application/csv' ||
+    ct === 'application/x-www-form-urlencoded' ||
+    ct.endsWith('+json') ||
+    ct.endsWith('+xml')
+  ) {
+    return false;
+  }
+  return true;
 }
 
 @Injectable()
@@ -96,12 +124,24 @@ export class GatewayService {
     node: SelectedNode,
     params: FetchParams,
   ): Promise<FetchResult> {
+    const clientTimeout = Math.min(
+      Math.max(params.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, 1_000),
+      MAX_REQUEST_TIMEOUT_MS,
+    );
+    const hopTimeoutMs = clientTimeout + 5_000;
+
     const payload = Buffer.from(
       JSON.stringify({
         url: params.url,
         method: params.method,
         headers: params.headers,
         body: params.body,
+        isBase64: params.isBase64,
+        responseEncoding: params.responseEncoding,
+        followRedirects: params.followRedirects,
+        maxRedirects: params.maxRedirects,
+        insecure: params.insecure,
+        timeoutMs: clientTimeout,
       }),
       'utf8',
     );
@@ -118,7 +158,7 @@ export class GatewayService {
             'Content-Length': String(payload.length),
             'X-Node-Secret': node.relaySecret,
           },
-          timeout: NODE_HOP_TIMEOUT_MS,
+          timeout: hopTimeoutMs,
         },
         (res) => {
           const chunks: Buffer[] = [];
@@ -146,7 +186,7 @@ export class GatewayService {
       req.on('error', reject);
       req.on('timeout', () =>
         req.destroy(
-          new Error(`node relay timed out after ${NODE_HOP_TIMEOUT_MS}ms`),
+          new Error(`node relay timed out after ${hopTimeoutMs}ms`),
         ),
       );
       req.write(payload);
@@ -155,99 +195,200 @@ export class GatewayService {
   }
 
   private async fetchLocal(params: FetchParams): Promise<FetchResult> {
-    let parsed: URL;
-    try {
-      parsed = new URL(params.url);
-    } catch {
-      throw new BadRequestException('Invalid URL');
-    }
+    const shouldFollowRedirects = params.followRedirects !== false;
+    const maxRedirects = Math.min(Math.max(params.maxRedirects ?? 5, 0), 10);
+    const effectiveTimeoutMs = Math.min(
+      Math.max(params.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, 1_000),
+      MAX_REQUEST_TIMEOUT_MS,
+    );
 
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new BadRequestException('Only http and https URLs are supported');
-    }
-    if (this.isBlockedHost(parsed.hostname)) {
-      throw new BadRequestException(
-        'Requests to private/internal addresses are not allowed',
-      );
-    }
+    let currentUrl = params.url;
+    let currentMethod = (params.method ?? 'GET').toUpperCase();
+    let currentBodyStr = params.body;
+    let currentIsBase64 = params.isBase64;
+    let redirectsCount = 0;
+    let totalBytesIn = 0;
+    let totalBytesOut = 0;
 
-    const method = (params.method ?? 'GET').toUpperCase();
-    const requestBody = params.body
-      ? Buffer.from(params.body, 'utf8')
-      : undefined;
-    const bytesOut = requestBody?.length ?? 0;
+    while (true) {
+      let parsed: URL;
+      try {
+        parsed = new URL(currentUrl);
+      } catch {
+        throw new BadRequestException(`Invalid URL: ${currentUrl}`);
+      }
 
-    const safeHeaders: Record<string, string> = {
-      'User-Agent': 'ProxyNet-Gateway/1.0',
-    };
-    for (const [k, v] of Object.entries(params.headers ?? {})) {
-      const lower = k.toLowerCase();
-      if (
-        [
-          'host',
-          'connection',
-          'content-length',
-          'transfer-encoding',
-          'authorization',
-          'proxy-authorization',
-        ].includes(lower)
-      )
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new BadRequestException('Only http and https URLs are supported');
+      }
+      if (this.isBlockedHost(parsed.hostname)) {
+        throw new BadRequestException(
+          'Requests to private/internal addresses are not allowed',
+        );
+      }
+
+      let requestBody: Buffer | undefined;
+      if (currentBodyStr) {
+        requestBody = currentIsBase64
+          ? Buffer.from(currentBodyStr, 'base64')
+          : Buffer.from(currentBodyStr, 'utf8');
+      }
+      const bytesOut = requestBody?.length ?? 0;
+      totalBytesOut += bytesOut;
+
+      const safeHeaders: Record<string, string> = {
+        'User-Agent': 'ProxyNet-Gateway/1.0',
+      };
+
+      for (const [k, v] of Object.entries(params.headers ?? {})) {
+        const lower = k.toLowerCase();
+        // Drop hop-by-hop headers and proxy-authorization.
+        // Crucially, KEEP 'authorization' so target upstream APIs succeed!
+        if (
+          [
+            'host',
+            'connection',
+            'content-length',
+            'transfer-encoding',
+            'proxy-authorization',
+            'keep-alive',
+            'upgrade',
+          ].includes(lower)
+        ) {
+          continue;
+        }
+        safeHeaders[k] = v;
+      }
+      if (requestBody) {
+        safeHeaders['Content-Length'] = String(requestBody.length);
+      }
+
+      const singleHopResult = await this.executeSingleHttp({
+        parsed,
+        method: currentMethod,
+        headers: safeHeaders,
+        body: requestBody,
+        timeoutMs: effectiveTimeoutMs,
+        insecure: params.insecure,
+        responseEncoding: params.responseEncoding,
+      });
+
+      totalBytesIn += singleHopResult.bytesIn;
+
+      // Handle redirect
+      const isRedirect = [301, 302, 303, 307, 308].includes(singleHopResult.status);
+      const location = singleHopResult.headers['location'];
+      if (shouldFollowRedirects && isRedirect && location && redirectsCount < maxRedirects) {
+        redirectsCount++;
+        currentUrl = new URL(location, currentUrl).toString();
+
+        // 303 See Other: Always switch to GET and drop body
+        if (singleHopResult.status === 303) {
+          currentMethod = 'GET';
+          currentBodyStr = undefined;
+          currentIsBase64 = false;
+        } else if (
+          (singleHopResult.status === 301 || singleHopResult.status === 302) &&
+          currentMethod === 'POST'
+        ) {
+          // Standard browser & curl behavior: 301/302 POST redirects switch to GET
+          currentMethod = 'GET';
+          currentBodyStr = undefined;
+          currentIsBase64 = false;
+        }
         continue;
-      safeHeaders[k] = v;
+      }
+
+      return {
+        ...singleHopResult,
+        bytesIn: totalBytesIn,
+        bytesOut: totalBytesOut,
+        redirectsFollowed: redirectsCount,
+      };
     }
-    if (requestBody) safeHeaders['Content-Length'] = String(requestBody.length);
+  }
 
+  private executeSingleHttp(options: {
+    parsed: URL;
+    method: string;
+    headers: Record<string, string>;
+    body?: Buffer;
+    timeoutMs: number;
+    insecure?: boolean;
+    responseEncoding?: 'utf8' | 'base64' | 'auto';
+  }): Promise<{
+    status: number;
+    headers: Record<string, string>;
+    body: string;
+    isBase64: boolean;
+    bytesIn: number;
+  }> {
     return new Promise((resolve, reject) => {
-      const lib = parsed.protocol === 'https:' ? https : http;
-      const defaultPort = parsed.protocol === 'https:' ? 443 : 80;
+      const isHttps = options.parsed.protocol === 'https:';
+      const lib = isHttps ? https : http;
+      const defaultPort = isHttps ? 443 : 80;
 
-      const req = lib.request(
-        {
-          hostname: parsed.hostname,
-          port: parsed.port ? parseInt(parsed.port) : defaultPort,
-          path: parsed.pathname + parsed.search,
-          method,
-          headers: safeHeaders,
-          timeout: REQUEST_TIMEOUT_MS,
-        },
-        (res) => {
-          const chunks: Buffer[] = [];
-          let totalBytes = 0;
-          res.on('data', (chunk: Buffer) => {
-            totalBytes += chunk.length;
-            if (totalBytes > MAX_RESPONSE_BYTES) {
-              req.destroy(
-                new Error(`Response exceeds ${MAX_RESPONSE_BYTES} byte limit`),
-              );
-              return;
-            }
-            chunks.push(chunk);
+      const reqOptions: https.RequestOptions = {
+        hostname: options.parsed.hostname,
+        port: options.parsed.port ? parseInt(options.parsed.port, 10) : defaultPort,
+        path: options.parsed.pathname + options.parsed.search,
+        method: options.method,
+        headers: options.headers,
+        timeout: options.timeoutMs,
+      };
+
+      if (isHttps && options.insecure) {
+        reqOptions.rejectUnauthorized = false;
+      }
+
+      const req = lib.request(reqOptions, (res) => {
+        const chunks: Buffer[] = [];
+        let totalBytes = 0;
+
+        res.on('data', (chunk: Buffer) => {
+          totalBytes += chunk.length;
+          if (totalBytes > MAX_RESPONSE_BYTES) {
+            req.destroy(
+              new Error(`Response exceeds ${MAX_RESPONSE_BYTES} byte limit`),
+            );
+            return;
+          }
+          chunks.push(chunk);
+        });
+
+        res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const outHeaders: Record<string, string> = {};
+          for (const [k, v] of Object.entries(res.headers)) {
+            if (typeof v === 'string') outHeaders[k] = v;
+            else if (Array.isArray(v)) outHeaders[k] = v.join(', ');
+          }
+
+          const contentType = outHeaders['content-type'];
+          const shouldBase64 =
+            options.responseEncoding === 'base64' ||
+            (options.responseEncoding !== 'utf8' && isBinaryContentType(contentType));
+
+          resolve({
+            status: res.statusCode ?? 200,
+            headers: outHeaders,
+            body: shouldBase64 ? buffer.toString('base64') : buffer.toString('utf8'),
+            isBase64: shouldBase64,
+            bytesIn: totalBytes,
           });
-          res.on('end', () => {
-            const body = Buffer.concat(chunks).toString('utf8');
-            const outHeaders: Record<string, string> = {};
-            for (const [k, v] of Object.entries(res.headers)) {
-              if (typeof v === 'string') outHeaders[k] = v;
-              else if (Array.isArray(v)) outHeaders[k] = v.join(', ');
-            }
-            resolve({
-              status: res.statusCode ?? 200,
-              headers: outHeaders,
-              body,
-              bytesIn: totalBytes,
-              bytesOut,
-            });
-          });
-          res.on('error', reject);
-        },
-      );
+        });
+
+        res.on('error', reject);
+      });
 
       req.on('error', reject);
       req.on('timeout', () =>
-        req.destroy(new Error('Request timed out after 30s')),
+        req.destroy(
+          new Error(`Request timed out after ${options.timeoutMs}ms`),
+        ),
       );
 
-      if (requestBody) req.write(requestBody);
+      if (options.body) req.write(options.body);
       req.end();
     });
   }

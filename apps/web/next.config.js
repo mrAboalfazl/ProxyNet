@@ -2,7 +2,15 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  async rewrites() {
+    const cpPort = process.env.CONTROL_PLANE_PORT || '3001';
+    return [
+      {
+        source: '/api/:path*',
+        destination: `http://127.0.0.1:${cpPort}/api/:path*`,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

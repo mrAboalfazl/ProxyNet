@@ -89,9 +89,9 @@ export default function AdminPlansPage() {
             <Input label={tx('Plan name', 'نام پلن')} value={name} onChange={setName} placeholder="Pro 100GB" required />
             <Input label={tx('Monthly bandwidth (GB)', 'پهنای باند ماهانه (گیگابایت)')} type="number" value={bandwidthGb} onChange={setBandwidthGb} placeholder="100" />
             <Input label={tx('Max concurrent sessions', 'حداکثر نشست هم‌زمان')} type="number" value={maxSessions} onChange={setMaxSessions} placeholder="10" />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <Button onClick={() => setShowCreate(false)} variant="secondary">{tx('Cancel', 'لغو')}</Button>
-              <Button onClick={createPlan} disabled={creating || !name}>{creating ? tx('Creating…', 'در حال ایجاد…') : tx('Create Plan', 'ایجاد پلن')}</Button>
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <Button onClick={() => setShowCreate(false)} variant="outline" size="sm">{tx('Cancel', 'لغو')}</Button>
+              <Button onClick={createPlan} disabled={creating || !name} size="sm">{creating ? tx('Creating…', 'در حال ایجاد…') : tx('Create Plan', 'ایجاد پلن')}</Button>
             </div>
           </div>
         </Modal>

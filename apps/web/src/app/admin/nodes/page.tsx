@@ -245,9 +245,9 @@ export default function AdminNodesPage() {
             <Input label={tx('Label', 'برچسب')} value={label} onChange={setLabel} placeholder="frankfurt-01" required />
             <Input label={tx('Country Code (ISO 2)', 'کد کشور (ISO 2)')} value={countryCode} onChange={setCountryCode} placeholder="DE" required />
             <Input label={tx('Roles (comma-separated)', 'نقش‌ها (جداشده با ویرگول)')} value={roles} onChange={setRoles} placeholder="edge, relay, exit" />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-              <Button onClick={() => setShowCreate(false)} variant="secondary">{tx('Cancel', 'لغو')}</Button>
-              <Button onClick={createNode} disabled={creating || !label || !countryCode}>
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <Button onClick={() => setShowCreate(false)} variant="outline" size="sm">{tx('Cancel', 'لغو')}</Button>
+              <Button onClick={createNode} disabled={creating || !label || !countryCode} size="sm">
                 {creating ? tx('Creating…', 'در حال ایجاد…') : tx('Create & Get Token', 'ایجاد و دریافت توکن')}
               </Button>
             </div>

@@ -1,10 +1,40 @@
 'use client';
 
 import React from 'react';
+import { cn } from './utils';
+import {
+  Card as ShadCard,
+  CardHeader as ShadCardHeader,
+  CardTitle as ShadCardTitle,
+  CardDescription as ShadCardDescription,
+  CardContent as ShadCardContent,
+  CardFooter as ShadCardFooter,
+} from '@/components/ui/card';
+import { Button as ShadButton } from '@/components/ui/button';
+import { Badge as ShadBadge } from '@/components/ui/badge';
+import {
+  Table as ShadTable,
+  TableHeader as ShadTableHeader,
+  TableRow as ShadTableRow,
+  TableHead as ShadTableHead,
+  TableBody as ShadTableBody,
+  TableCell as ShadTableCell,
+} from '@/components/ui/table';
+import { Input as ShadInput } from '@/components/ui/input';
+import { Label as ShadLabel } from '@/components/ui/label';
+import { Alert as ShadAlert, AlertDescription as ShadAlertDesc } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
 
-// ── Tokens ────────────────────────────────────────────────────────────────
+// ── Legacy Design Tokens for Backwards Compatibility ────────────────────────
 export const colors = {
-  navy: '#1a2744',
+  navy: '#0f172a',
   navyLight: 'rgba(255,255,255,0.08)',
   primary: '#2563eb',
   primaryHover: '#1d4ed8',
@@ -14,42 +44,77 @@ export const colors = {
   dangerBg: '#fee2e2',
   dangerBorder: '#fca5a5',
   surface: '#ffffff',
-  bg: '#f3f4f6',
-  border: '#e5e7eb',
-  text: '#111827',
-  textMuted: '#6b7280',
-  textNav: '#b0bedd',
+  bg: '#f8fafc',
+  border: '#e2e8f0',
+  text: '#0f172a',
+  textMuted: '#64748b',
+  textNav: '#94a3b8',
 };
 
 // ── Card ──────────────────────────────────────────────────────────────────
 export function Card({
   children,
+  className,
   style,
 }: {
   children: React.ReactNode;
+  className?: string;
   style?: React.CSSProperties;
 }) {
   return (
-    <div className="admin-card"
-      style={{
-        backgroundColor: colors.surface,
-        borderRadius: 10,
-        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
-        ...style,
-      }}
+    <ShadCard
+      className={cn('transition-all duration-200 border-border/80 shadow-sm hover:shadow', className)}
+      style={style}
     >
       {children}
-    </div>
+    </ShadCard>
   );
 }
 
+export {
+  ShadCardHeader as CardHeader,
+  ShadCardTitle as CardTitle,
+  ShadCardDescription as CardDescription,
+  ShadCardContent as CardContent,
+  ShadCardFooter as CardFooter,
+};
+
 // ── StatCard ──────────────────────────────────────────────────────────────
-export function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
+export function StatCard({
+  label,
+  value,
+  color,
+  icon: Icon,
+  description,
+  className,
+  style,
+}: {
+  label: string;
+  value: string | number;
+  color?: string;
+  icon?: React.ComponentType<{ className?: string; size?: number }>;
+  description?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <Card style={{ padding: '24px 32px', flex: 1, minWidth: 160 }}>
-      <p style={{ margin: '0 0 8px', fontSize: 13, color: colors.textMuted, fontWeight: 500 }}>{label}</p>
-      <p style={{ margin: 0, fontSize: 32, fontWeight: 700, color: color || colors.navy }}>{value}</p>
-    </Card>
+    <ShadCard
+      className={cn('p-5 flex-1 min-w-[200px] border-border/70 hover:border-primary/40 transition-all', className)}
+      style={style}
+    >
+      <div className="flex items-center justify-between space-y-0 pb-2">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      </div>
+      <div className="flex items-baseline gap-2">
+        <div className="text-2xl font-bold tracking-tight" style={color ? { color } : undefined}>
+          {value}
+        </div>
+      </div>
+      {description && (
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+      )}
+    </ShadCard>
   );
 }
 
@@ -61,71 +126,76 @@ export function Button({
   size = 'md',
   disabled,
   type = 'button',
+  className,
   style,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
-  type?: 'button' | 'submit';
+  type?: 'button' | 'submit' | 'reset';
+  className?: string;
   style?: React.CSSProperties;
 }) {
-  const base: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    border: 'none',
-    borderRadius: 6,
-    fontWeight: 500,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.6 : 1,
-    fontSize: size === 'sm' ? 13 : 14,
-    padding: size === 'sm' ? '6px 12px' : '9px 16px',
-    transition: 'background 0.15s',
-    ...style,
+  const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'ghost' | 'outline'> = {
+    primary: 'default',
+    secondary: 'secondary',
+    danger: 'destructive',
+    ghost: 'ghost',
+    outline: 'outline',
   };
-  const variants: Record<string, React.CSSProperties> = {
-    primary: { backgroundColor: colors.primary, color: '#fff' },
-    secondary: { backgroundColor: '#e5e7eb', color: '#374151' },
-    danger: { backgroundColor: colors.danger, color: '#fff' },
-    ghost: { backgroundColor: 'transparent', color: colors.primary, border: `1px solid ${colors.primary}` },
+
+  const sizeMap: Record<string, 'sm' | 'default' | 'lg'> = {
+    sm: 'sm',
+    md: 'default',
+    lg: 'lg',
   };
+
   return (
-    <button className="admin-ui-button" type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant] }}>
+    <ShadButton
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      variant={variantMap[variant] || 'default'}
+      size={sizeMap[size] || 'default'}
+      className={cn('gap-2 font-medium transition-all select-none', className)}
+      style={style}
+    >
       {children}
-    </button>
+    </ShadButton>
   );
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────
-const badgeMap: Record<string, { bg: string; color: string }> = {
-  healthy: { bg: '#dcfce7', color: '#166534' },
-  active: { bg: '#dbeafe', color: '#1e40af' },
-  degraded: { bg: '#fef9c3', color: '#854d0e' },
-  inactive: { bg: '#f3f4f6', color: '#374151' },
-  suspended: { bg: '#fee2e2', color: '#991b1b' },
-  banned: { bg: '#fce7f3', color: '#9d174d' },
-  true: { bg: '#dcfce7', color: '#166534' },
-  false: { bg: '#f3f4f6', color: '#374151' },
+const badgeVariantMap: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'> = {
+  healthy: 'success',
+  active: 'success',
+  enabled: 'success',
+  true: 'success',
+  degraded: 'warning',
+  warning: 'warning',
+  suspended: 'destructive',
+  banned: 'destructive',
+  inactive: 'secondary',
+  disabled: 'secondary',
+  false: 'secondary',
 };
 
-export function Badge({ label }: { label: string }) {
-  const style = badgeMap[label.toLowerCase()] ?? { bg: '#f3f4f6', color: '#374151' };
+export function Badge({
+  label,
+  variant,
+  className,
+}: {
+  label: string;
+  variant?: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline';
+  className?: string;
+}) {
+  const chosenVariant = variant ?? badgeVariantMap[label.toLowerCase()] ?? 'secondary';
   return (
-    <span
-      style={{
-        display: 'inline-block',
-        padding: '2px 10px',
-        borderRadius: 20,
-        fontSize: 12,
-        fontWeight: 600,
-        backgroundColor: style.bg,
-        color: style.color,
-      }}
-    >
+    <ShadBadge variant={chosenVariant} className={cn('px-2.5 py-0.5 font-medium text-xs', className)}>
       {label}
-    </span>
+    </ShadBadge>
   );
 }
 
@@ -133,60 +203,68 @@ export function Badge({ label }: { label: string }) {
 export function Table({
   headers,
   children,
+  className,
 }: {
   headers: string[];
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="admin-table-wrap" style={{ overflowX: 'auto' }}>
-      <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-        <thead>
-          <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
-            {headers.map((h) => (
-              <th
-                key={h}
-                style={{
-                  // Match cell alignment in both LTR and RTL admin screens.
-                  textAlign: 'start',
-                  padding: '10px 16px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: colors.textMuted,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  whiteSpace: 'nowrap',
-                }}
+    <div className={cn('rounded-lg border border-border/80 overflow-hidden bg-card', className)}>
+      <ShadTable>
+        <ShadTableHeader>
+          <ShadTableRow className="bg-muted/40 hover:bg-muted/40">
+            {headers.map((h, i) => (
+              <ShadTableHead
+                key={i}
+                className="text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap py-3 px-4"
               >
                 {h}
-              </th>
+              </ShadTableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
+          </ShadTableRow>
+        </ShadTableHeader>
+        <ShadTableBody>{children}</ShadTableBody>
+      </ShadTable>
     </div>
   );
 }
 
-export function Tr({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+export function Tr({
+  children,
+  className,
+  style,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
+}) {
   return (
-    <tr
-      style={{
-        borderBottom: `1px solid ${colors.border}`,
-        transition: 'background 0.1s',
-        ...style,
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = '#f9fafb'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = 'transparent'; }}
+    <ShadTableRow
+      className={cn('transition-colors hover:bg-muted/50 cursor-default', className)}
+      style={style}
+      onClick={onClick}
     >
       {children}
-    </tr>
+    </ShadTableRow>
   );
 }
 
-export function Td({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+export function Td({
+  children,
+  className,
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <td className="admin-table-cell" style={{ padding: '12px 16px', color: colors.text, ...style }}>{children}</td>
+    <ShadTableCell className={cn('py-3 px-4 text-sm align-middle', className)} style={style}>
+      {children}
+    </ShadTableCell>
   );
 }
 
@@ -198,7 +276,11 @@ export function Input({
   onChange,
   placeholder,
   required,
+  hint,
+  disabled,
+  className,
   style,
+  dir,
 }: {
   label?: string;
   type?: string;
@@ -206,148 +288,151 @@ export function Input({
   onChange: (v: string) => void;
   placeholder?: string;
   required?: boolean;
+  hint?: string;
+  disabled?: boolean;
+  className?: string;
   style?: React.CSSProperties;
+  dir?: 'ltr' | 'rtl' | 'auto';
 }) {
+  const id = React.useId();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, ...style }}>
+    <div className={cn('grid gap-1.5', className)} style={style}>
       {label && (
-        <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+        <ShadLabel htmlFor={id} className="text-xs font-semibold text-foreground/90">
           {label}
-        </label>
+          {required && <span className="text-destructive ms-1">*</span>}
+        </ShadLabel>
       )}
-      <input className="admin-input"
+      <ShadInput
+        id={id}
         type={type}
         value={value}
+        disabled={disabled}
+        dir={dir}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        style={{
-          padding: '8px 12px',
-          border: `1px solid ${colors.border}`,
-          borderRadius: 6,
-          fontSize: 14,
-          outline: 'none',
-          transition: 'border 0.15s',
-        }}
-        onFocus={(e) => { e.currentTarget.style.borderColor = colors.primary; }}
-        onBlur={(e) => { e.currentTarget.style.borderColor = colors.border; }}
       />
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
 
 // ── Alert ─────────────────────────────────────────────────────────────────
-export function Alert({ message, type = 'error' }: { message: string; type?: 'error' | 'success' | 'info' }) {
-  const styles = {
-    error: { bg: colors.dangerBg, border: colors.dangerBorder, color: '#b91c1c' },
-    success: { bg: '#dcfce7', border: '#86efac', color: '#166534' },
-    info: { bg: '#dbeafe', border: '#93c5fd', color: '#1e40af' },
+export function Alert({
+  message,
+  type = 'error',
+  title,
+  className,
+}: {
+  message: string;
+  type?: 'error' | 'success' | 'info' | 'warning';
+  title?: string;
+  className?: string;
+}) {
+  const variantMap: Record<string, 'destructive' | 'success' | 'info' | 'warning'> = {
+    error: 'destructive',
+    success: 'success',
+    info: 'info',
+    warning: 'warning',
   };
-  const s = styles[type];
+
+  const Icon =
+    type === 'error'
+      ? AlertCircle
+      : type === 'success'
+      ? CheckCircle2
+      : Info;
+
   return (
-    <div className="admin-alert"
-      style={{
-        backgroundColor: s.bg,
-        border: `1px solid ${s.border}`,
-        borderRadius: 8,
-        padding: '12px 16px',
-        color: s.color,
-        fontSize: 14,
-      }}
-    >
-      {message}
-    </div>
+    <ShadAlert variant={variantMap[type]} className={cn('my-2', className)}>
+      <Icon className="h-4 w-4" />
+      {title && <div className="font-semibold text-sm mb-1">{title}</div>}
+      <ShadAlertDesc className="text-sm">{message}</ShadAlertDesc>
+    </ShadAlert>
   );
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────
 export function Modal({
   title,
+  description,
   onClose,
   children,
+  open = true,
+  className,
 }: {
   title: string;
+  description?: string;
   onClose: () => void;
   children: React.ReactNode;
+  open?: boolean;
+  className?: string;
 }) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
-      <div className="admin-modal-content"
-        style={{
-          backgroundColor: '#fff',
-          borderRadius: 12,
-          padding: 24,
-          minWidth: 400,
-          maxWidth: 560,
-          width: '90%',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: colors.text }}>{title}</h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: 22,
-              cursor: 'pointer',
-              color: colors.textMuted,
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent className={cn('sm:max-w-[540px] p-6 shadow-xl border-border/80', className)}>
+        <DialogHeader className="pb-3 border-b border-border/50">
+          <DialogTitle className="text-lg font-bold tracking-tight text-foreground">{title}</DialogTitle>
+          {description && (
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {description}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+        <div className="pt-3">{children}</div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 // ── PageHeader ────────────────────────────────────────────────────────────
 export function PageHeader({
   title,
+  description,
   action,
+  className,
 }: {
   title: string;
+  description?: string;
   action?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-      <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: colors.text }}>{title}</h1>
-      {action && <div className="admin-page-header-action">{action}</div>}
+    <div
+      className={cn(
+        'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border/60 mb-6',
+        className
+      )}
+    >
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+        {description && (
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+        )}
+      </div>
+      {action && <div className="flex items-center gap-2 shrink-0">{action}</div>}
     </div>
   );
 }
 
 // ── Spinner ───────────────────────────────────────────────────────────────
-export function Spinner() {
+export function Spinner({
+  size = 'md',
+  className,
+}: {
+  size?: 'sm' | 'md' | 'lg';
+  className?: string;
+}) {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    md: 'h-8 w-8',
+    lg: 'h-12 w-12',
+  };
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 48 }}>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          border: `3px solid ${colors.border}`,
-          borderTopColor: colors.primary,
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div className={cn('flex items-center justify-center p-8', className)}>
+      <Loader2 className={cn('animate-spin text-primary', sizeClasses[size])} />
     </div>
   );
 }

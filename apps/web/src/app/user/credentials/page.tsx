@@ -1,16 +1,39 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { api, Socks5Endpoint } from '../../../lib/api';
-import { PageHeader, Card, Button, Alert, Spinner, Badge, colors } from '../../../components/user-ui';
+import {
+  PageHeader,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Button,
+  Alert,
+  Spinner,
+  Badge,
+  Input,
+  Modal,
+} from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
 import { AccountStatusStrip } from '../../../lib/account-status';
-import { Server, ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  KeyRound,
+  Copy,
+  Check,
+  Plus,
+  Trash2,
+  Terminal,
+  ShieldAlert,
+  Server,
+  Lock,
+} from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'https://panel.civonex.ir/api';
+const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'http://localhost:3001/api';
 
 interface Credential {
   id: string;
@@ -32,162 +55,136 @@ function buildBasicAuth(uuid: string, secret: string): string {
   return btoa(`${uuid}:${secret}`);
 }
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={() => { void navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-      style={{
-        minHeight: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        fontSize: 12, fontWeight: 700, padding: '6px 10px', borderRadius: 7, cursor: 'pointer',
-        border: `1px solid ${copied ? '#86efac' : '#cbd5e1'}`, background: copied ? '#dcfce7' : '#fff',
-        color: copied ? '#166534' : '#334155', whiteSpace: 'nowrap', transition: 'all 120ms ease',
-      }}
-    >
-      {copied ? '✓' : label}
-    </button>
-  );
-}
-
-function SecretBanner({ cred, lang, endpoints, requiresActivePlan, onDismiss }: { cred: NewlyCreated; lang: string; endpoints: Socks5Endpoint[]; requiresActivePlan: boolean; onDismiss: () => void }) {
+function SecretBanner({
+  cred,
+  lang,
+  endpoints,
+  requiresActivePlan,
+  onDismiss,
+}: {
+  cred: NewlyCreated;
+  lang: string;
+  endpoints: Socks5Endpoint[];
+  requiresActivePlan: boolean;
+  onDismiss: () => void;
+}) {
   const basicAuth = buildBasicAuth(cred.uuid, cred.secret);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  function copy(text: string, key: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success(
+      lang === 'fa' ? `${label} در حافظه کپی شد` : `${label} copied to clipboard`
+    );
+    setTimeout(() => setCopiedKey(null), 2000);
+  }
 
   const curlExample = `curl -X POST ${API_BASE}/gateway/fetch \\
   -H "Authorization: Basic ${basicAuth}" \\
   -H "Content-Type: application/json" \\
   -d '{"url":"https://example.com/api/data"}'`;
 
-  const pythonExample = `import requests, base64
-
-creds = base64.b64encode(f"${cred.uuid}:${cred.secret}".encode()).decode()
-r = requests.post(
-    "${API_BASE}/gateway/fetch",
-    headers={"Authorization": f"Basic {creds}"},
-    json={"url": "https://example.com/api/data"}
-)
-print(r.json()["body"])`;
-
   return (
-    <div style={{
-      background: '#fffbeb', border: '2px solid #f59e0b', borderRadius: 10,
-      padding: '20px 24px', marginBottom: 24,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: '#92400e' }}>
-          {lang === 'fa'
-            ? '⚠️ اعتبارنامه ایجاد شد — این اطلاعات را الان ذخیره کنید'
-            : '⚠️ Credential created — save this information now'}
+    <Card className="border-2 border-amber-500 bg-amber-500/10 dark:bg-amber-950/20 mb-6">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+            <Lock className="h-5 w-5 text-amber-600" />
+            <CardTitle className="text-base font-bold">
+              {lang === 'fa'
+                ? 'کلید امنیتی ایجاد شد — این اطلاعات را ذخیره کنید'
+                : 'Credential Created — Save these credentials now'}
+            </CardTitle>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onDismiss} className="text-amber-800">
+            ✕
+          </Button>
         </div>
-        <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#92400e', fontSize: 18 }}>✕</button>
-      </div>
-      <p style={{ margin: '0 0 16px', fontSize: 13, color: '#78350f' }}>
-        {lang === 'fa'
-          ? 'سیکرت پس از بستن این پنجره دیگر نمایش داده نمی‌شود.'
-          : 'The secret is shown only once. Once you dismiss this, it cannot be retrieved.'}
-      </p>
+        <CardDescription className="text-xs text-amber-800 dark:text-amber-300">
+          {lang === 'fa'
+            ? 'سیکرت (Secret) فقط یک‌بار نمایش داده می‌شود و پس از بستن این کادر دیگر قابل بازیابی نیست.'
+            : 'The secret is shown once and cannot be retrieved after closing this window.'}
+        </CardDescription>
+      </CardHeader>
 
-      {/* UUID + Secret */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-        {[
-          { label: 'UUID', value: cred.uuid },
-          { label: 'Secret', value: cred.secret },
-        ].map(({ label: lbl, value }) => (
-          <div key={lbl}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 4, textTransform: 'uppercase' }}>{lbl}</div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <code style={{
-                flex: 1, background: '#fff', border: '1px solid #fcd34d', borderRadius: 6,
-                padding: '6px 10px', fontSize: 12, wordBreak: 'break-all', direction: 'ltr',
-              }}>{value}</code>
-              <CopyButton text={value} label="Copy" />
+      <CardContent className="space-y-4 pt-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+              UUID (Username)
+            </span>
+            <div className="flex items-center gap-2">
+              <code
+                className="flex-1 p-2 rounded-md bg-background text-xs font-mono break-all border"
+                dir="ltr"
+              >
+                {cred.uuid}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copy(cred.uuid, 'uuid', 'UUID')}
+              >
+                {copiedKey === 'uuid' ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
-        ))}
-      </div>
 
-      <div style={{ borderTop: '1px solid #fcd34d', paddingTop: 16, marginTop: 4, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, fontWeight: 700, color: '#78350f', marginBottom: 8 }}><Server size={16} /> SOCKS5</div>
-        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
-          {lang === 'fa'
-            ? 'نام کاربری UUID و رمز عبور Secret است. SOCKS5 به‌صورت رمزنگاری‌شده اجرا نمی‌شود؛ فقط از شبکه مورداعتماد استفاده کنید.'
-            : 'Use the UUID as the username and Secret as the password. SOCKS5 does not encrypt authentication; use it only from a trusted network.'}
-        </p>
-        {requiresActivePlan ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#9a3412' }}>
-            <ShieldAlert size={16} style={{ flex: '0 0 auto', marginTop: 1 }} />
-            <span>{lang === 'fa' ? 'برای استفاده از SOCKS5 ابتدا یک اشتراک فعال تهیه یا فعال کنید. نود آلمان آماده است و پس از فعال‌سازی اشتراک در دسترس خواهد بود.' : 'Activate a subscription before using SOCKS5. The German node is ready and will be available once your subscription is active.'}</span>
-          </div>
-        ) : endpoints.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 12, color: '#92400e' }}>
-            {lang === 'fa' ? 'هنوز هیچ نود SOCKS5 آماده‌ای وجود ندارد.' : 'No SOCKS5-enabled node is ready yet.'}
-          </p>
-        ) : endpoints.map((endpoint) => {
-          const uri = `socks5://${encodeURIComponent(cred.uuid)}:${encodeURIComponent(cred.secret)}@${endpoint.host}:${endpoint.port}`;
-          return (
-            <div key={endpoint.nodeId} style={{ background: '#fff', border: '1px solid #fcd34d', borderRadius: 6, padding: '10px 12px', marginTop: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 6 }}>{endpoint.countryName} · {endpoint.label}</div>
-              <code style={{ display: 'block', fontSize: 11, direction: 'ltr', overflowWrap: 'anywhere', color: colors.text }}>{uri}</code>
-              <div style={{ marginTop: 7 }}><CopyButton text={uri} label="Copy SOCKS5 URL" /></div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* API usage */}
-      <div style={{ borderTop: '1px solid #fcd34d', paddingTop: 16, marginTop: 4 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#78350f', marginBottom: 10 }}>
-          {lang === 'fa' ? 'استفاده در سرور / کد (HTTP Fetch Gateway)' : 'Server-side / programmatic use (HTTP Fetch Gateway)'}
-        </div>
-        <p style={{ margin: '0 0 10px', fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
-          {lang === 'fa'
-            ? `POST ${API_BASE}/gateway/fetch با Basic Auth (UUID:Secret) — هر درخواست HTTP از طریق سرورهای ما ارسال می‌شود.`
-            : `POST ${API_BASE}/gateway/fetch with Basic Auth (UUID:Secret) — any HTTP request is routed through our servers.`}
-        </p>
-
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#78350f', marginBottom: 4 }}>curl</div>
-          <div style={{ position: 'relative' }}>
-            <pre style={{
-              background: '#1e293b', color: '#e2e8f0', borderRadius: 6, margin: 0,
-              padding: '10px 14px', fontSize: 11, overflowX: 'auto', direction: 'ltr',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-            }}>{curlExample}</pre>
-            <div style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}>
-              <CopyButton text={curlExample} label="Copy" />
+          <div className="space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+              Secret (Password)
+            </span>
+            <div className="flex items-center gap-2">
+              <code
+                className="flex-1 p-2 rounded-md bg-background text-xs font-mono break-all border"
+                dir="ltr"
+              >
+                {cred.secret}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => copy(cred.secret, 'secret', 'Secret')}
+              >
+                {copiedKey === 'secret' ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
         </div>
 
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#78350f', marginBottom: 4 }}>Python</div>
-          <div style={{ position: 'relative' }}>
-            <pre style={{
-              background: '#1e293b', color: '#e2e8f0', borderRadius: 6, margin: 0,
-              padding: '10px 14px', fontSize: 11, overflowX: 'auto', direction: 'ltr',
-              whiteSpace: 'pre-wrap',
-            }}>{pythonExample}</pre>
-            <div style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}>
-              <CopyButton text={pythonExample} label="Copy" />
+        {/* cURL Quick Test */}
+        <div className="space-y-2 pt-2 border-t border-amber-500/20">
+          <span className="text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+            <Terminal className="h-3.5 w-3.5" />
+            {lang === 'fa' ? 'دستور تست سریع با cURL:' : 'Quick cURL test command:'}
+          </span>
+          <div className="relative">
+            <pre
+              className="p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"
+              dir="ltr"
+            >
+              {curlExample}
+            </pre>
+            <div className="absolute top-2 right-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => copy(curlExample, 'curl', 'cURL')}
+              >
+                {copiedKey === 'curl' ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+              </Button>
             </div>
           </div>
         </div>
-
-        <p style={{ margin: '14px 0 0', fontSize: 12, color: '#78350f', lineHeight: 1.6 }}>
-          {lang === 'fa'
-            ? '💡 برای روش ساده‌تر (بدون تنظیم Auth در هر درخواست)، به بخش «فوروارد آدرس‌ها» بروید.'
-            : '💡 For an easier approach (no auth setup per request), see the Forwarders page.'}
-          {' '}
-          <Link href="/user/forwarders" style={{ color: colors.primary, fontWeight: 600 }}>
-            {lang === 'fa' ? 'فوروارد آدرس‌ها ←' : 'Go to Forwarders →'}
-          </Link>
-        </p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function UserCredentialsPage() {
   const { lang } = useLang();
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
   const [creds, setCreds] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -197,11 +194,15 @@ export default function UserCredentialsPage() {
   const [newlyCreated, setNewlyCreated] = useState<NewlyCreated | null>(null);
   const [socksEndpoints, setSocksEndpoints] = useState<Socks5Endpoint[]>([]);
   const [socksRequiresPlan, setSocksRequiresPlan] = useState(false);
+  const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const [data, socks] = await Promise.all([api.myCredentials(), api.socks5.endpoints()]);
+      const [data, socks] = await Promise.all([
+        api.myCredentials(),
+        api.socks5.endpoints(),
+      ]);
       setCreds(data);
       setSocksEndpoints(socks.endpoints);
       setSocksRequiresPlan(socks.requiresActivePlan);
@@ -217,7 +218,10 @@ export default function UserCredentialsPage() {
     setCreating(true);
     setError('');
     try {
-      const [cred, socks] = await Promise.all([api.createCredential(newLabel.trim()), api.socks5.endpoints()]);
+      const [cred, socks] = await Promise.all([
+        api.createCredential(newLabel.trim()),
+        api.socks5.endpoints(),
+      ]);
       setSocksEndpoints(socks.endpoints);
       setSocksRequiresPlan(socks.requiresActivePlan);
       setNewlyCreated({
@@ -228,9 +232,12 @@ export default function UserCredentialsPage() {
       });
       setNewLabel('');
       setShowCreate(false);
+      toast.success(tx('Credential created successfully', 'کلید احراز هویت با موفقیت ایجاد شد'));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create credential');
+      const msg = e instanceof Error ? e.message : 'Failed to create credential';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -240,13 +247,25 @@ export default function UserCredentialsPage() {
     if (!confirm(t(lang, 'cred.revoke') + '?')) return;
     try {
       await api.revokeCredential(id);
+      toast.success(tx('Credential revoked', 'اعتبارنامه ابطال شد'));
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to revoke credential');
+      const msg = e instanceof Error ? e.message : 'Failed to revoke credential';
+      setError(msg);
+      toast.error(msg);
     }
   }
 
-  useEffect(() => { load(); }, []);
+  function copy(text: string, id: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedUuid(id);
+    toast.success(tx('UUID copied to clipboard', 'شناسه UUID در کلیپ‌بورد کپی شد'));
+    setTimeout(() => setCopiedUuid(null), 2000);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
 
   const [exampleCredUuid, setExampleCredUuid] = useState<string | null>(null);
   const featuredCred = useMemo(() => {
@@ -256,150 +275,208 @@ export default function UserCredentialsPage() {
   }, [creds, exampleCredUuid]);
 
   return (
-    <div>
+    <div className="space-y-6">
       <AccountStatusStrip lang={lang} />
+
       <PageHeader
         title={t(lang, 'cred.title')}
+        description={tx(
+          'Manage authentication credentials used for SOCKS5 proxies and HTTP Fetch Gateway calls.',
+          'مدیریت شناسه‌ها و کلیدهای دسترسی جهت استفاده در پروکسی SOCKS5 و درخواست‌های درگاه HTTP.'
+        )}
         action={
-          <Button onClick={() => setShowCreate((v) => !v)}>
-            {showCreate ? t(lang, 'cancel') : `+ ${t(lang, 'cred.new')}`}
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4" />
+            <span>{t(lang, 'cred.new')}</span>
           </Button>
         }
       />
 
+      {/* Create Modal Dialog */}
       {showCreate && (
-        <Card style={{ padding: '20px 24px', marginBottom: 20 }}>
-          <p style={{ margin: '0 0 12px', fontWeight: 600, fontSize: 15, color: colors.navy }}>{t(lang, 'cred.new')}</p>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: colors.textMuted }}>
-                {t(lang, 'cred.label')}
-              </label>
-              <input
-                type="text"
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                placeholder={t(lang, 'cred.label.placeholder')}
-                style={{
-                  width: '100%', padding: '8px 12px', border: `1px solid ${colors.border}`,
-                  borderRadius: 6, fontSize: 14,
-                }}
-              />
+        <Modal
+          title={t(lang, 'cred.new')}
+          onClose={() => setShowCreate(false)}
+          open={showCreate}
+        >
+          <div className="space-y-4 pt-2">
+            <Input
+              label={t(lang, 'cred.label')}
+              placeholder={t(lang, 'cred.label.placeholder')}
+              value={newLabel}
+              onChange={setNewLabel}
+              required
+            />
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
+                {t(lang, 'cancel')}
+              </Button>
+              <Button size="sm" onClick={create} disabled={creating || !newLabel.trim()}>
+                {creating ? '...' : t(lang, 'cred.create')}
+              </Button>
             </div>
-            <Button onClick={create} disabled={creating || !newLabel.trim()}>
-              {creating ? '...' : t(lang, 'cred.create')}
-            </Button>
           </div>
-        </Card>
+        </Modal>
       )}
 
       {newlyCreated && (
-        <SecretBanner cred={newlyCreated} lang={lang} endpoints={socksEndpoints} requiresActivePlan={socksRequiresPlan} onDismiss={() => setNewlyCreated(null)} />
+        <SecretBanner
+          cred={newlyCreated}
+          lang={lang}
+          endpoints={socksEndpoints}
+          requiresActivePlan={socksRequiresPlan}
+          onDismiss={() => setNewlyCreated(null)}
+        />
       )}
 
-      {error && <Alert message={error} />}
+      {error && <Alert message={error} type="error" />}
 
+      {/* SOCKS5 Endpoint Status Info */}
       {!loading && (
-        <Card style={{ padding: '18px 20px', marginBottom: 16, border: `1px solid ${socksRequiresPlan ? '#fed7aa' : '#bfdbfe'}`, background: socksRequiresPlan ? '#fff7ed' : '#f8fbff' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            {socksRequiresPlan ? <ShieldAlert size={20} color="#c2410c" /> : <Server size={20} color={colors.primary} />}
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 750, color: colors.navy, marginBottom: 5 }}>SOCKS5</div>
+        <Card
+          className={`border ${
+            socksRequiresPlan
+              ? 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/10'
+              : 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/10'
+          }`}
+        >
+          <CardContent className="p-4 flex items-start gap-3">
+            {socksRequiresPlan ? (
+              <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            ) : (
+              <Server className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-1 text-xs">
+              <span className="font-bold text-foreground">SOCKS5 Node Relays</span>
               {socksRequiresPlan ? (
-                <div style={{ fontSize: 13, lineHeight: 1.7, color: '#9a3412' }}>
-                  {lang === 'fa' ? 'نود آلمان آماده است، اما این حساب اشتراک فعال ندارد. پس از فعال‌سازی اشتراک، مشخصات اتصال اینجا نمایش داده می‌شود.' : 'The German node is ready, but this account has no active subscription. Connection details appear here after a subscription is activated.'}
-                </div>
+                <p className="text-amber-800 dark:text-amber-300">
+                  {lang === 'fa'
+                    ? 'نودهای پروکسی آماده اتصال هستند، اما برای دریافت دسترسی نیازمند اشتراک فعال هستید.'
+                    : 'Relay nodes are operational, but an active plan is required to connect.'}
+                </p>
               ) : socksEndpoints.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {socksEndpoints.map((endpoint) => <div key={endpoint.nodeId} style={{ fontSize: 13, color: colors.text }}><strong>{endpoint.countryName} · {endpoint.label}</strong><code style={{ marginInlineStart: 8, direction: 'ltr' }}>{endpoint.host}:{endpoint.port}</code></div>)}
-                  <div style={{ fontSize: 12, color: colors.textMuted }}>{lang === 'fa' ? 'نام کاربری UUID و رمز عبور Secret اعتبارنامه شماست.' : 'Use your credential UUID as the username and its Secret as the password.'}</div>
+                <div className="space-y-1 pt-1">
+                  {socksEndpoints.map((ep) => (
+                    <div key={ep.nodeId} className="flex items-center gap-2 font-mono">
+                      <span className="font-semibold text-foreground">
+                        {ep.countryName} ({ep.label}):
+                      </span>
+                      <code>
+                        {ep.host}:{ep.port}
+                      </code>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div style={{ fontSize: 13, color: colors.textMuted }}>{lang === 'fa' ? 'در حال حاضر هیچ نود SOCKS5 آماده‌ای وجود ندارد.' : 'No SOCKS5 node is currently ready.'}</div>
+                <p className="text-muted-foreground">
+                  {lang === 'fa'
+                    ? 'در حال حاضر نود SOCKS5 در این منطقه ثبت نشده است.'
+                    : 'No active SOCKS5 relays registered.'}
+                </p>
               )}
             </div>
-          </div>
+          </CardContent>
         </Card>
       )}
 
+      {/* Credentials List */}
       {loading ? (
         <Spinner />
       ) : creds.length === 0 ? (
-        <Card style={{ padding: '32px 24px', textAlign: 'center' }}>
-          <p style={{ margin: 0, color: colors.textMuted, fontSize: 14 }}>{t(lang, 'cred.empty')}</p>
+        <Card className="p-8 text-center text-muted-foreground text-sm">
+          <p>{t(lang, 'cred.empty')}</p>
         </Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {creds.map((cred) => (
-            <Card key={cred.id} style={{ padding: '18px 22px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: colors.navy, marginBottom: 4 }}>
-                    {cred.label || '(no label)'}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <Badge label={cred.enabled ? 'enabled' : 'disabled'} />
-                    <span style={{ fontSize: 12, color: colors.textMuted }}>
-                      {t(lang, 'cred.created')} {new Date(cred.createdAt).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US')}
-                    </span>
-                  </div>
-                </div>
-                <Button variant="danger" onClick={() => revoke(cred.id)}>
-                  {t(lang, 'cred.revoke')}
-                </Button>
-              </div>
+        <div className="space-y-4">
+          {creds.map((cred) => {
+            const isCopied = copiedUuid === cred.id;
+            return (
+              <Card key={cred.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-base">
+                          {cred.label || '(بدون عنوان)'}
+                        </span>
+                        <Badge
+                          label={cred.enabled ? tx('Enabled', 'فعال') : tx('Disabled', 'غیرفعال')}
+                          variant={cred.enabled ? 'success' : 'secondary'}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t(lang, 'cred.created')}:{' '}
+                        {new Date(cred.createdAt).toLocaleDateString(
+                          lang === 'fa' ? 'fa-IR' : 'en-US'
+                        )}
+                      </p>
+                    </div>
 
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase' }}>UUID</div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <code style={{
-                    flex: 1, background: '#f8fafc', border: `1px solid ${colors.border}`, borderRadius: 6,
-                    padding: '6px 10px', fontSize: 12, wordBreak: 'break-all', direction: 'ltr',
-                  }}>{cred.uuid}</code>
-                  <CopyButton text={cred.uuid} label={t(lang, 'cred.copy')} />
-                </div>
-                <p style={{ margin: '8px 0 0', fontSize: 12, color: colors.textMuted, lineHeight: 1.6 }}>
-                  {lang === 'fa'
-                    ? 'برای استفاده از HTTP Gateway به UUID و Secret نیاز دارید. Secret فقط یک بار (هنگام ساخت) نمایش داده می‌شود.'
-                    : 'Use with HTTP Gateway needs UUID + Secret. The Secret is shown once at creation.'}
-                </p>
-                {!socksRequiresPlan && socksEndpoints.length > 0 && (
-                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${colors.border}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 6 }}>SOCKS5 CONNECTION LINK</div>
-                    {socksEndpoints.map((endpoint) => {
-                      const template = `socks5://${encodeURIComponent(cred.uuid)}:YOUR_SECRET@${endpoint.host}:${endpoint.port}`;
-                      return (
-                        <div key={endpoint.nodeId} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center', direction: 'ltr', marginBottom: 6 }}>
-                          <code style={{ minWidth: 0, background: '#f8fafc', border: `1px solid ${colors.border}`, borderRadius: 7, padding: '8px 10px', fontSize: 11, overflowWrap: 'anywhere' }}>{template}</code>
-                          <CopyButton text={template} label="Copy link" />
-                        </div>
-                      );
-                    })}
-                    <div style={{ fontSize: 11, color: colors.textMuted }}>Replace <code>YOUR_SECRET</code> with the secret shown when this credential was created.</div>
+                    <Button variant="danger" size="sm" onClick={() => revoke(cred.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>{t(lang, 'cred.revoke')}</span>
+                    </Button>
                   </div>
-                )}
-              </div>
-            </Card>
-          ))}
+                </CardHeader>
+
+                <CardContent className="space-y-3 pt-0">
+                  <div className="space-y-1">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      UUID (Username)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <code
+                        className="flex-1 p-2 rounded-md bg-muted/60 text-xs font-mono break-all border"
+                        dir="ltr"
+                      >
+                        {cred.uuid}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copy(cred.uuid, cred.id)}
+                        className="shrink-0"
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            <span className="text-emerald-600">{tx('Copied', 'کپی شد')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" />
+                            <span>{tx('Copy', 'کپی')}</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Usage examples for HTTP Gateway (UUID + Secret + Basic auth) */}
-      <div style={{ marginTop: 28 }}>
+      {/* Code Examples Section */}
+      <div className="pt-4">
         {featuredCred ? (
-          <>
+          <div className="space-y-3">
             {creds.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: colors.textMuted }}>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-muted-foreground">
                   {t(lang, 'examples.select_credential')}:
-                </label>
+                </span>
                 <select
                   value={featuredCred.uuid}
                   onChange={(e) => setExampleCredUuid(e.target.value)}
-                  style={{ padding: '4px 8px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 13 }}
+                  className="p-1.5 rounded-md border text-xs bg-background"
                 >
                   {creds.map((c) => (
-                    <option key={c.id} value={c.uuid}>{c.label || c.uuid.slice(0, 8)}</option>
+                    <option key={c.id} value={c.uuid}>
+                      {c.label || c.uuid.slice(0, 8)}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -409,12 +486,10 @@ export default function UserCredentialsPage() {
               intro={t(lang, 'examples.intro.gateway')}
               snippets={buildGatewaySnippets(API_BASE, featuredCred.uuid)}
             />
-          </>
+          </div>
         ) : (
-          <Card style={{ padding: '24px', textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 13, color: colors.textMuted }}>
-              {t(lang, 'examples.no_credential')}
-            </p>
+          <Card className="p-6 text-center text-xs text-muted-foreground">
+            <p>{t(lang, 'examples.no_credential')}</p>
           </Card>
         )}
       </div>

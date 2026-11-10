@@ -1,17 +1,31 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Globe2, Search, Zap } from 'lucide-react';
+import {
+  Check,
+  Globe2,
+  Zap,
+  Save,
+  UserCheck,
+  CheckCircle2,
+} from 'lucide-react';
 import { api, Country, CountryStatus } from '../../../lib/api';
 import {
+  PageHeader,
   Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
   Button,
   Alert,
   Spinner,
-  colors,
+  Input,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
+import { toast } from 'sonner';
 
 interface Me {
   id: string;
@@ -31,29 +45,19 @@ const faCountryNames: Record<string, string> = {
 };
 
 function countryName(country: Country, lang: string) {
-  return lang === 'fa'
-    ? (faCountryNames[country.code] ?? country.name)
-    : country.name;
-}
-
-function withValues(template: string, values: Record<string, string | number>) {
-  return Object.entries(values).reduce(
-    (text, [key, value]) => text.replace(`{${key}}`, String(value)),
-    template,
-  );
+  return lang === 'fa' ? faCountryNames[country.code] ?? country.name : country.name;
 }
 
 export default function UserProfilePage() {
   const { lang } = useLang();
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
   const [me, setMe] = useState<Me | null>(null);
   const [countries, setCountries] = useState<Country[]>([]);
-  const [countryStatuses, setCountryStatuses] = useState<
-    Record<string, CountryStatus>
-  >({});
+  const [countryStatuses, setCountryStatuses] = useState<Record<string, CountryStatus>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [countryQuery, setCountryQuery] = useState('');
   const [routingMode, setRoutingMode] = useState('auto');
   const [preferredCountry, setPreferredCountry] = useState('');
@@ -72,16 +76,11 @@ export default function UserProfilePage() {
         setCountries(countryList as Country[]);
         setCountryStatuses(
           Object.fromEntries(
-            (statuses as CountryStatus[]).map((status) => [
-              status.code,
-              status,
-            ]),
-          ),
+            (statuses as CountryStatus[]).map((status) => [status.code, status])
+          )
         );
       })
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : 'Failed to load profile'),
-      )
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load profile'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -100,27 +99,28 @@ export default function UserProfilePage() {
       .sort((a, b) =>
         countryName(a, lang).localeCompare(
           countryName(b, lang),
-          lang === 'fa' ? 'fa' : 'en',
-        ),
+          lang === 'fa' ? 'fa' : 'en'
+        )
       );
   }, [countries, countryQuery, lang]);
 
   async function saveRouting() {
     if (routingMode === 'country' && !preferredCountry) {
-      setError(t(lang, 'prof.country_none'));
+      toast.error(t(lang, 'prof.country_none'));
       return;
     }
     setSaving(true);
     setError('');
-    setSuccess('');
     try {
       await api.updateRoutingPreference(
         routingMode,
-        routingMode === 'country' ? preferredCountry : undefined,
+        routingMode === 'country' ? preferredCountry : undefined
       );
-      setSuccess(t(lang, 'prof.saved'));
+      toast.success(t(lang, 'prof.saved'));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      const msg = e instanceof Error ? e.message : 'Failed to save';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -129,286 +129,190 @@ export default function UserProfilePage() {
   if (loading) return <Spinner />;
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <h1
-        style={{
-          margin: '0 0 24px',
-          fontSize: 24,
-          fontWeight: 700,
-          color: colors.navy,
-        }}
-      >
-        {t(lang, 'prof.title')}
-      </h1>
+    <div className="space-y-6 max-w-4xl">
+      <PageHeader
+        title={t(lang, 'prof.title')}
+        description={tx(
+          'Manage your account profile, personal identity, and outbound proxy routing preferences.',
+          'مدیریت اطلاعات کاربری، هویت و تنظیمات اولویت خروج ترافیک پروکسی از کشورها.'
+        )}
+      />
 
-      {error && (
-        <div style={{ marginBottom: 16 }}>
-          <Alert message={error} />
-        </div>
-      )}
-      {success && (
-        <div style={{ marginBottom: 16 }}>
-          <Alert message={success} type="success" />
-        </div>
-      )}
+      {error && <Alert message={error} type="error" />}
 
-      <Card style={{ padding: '24px', marginBottom: 20 }}>
-        <h2
-          style={{
-            margin: '0 0 16px',
-            fontSize: 16,
-            fontWeight: 700,
-            color: colors.navy,
-          }}
-        >
-          {t(lang, 'prof.account')}
-        </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <p
-              style={{
-                margin: '0 0 4px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: colors.textMuted,
-              }}
-            >
-              {t(lang, 'prof.name')}
-            </p>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 15,
-                fontWeight: 500,
-                color: colors.text,
-              }}
-            >
-              {me?.displayName || '—'}
-            </p>
+      {/* Account Info Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">{t(lang, 'prof.account')}</CardTitle>
           </div>
-          <div>
-            <p
-              style={{
-                margin: '0 0 4px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: colors.textMuted,
-              }}
-            >
-              {t(lang, 'prof.email')}
-            </p>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 15,
-                color: colors.text,
-                direction: 'ltr',
-                textAlign: 'start',
-              }}
-            >
-              {me?.email || '—'}
-            </p>
+          <CardDescription className="text-xs">
+            {tx('Registered account credentials and role', 'اطلاعات هویت کاربری و نقش در سامانه')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3.5 rounded-lg border bg-muted/20 space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {t(lang, 'prof.name')}
+              </span>
+              <p className="text-sm font-medium">{me?.displayName || '—'}</p>
+            </div>
+
+            <div className="p-3.5 rounded-lg border bg-muted/20 space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {t(lang, 'prof.email')}
+              </span>
+              <p className="text-sm font-medium font-mono" dir="ltr">
+                {me?.email || '—'}
+              </p>
+            </div>
           </div>
-        </div>
+        </CardContent>
       </Card>
 
-      <Card style={{ padding: '24px' }}>
-        <h2
-          style={{
-            margin: '0 0 6px',
-            fontSize: 16,
-            fontWeight: 700,
-            color: colors.navy,
-          }}
-        >
-          {t(lang, 'prof.routing')}
-        </h2>
-        <p
-          style={{
-            margin: '0 0 18px',
-            color: colors.textMuted,
-            fontSize: 13,
-            lineHeight: 1.6,
-          }}
-        >
-          {t(lang, 'prof.country_help')}
-        </p>
-
-        <div style={{ display: 'grid', gap: 18 }}>
-          <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-            <legend
-              style={{
-                fontSize: 13,
-                fontWeight: 650,
-                color: '#334155',
-                marginBottom: 8,
-              }}
+      {/* Routing Preferences Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Globe2 className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">{t(lang, 'prof.routing')}</CardTitle>
+          </div>
+          <CardDescription className="text-xs">
+            {t(lang, 'prof.country_help')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-0">
+          {/* Mode Selection Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div
+              onClick={() => setRoutingMode('auto')}
+              className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                routingMode === 'auto'
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-border/80 hover:border-primary/40'
+              }`}
             >
-              {t(lang, 'prof.mode')}
-            </legend>
-            <div className="routing-mode-grid">
-              <button
-                type="button"
-                className="routing-mode-card"
-                data-selected={routingMode === 'auto'}
-                onClick={() => setRoutingMode('auto')}
-                aria-pressed={routingMode === 'auto'}
+              <div
+                className={`p-2 rounded-lg shrink-0 ${
+                  routingMode === 'auto'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}
               >
-                <span className="routing-mode-card__icon">
-                  <Zap size={17} />
-                </span>
-                <span>
-                  <span className="routing-mode-card__title">
-                    {t(lang, 'prof.auto')}
-                  </span>
-                  <span className="routing-mode-card__description">
-                    {t(lang, 'prof.auto_desc')}
-                  </span>
-                </span>
-                {routingMode === 'auto' && (
-                  <Check
-                    size={17}
-                    className="routing-country-option__check"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-              <button
-                type="button"
-                className="routing-mode-card"
-                data-selected={routingMode === 'country'}
-                onClick={() => setRoutingMode('country')}
-                aria-pressed={routingMode === 'country'}
-              >
-                <span className="routing-mode-card__icon">
-                  <Globe2 size={17} />
-                </span>
-                <span>
-                  <span className="routing-mode-card__title">
-                    {t(lang, 'prof.country')}
-                  </span>
-                  <span className="routing-mode-card__description">
-                    {t(lang, 'prof.country_desc')}
-                  </span>
-                </span>
-                {routingMode === 'country' && (
-                  <Check
-                    size={17}
-                    className="routing-country-option__check"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            </div>
-          </fieldset>
-
-          {routingMode === 'country' && (
-            <div className="routing-country-picker">
-              <div className="routing-country-picker__heading">
-                <div>
-                  <label
-                    htmlFor="country-search"
-                    style={{ fontSize: 13, fontWeight: 650, color: '#334155' }}
-                  >
-                    {t(lang, 'prof.country')}
-                  </label>
-                  {preferredCountry && (
-                    <p className="routing-selected">
-                      {t(lang, 'prof.country_selected').replace(
-                        '{country}',
-                        preferredCountry,
-                      )}
-                    </p>
+                <Zap className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm">{t(lang, 'prof.auto')}</span>
+                  {routingMode === 'auto' && (
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
                   )}
                 </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {t(lang, 'prof.auto_desc')}
+                </p>
               </div>
-              <div className="routing-search">
-                <Search size={16} aria-hidden="true" />
-                <input
-                  id="country-search"
+            </div>
+
+            <div
+              onClick={() => setRoutingMode('country')}
+              className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 ${
+                routingMode === 'country'
+                  ? 'border-primary bg-primary/5 shadow-sm'
+                  : 'border-border/80 hover:border-primary/40'
+              }`}
+            >
+              <div
+                className={`p-2 rounded-lg shrink-0 ${
+                  routingMode === 'country'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                <Globe2 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm">{t(lang, 'prof.country')}</span>
+                  {routingMode === 'country' && (
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {t(lang, 'prof.country_desc')}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Country Picker Sub-section */}
+          {routingMode === 'country' && (
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">
+                  {t(lang, 'prof.country')}
+                  {preferredCountry && (
+                    <span className="font-mono text-primary mr-2 ml-2">
+                      ({preferredCountry})
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {filteredCountries.length} {tx('locations available', 'موقعیت در دسترس')}
+                </span>
+              </div>
+
+              <div className="relative">
+                <Input
                   value={countryQuery}
-                  onChange={(event) => setCountryQuery(event.target.value)}
+                  onChange={setCountryQuery}
                   placeholder={t(lang, 'prof.country_search')}
-                  autoComplete="off"
                 />
               </div>
-              {filteredCountries.length ? (
-                <div
-                  className="routing-country-list"
-                  role="listbox"
-                  aria-label={t(lang, 'prof.country')}
-                >
-                  {filteredCountries.map((country) => {
-                    const status = countryStatuses[country.code];
-                    const available = status
-                      ? status.available !== false &&
-                        (status.healthy > 0 || (status.active ?? 0) > 0)
-                      : true;
-                    const selected = preferredCountry === country.code;
-                    return (
-                      <button
-                        type="button"
-                        key={country.code}
-                        className="routing-country-option"
-                        data-selected={selected}
-                        disabled={!available}
-                        onClick={() => setPreferredCountry(country.code)}
-                        role="option"
-                        aria-selected={selected}
-                        title={
-                          !available
-                            ? t(lang, 'prof.country_unavailable')
-                            : undefined
-                        }
-                      >
-                        <span className="routing-country-option__flag">
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-60 overflow-y-auto p-1 border rounded-lg bg-muted/20">
+                {filteredCountries.map((country) => {
+                  const status = countryStatuses[country.code];
+                  const selected = preferredCountry === country.code;
+                  return (
+                    <div
+                      key={country.code}
+                      onClick={() => setPreferredCountry(country.code)}
+                      className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between text-xs ${
+                        selected
+                          ? 'border-primary bg-primary/10 font-bold text-primary'
+                          : 'border-border bg-card hover:border-primary/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono px-1.5 py-0.5 rounded bg-muted text-[10px]">
                           {country.code}
                         </span>
-                        <span className="routing-country-option__body">
-                          <span className="routing-country-option__name">
-                            {countryName(country, lang)}
+                        <span>{countryName(country, lang)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {status && status.healthy > 0 && (
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium" title={`${status.healthy} healthy nodes`}>
+                            {status.healthy}
                           </span>
-                          <span className="routing-country-option__meta">
-                            {status
-                              ? withValues(t(lang, 'prof.country_nodes'), {
-                                  healthy: status.healthy,
-                                  total: status.total,
-                                })
-                              : t(lang, 'prof.country')}
-                            {!available &&
-                              ` · ${t(lang, 'prof.country_unavailable')}`}
-                          </span>
-                        </span>
-                        {selected && (
-                          <Check
-                            size={16}
-                            className="routing-country-option__check"
-                            aria-hidden="true"
-                          />
                         )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="routing-country-empty">
-                  {t(lang, 'prof.country_none')}
-                </div>
-              )}
+                        {selected && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
-
-          <div style={{ paddingTop: 2 }}>
-            <Button
-              onClick={saveRouting}
-              disabled={
-                saving || (routingMode === 'country' && !preferredCountry)
-              }
-            >
-              {saving ? t(lang, 'prof.saving') : t(lang, 'prof.save')}
-            </Button>
-          </div>
-        </div>
+        </CardContent>
+        <CardFooter className="pt-2 border-t border-border/50">
+          <Button onClick={saveRouting} disabled={saving}>
+            <Save className="h-4 w-4" />
+            <span>{saving ? '...' : t(lang, 'prof.save')}</span>
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

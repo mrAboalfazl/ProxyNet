@@ -174,7 +174,7 @@ echo curl_exec($ch);`,
 
 /**
  * Build the code snippets for the HTTP Gateway (UUID + Secret + Basic auth).
- * Response is JSON-wrapped: { status, headers, body, bytesIn, bytesOut, viaNodeId }.
+ * Response is JSON-wrapped: { status, headers, body, isBase64, bytesIn, bytesOut, viaNodeId }.
  */
 export function buildGatewaySnippets(apiBase: string, uuid: string, secretPlaceholder = 'YOUR_SECRET'): Snippet {
   const basicRaw = `${uuid}:${secretPlaceholder}`;
@@ -182,10 +182,28 @@ export function buildGatewaySnippets(apiBase: string, uuid: string, secretPlaceh
     curl: `# Base64-encode UUID:SECRET for Basic auth
 BASIC=$(echo -n "${basicRaw}" | base64)
 
+# 1. Standard Request
 curl -X POST "${apiBase}/gateway/fetch" \\
   -H "Authorization: Basic $BASIC" \\
   -H "Content-Type: application/json" \\
-  -d '{"url":"https://example.com/api/data"}'`,
+  -d '{"url":"https://api.ipify.org?format=json"}'
+
+# 2. Advanced: Upstream Auth, Redirects & Insecure SSL
+curl -X POST "${apiBase}/gateway/fetch" \\
+  -H "Authorization: Basic $BASIC" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "url": "https://api.example.com/v1/secure-endpoint",
+    "method": "POST",
+    "headers": {
+      "Authorization": "Bearer YOUR_UPSTREAM_TOKEN",
+      "Content-Type": "application/json"
+    },
+    "body": "{\\"action\\":\\"execute\\"}",
+    "followRedirects": true,
+    "insecure": false,
+    "timeoutMs": 30000
+  }'`,
 
     python: `import base64
 import requests
@@ -194,14 +212,27 @@ UUID = "${uuid}"
 SECRET = "${secretPlaceholder}"
 creds = base64.b64encode(f"{UUID}:{SECRET}".encode()).decode()
 
+# Outbound request via ProxyNet Gateway
+payload = {
+    "url": "https://api.example.com/v1/data",
+    "method": "GET",
+    "headers": {
+        "Authorization": "Bearer YOUR_UPSTREAM_TOKEN"  # Passed to destination intact
+    },
+    "followRedirects": True,
+    "insecure": False,  # Set True for Self-Signed SSL
+    "timeoutMs": 30000
+}
+
 r = requests.post(
     "${apiBase}/gateway/fetch",
     headers={"Authorization": f"Basic {creds}"},
-    json={"url": "https://example.com/api/data"},
+    json=payload,
 )
 data = r.json()
-print("status:", data["status"])
-print("body:  ", data["body"])`,
+print("HTTP Status:", data.get("status"))
+print("Exit Country:", data.get("viaCountry"))
+print("Body:", data.get("body"))`,
 
     js: `const UUID = "${uuid}";
 const SECRET = "${secretPlaceholder}";
@@ -213,10 +244,19 @@ const r = await fetch("${apiBase}/gateway/fetch", {
     "Authorization": \`Basic \${creds}\`,
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ url: "https://example.com/api/data" }),
+  body: JSON.stringify({
+    url: "https://api.example.com/v1/data",
+    method: "GET",
+    headers: {
+      "Authorization": "Bearer YOUR_UPSTREAM_TOKEN",
+    },
+    followRedirects: true,
+    insecure: false, // Set true if destination uses Self-Signed SSL
+    timeoutMs: 30000,
+  }),
 });
 const data = await r.json();
-console.log(data.status, data.body);`,
+console.log(data.status, data.viaCountry, data.body);`,
 
     node: `// Node.js 18+
 const UUID = "${uuid}";
@@ -229,7 +269,18 @@ const r = await fetch("${apiBase}/gateway/fetch", {
     "Authorization": \`Basic \${creds}\`,
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ url: "https://example.com/api/data" }),
+  body: JSON.stringify({
+    url: "https://api.example.com/v1/data",
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer YOUR_UPSTREAM_TOKEN",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ping: "pong" }),
+    followRedirects: true,
+    insecure: false,
+    timeoutMs: 30000,
+  }),
 });
 const data = await r.json();
 console.log(data);`,
@@ -239,6 +290,19 @@ $uuid   = "${uuid}";
 $secret = "${secretPlaceholder}";
 $creds  = base64_encode("$uuid:$secret");
 
+$payload = [
+    'url' => 'https://api.example.com/v1/data',
+    'method' => 'POST',
+    'headers' => [
+        'Authorization' => 'Bearer YOUR_UPSTREAM_TOKEN',
+        'Content-Type' => 'application/json',
+    ],
+    'body' => json_encode(['action' => 'sync']),
+    'followRedirects' => true,
+    'insecure' => false, // Set true for self-signed certificates
+    'timeoutMs' => 30000,
+];
+
 $ch = curl_init("${apiBase}/gateway/fetch");
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
@@ -246,11 +310,14 @@ curl_setopt_array($ch, [
         "Authorization: Basic $creds",
         "Content-Type: application/json",
     ],
-    CURLOPT_POSTFIELDS => json_encode(["url" => "https://example.com/api/data"]),
+    CURLOPT_POSTFIELDS => json_encode($payload),
     CURLOPT_RETURNTRANSFER => true,
 ]);
 $response = json_decode(curl_exec($ch), true);
-echo "status: {$response['status']}\\n";
-echo "body:   {$response['body']}\\n";`,
+curl_close($ch);
+
+echo "Status: {$response['status']}\\n";
+echo "Exit Node: {$response['viaCountry']}\\n";
+echo "Response Body: {$response['body']}\\n";`,
   };
 }

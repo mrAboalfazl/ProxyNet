@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  CheckCircle2,
   Clock3,
   Copy,
+  Check,
   ExternalLink,
-  Globe2,
-  Info,
-  Loader2,
   Plus,
   RefreshCw,
   Server,
@@ -16,19 +13,27 @@ import {
 } from 'lucide-react';
 import { api, Country, Node } from '../../../lib/api';
 import {
-  Alert,
-  Button,
-  Card,
-  Modal,
   PageHeader,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Button,
+  Alert,
   Spinner,
+  Badge,
+  Input,
+  Modal,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
+import { toast } from 'sonner';
 
 const INSTALL_COMMAND =
   'curl -fsSL https://raw.githubusercontent.com/mrAboalfazl/ProxyNet/master/scripts/install.sh | sudo bash -s -- --panel https://panel.civonex.ir --token';
 const DOCS_URL = 'https://github.com/mrAboalfazl/ProxyNet#readme';
+
 const faCountryNames: Record<string, string> = {
   DE: 'آلمان',
   FR: 'فرانسه',
@@ -39,29 +44,7 @@ const faCountryNames: Record<string, string> = {
 };
 
 function displayCountry(country: Country, lang: string) {
-  return lang === 'fa'
-    ? (faCountryNames[country.code] ?? country.name)
-    : country.name;
-}
-
-function statusColor(status: string) {
-  if (status === 'healthy')
-    return { bg: '#dcfce7', color: '#166534', icon: CheckCircle2 };
-  if (status === 'active')
-    return { bg: '#dbeafe', color: '#1d4ed8', icon: CheckCircle2 };
-  if (status === 'degraded')
-    return { bg: '#fef3c7', color: '#92400e', icon: Info };
-  if (status === 'pending')
-    return { bg: '#f3f4f6', color: '#6b7280', icon: Clock3 };
-  if (
-    status === 'disabled' ||
-    status === 'unhealthy' ||
-    status === 'quarantined'
-  )
-    return { bg: '#fee2e2', color: '#991b1b', icon: Info };
-  if (status === 'draining')
-    return { bg: '#fef3c7', color: '#92400e', icon: Clock3 };
-  return { bg: '#f3f4f6', color: '#374151', icon: Info };
+  return lang === 'fa' ? faCountryNames[country.code] ?? country.name : country.name;
 }
 
 function formatDate(value: string, lang: string) {
@@ -71,7 +54,9 @@ function formatDate(value: string, lang: string) {
 }
 
 export default function UserNodesPage() {
-  const { lang, isRTL } = useLang();
+  const { lang } = useLang();
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
   const [nodes, setNodes] = useState<Node[]>([]);
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,15 +73,20 @@ export default function UserNodesPage() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  async function load(showSpinner = true) {
+  async function load(showSpinner = true, showToast = false) {
     if (showSpinner) setLoading(true);
     else setRefreshing(true);
     try {
       const result = await api.myNodes.list();
       setNodes(result);
       setError('');
+      if (showToast) {
+        toast.success(tx('Nodes updated', 'فهرست نودها به‌روزرسانی شد'));
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load nodes');
+      const msg = e instanceof Error ? e.message : 'Failed to load nodes';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -115,11 +105,9 @@ export default function UserNodesPage() {
     () => ({
       total: nodes.length,
       healthy: nodes.filter((node) => node.status === 'healthy').length,
-      pending: nodes.filter(
-        (node) => node.status === 'pending' || !node.nodeSecretHash,
-      ).length,
+      pending: nodes.filter((node) => node.status === 'pending' || !node.nodeSecretHash).length,
     }),
-    [nodes],
+    [nodes]
   );
 
   const installCommand = newToken ? `${INSTALL_COMMAND} ${newToken.token}` : '';
@@ -141,9 +129,12 @@ export default function UserNodesPage() {
       setShowAdd(false);
       setLabel('');
       setCountryCode('');
+      toast.success(tx('Node registered successfully', 'نود با موفقیت ثبت شد'));
       await load(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add node');
+      const msg = e instanceof Error ? e.message : 'Failed to add node';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -154,341 +145,263 @@ export default function UserNodesPage() {
     try {
       await navigator.clipboard.writeText(installCommand);
       setCopied(true);
+      toast.success(tx('Install command copied to clipboard', 'دستور نصب در کلیپ‌بورد کپی شد'));
       window.setTimeout(() => setCopied(false), 2200);
     } catch {
-      setError(
+      toast.error(
         lang === 'fa'
           ? 'کپی خودکار انجام نشد؛ دستور را دستی کپی کنید.'
-          : 'Could not copy automatically; copy the command manually.',
+          : 'Could not copy automatically; copy the command manually.'
       );
     }
   }
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="nodes-page">
+    <div className="space-y-6">
       <PageHeader
         title={t(lang, 'nodes.title')}
+        description={tx(
+          'Connect your own servers as exit relays or forwarders in the ProxyNet pool.',
+          'اتصال سرورهای اختصاصی خود به عنوان نودهای خروج یا رله در استخر شبکه پروکسی‌نت.'
+        )}
         action={
-          <Button onClick={() => setShowAdd(true)}>
-            <Plus size={17} />
-            {t(lang, 'nodes.add')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => load(false, true)}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>{t(lang, 'nodes.refresh')}</span>
+            </Button>
+            <Button onClick={() => setShowAdd(true)} size="sm">
+              <Plus className="h-4 w-4" />
+              <span>{t(lang, 'nodes.add')}</span>
+            </Button>
+          </div>
         }
       />
 
-      {error && (
-        <div style={{ marginBottom: 16 }}>
-          <Alert message={error} />
-        </div>
-      )}
+      {error && <Alert message={error} type="error" />}
 
-      <section
-        className="nodes-hero user-card"
-        aria-labelledby="nodes-hero-title"
-      >
-        <div className="nodes-hero__icon">
-          <Server size={24} />
-        </div>
-        <div className="nodes-hero__body">
-          <span className="nodes-eyebrow">{t(lang, 'nodes.kicker')}</span>
-          <h2 id="nodes-hero-title">{t(lang, 'nodes.hero_title')}</h2>
-          <p>{t(lang, 'nodes.hero_desc')}</p>
-          <div className="nodes-hero__actions">
-            <Button onClick={() => setShowAdd(true)}>
-              <Plus size={17} />
-              {t(lang, 'nodes.add')}
-            </Button>
-            <a
-              className="nodes-text-link"
-              href={DOCS_URL}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t(lang, 'nodes.view_guide')} <ExternalLink size={14} />
-            </a>
+      {/* Hero Intro Card */}
+      <Card className="bg-gradient-to-br from-primary/5 via-card to-card border-border/80">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="p-3 rounded-xl bg-primary/10 text-primary shrink-0">
+                <Server className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                  {t(lang, 'nodes.kicker')}
+                </span>
+                <h2 className="text-lg font-bold">{t(lang, 'nodes.hero_title')}</h2>
+                <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+                  {t(lang, 'nodes.hero_desc')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <Button onClick={() => setShowAdd(true)} size="sm">
+                <Plus className="h-4 w-4" />
+                <span>{t(lang, 'nodes.add')}</span>
+              </Button>
+              <a href={DOCS_URL} target="_blank" rel="noreferrer">
+                <Button variant="outline" size="sm">
+                  <span>{t(lang, 'nodes.view_guide')}</span>
+                  <ExternalLink className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </a>
+            </div>
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="nodes-stats" aria-label={t(lang, 'nodes.title')}>
-        <Card className="nodes-stat">
-          <span>{t(lang, 'nodes.total')}</span>
-          <strong>{stats.total}</strong>
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="p-4 border-border/70">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t(lang, 'nodes.total')}
+          </span>
+          <div className="text-2xl font-bold font-mono mt-1">{stats.total}</div>
         </Card>
-        <Card className="nodes-stat">
-          <span>{t(lang, 'nodes.healthy_count')}</span>
-          <strong className="nodes-stat--green">{stats.healthy}</strong>
+        <Card className="p-4 border-border/70">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t(lang, 'nodes.healthy_count')}
+          </span>
+          <div className="text-2xl font-bold font-mono text-emerald-600 mt-1">
+            {stats.healthy}
+          </div>
         </Card>
-        <Card className="nodes-stat">
-          <span>{t(lang, 'nodes.pending_count')}</span>
-          <strong className="nodes-stat--amber">{stats.pending}</strong>
+        <Card className="p-4 border-border/70">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t(lang, 'nodes.pending_count')}
+          </span>
+          <div className="text-2xl font-bold font-mono text-amber-600 mt-1">
+            {stats.pending}
+          </div>
         </Card>
-      </section>
+      </div>
 
+      {/* New Node Install Token Banner */}
       {newToken && (
-        <section
-          className="nodes-install user-card"
-          aria-labelledby="nodes-install-title"
-        >
-          <div className="nodes-install__top">
-            <div className="nodes-install__icon">
-              <Terminal size={20} />
+        <Card className="border-2 border-primary bg-primary/5">
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <Terminal className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">{t(lang, 'nodes.install_title')}</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setNewToken(null)}
+                className="text-muted-foreground"
+              >
+                ✕
+              </Button>
             </div>
-            <div>
-              <span className="nodes-eyebrow">
-                {t(lang, 'nodes.next_step')}
+            <CardDescription className="text-xs">{t(lang, 'nodes.install_hint')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            <div className="relative">
+              <pre
+                className="p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"
+                dir="ltr"
+              >
+                {installCommand}
+              </pre>
+              <div className="absolute top-2 right-2">
+                <Button variant="secondary" size="sm" onClick={copyInstallCommand}>
+                  {copied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="text-emerald-600">{t(lang, 'nodes.copied')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>{t(lang, 'nodes.copy_cmd')}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
+              <span className="flex items-center gap-1 font-mono">
+                <Clock3 className="h-3.5 w-3.5" />
+                {t(lang, 'nodes.expires')}: {formatDate(newToken.expiresAt, lang)}
               </span>
-              <h2 id="nodes-install-title">{t(lang, 'nodes.install_title')}</h2>
+              <span>·</span>
+              <span>{t(lang, 'nodes.approval_hint')}</span>
             </div>
-            <button
-              className="user-icon-button"
-              type="button"
-              onClick={() => setNewToken(null)}
-              aria-label={t(lang, 'nodes.dismiss')}
-            >
-              ×
-            </button>
-          </div>
-          <p className="nodes-install__hint">{t(lang, 'nodes.install_hint')}</p>
-          <div className="nodes-steps nodes-steps--compact">
-            <div>
-              <span>1</span>
-              <p>{t(lang, 'nodes.install_step1')}</p>
-            </div>
-            <div>
-              <span>2</span>
-              <p>{t(lang, 'nodes.install_step2')}</p>
-            </div>
-            <div>
-              <span>3</span>
-              <p>{t(lang, 'nodes.install_step3')}</p>
-            </div>
-          </div>
-          <div className="nodes-command" dir="ltr">
-            <code>{installCommand}</code>
-            <button
-              type="button"
-              onClick={copyInstallCommand}
-              className="nodes-command__copy"
-            >
-              <Copy size={15} />
-              {copied ? t(lang, 'nodes.copied') : t(lang, 'nodes.copy_cmd')}
-            </button>
-          </div>
-          <div className="nodes-install__footer">
-            <span>
-              <Clock3 size={14} />
-              {t(lang, 'nodes.expires')} {formatDate(newToken.expiresAt, lang)}
-            </span>
-            <span>
-              <Info size={14} />
-              {t(lang, 'nodes.approval_hint')}
-            </span>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
       )}
 
-      <section className="nodes-how user-card">
-        <div className="nodes-section-heading">
-          <div>
-            <span className="nodes-eyebrow">
-              {t(lang, 'nodes.get_started')}
-            </span>
-            <h2>{t(lang, 'nodes.how_title')}</h2>
-          </div>
-          <div className="nodes-section-heading__badge">
-            <CheckCircle2 size={15} />
-            {t(lang, 'nodes.secure_setup')}
-          </div>
-        </div>
-        <div className="nodes-steps">
-          <div>
-            <span>1</span>
-            <h3>{t(lang, 'nodes.step_one_title')}</h3>
-            <p>{t(lang, 'nodes.step_one_desc')}</p>
-          </div>
-          <div>
-            <span>2</span>
-            <h3>{t(lang, 'nodes.step_two_title')}</h3>
-            <p>{t(lang, 'nodes.step_two_desc')}</p>
-          </div>
-          <div>
-            <span>3</span>
-            <h3>{t(lang, 'nodes.step_three_title')}</h3>
-            <p>{t(lang, 'nodes.step_three_desc')}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="nodes-list-section">
-        <div className="nodes-section-heading">
-          <div>
-            <span className="nodes-eyebrow">{t(lang, 'nodes.inventory')}</span>
-            <h2>{t(lang, 'nodes.your_nodes')}</h2>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => load(false)}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <Loader2 size={15} className="nodes-spin" />
-            ) : (
-              <RefreshCw size={15} />
-            )}
-            {t(lang, 'nodes.refresh')}
-          </Button>
-        </div>
-        {loading ? (
-          <Spinner />
-        ) : nodes.length === 0 ? (
-          <Card className="nodes-empty">
-            <div className="nodes-empty__icon">
-              <Server size={24} />
-            </div>
-            <h3>{t(lang, 'nodes.empty')}</h3>
-            <p>{t(lang, 'nodes.empty_msg')}</p>
-            <Button onClick={() => setShowAdd(true)}>
-              <Plus size={17} />
-              {t(lang, 'nodes.add')}
-            </Button>
-          </Card>
-        ) : (
-          <div className="nodes-grid">
-            {nodes.map((node) => {
-              const status = statusColor(node.status);
-              const StatusIcon = status.icon;
-              const enrolled = !!node.nodeSecretHash;
-              return (
-                <Card className="node-card" key={node.id}>
-                  <div className="node-card__top">
-                    <div className="node-card__identity">
-                      <div className="node-card__icon">
-                        <Server size={18} />
-                      </div>
-                      <div>
-                        <h3>{node.label}</h3>
-                        <span>
-                          {t(lang, 'nodes.created')}{' '}
-                          {formatDate(node.createdAt, lang)}
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      className="node-status"
-                      style={{ background: status.bg, color: status.color }}
-                    >
-                      <StatusIcon size={13} />
-                      {t(lang, `nodes.status.${node.status}`) || node.status}
-                    </span>
-                  </div>
-                  <div className="node-card__details">
-                    <div>
-                      <Globe2 size={15} />
-                      <span>{t(lang, 'nodes.country')}</span>
-                      <strong dir="ltr">{node.countryCode}</strong>
-                    </div>
-                    <div>
-                      <Terminal size={15} />
-                      <span>{t(lang, 'nodes.agent')}</span>
-                      <strong
-                        className={
-                          enrolled ? 'node-value--green' : 'node-value--muted'
-                        }
-                      >
-                        {enrolled
-                          ? t(lang, 'nodes.enrolled')
-                          : t(lang, 'nodes.not_enrolled')}
-                      </strong>
-                    </div>
-                  </div>
-                  {node.ipv4Address && (
-                    <div className="node-card__ip" dir="ltr">
-                      {node.ipv4Address}
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
+      {/* Node Registration Modal Dialog */}
       {showAdd && (
-        <Modal title={t(lang, 'nodes.add')} onClose={() => setShowAdd(false)}>
-          <div className="node-add-modal">
-            <div className="node-add-modal__intro">
-              <div className="node-add-modal__icon">
-                <Plus size={19} />
-              </div>
-              <div>
-                <h3>{t(lang, 'nodes.add_intro_title')}</h3>
-                <p>{t(lang, 'nodes.add_intro')}</p>
-              </div>
-            </div>
-            <label className="node-form-field">
-              <span>
-                {t(lang, 'nodes.label')}
-                <small>{t(lang, 'nodes.required')}</small>
-              </span>
-              <input
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                placeholder={t(lang, 'nodes.label.placeholder')}
-                autoFocus
-              />
-            </label>
-            <label className="node-form-field">
-              <span>
-                {t(lang, 'nodes.country')}
-                <small>{t(lang, 'nodes.required')}</small>
-              </span>
+        <Modal
+          title={t(lang, 'nodes.add')}
+          onClose={() => setShowAdd(false)}
+          open={showAdd}
+        >
+          <div className="space-y-4 pt-2">
+            <Input
+              label={tx('Node Label / Hostname', 'برچسب یا نام سرور')}
+              placeholder="e.g. Frankfurt-Relay-01"
+              value={label}
+              onChange={setLabel}
+              required
+            />
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                {tx('Country Location', 'موقعیت کشور سرور')}
+              </label>
               <select
                 value={countryCode}
-                onChange={(event) => setCountryCode(event.target.value)}
+                onChange={(e) => setCountryCode(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <option value="">{t(lang, 'nodes.country_select')}</option>
-                {countries.map((country) => (
-                  <option value={country.code} key={country.code}>
-                    {displayCountry(country, lang)} ({country.code})
+                <option value="">{tx('Select Country…', 'انتخاب کشور…')}</option>
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {displayCountry(c, lang)}
                   </option>
                 ))}
               </select>
-              <small className="node-form-help">
-                {t(lang, 'nodes.country_help')}
-              </small>
-            </label>
-            {!countries.length && (
-              <div className="node-form-notice">
-                <Info size={15} />
-                {t(lang, 'nodes.no_countries')}
-              </div>
-            )}
-            <div className="node-add-modal__actions">
-              <Button onClick={() => setShowAdd(false)} variant="secondary">
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
+              <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>
                 {t(lang, 'cancel')}
               </Button>
-              <Button
-                onClick={addNode}
-                disabled={creating || !label.trim() || !countryCode}
-              >
-                {creating ? (
-                  <>
-                    <Loader2 size={16} className="nodes-spin" />
-                    {t(lang, 'nodes.creating')}
-                  </>
-                ) : (
-                  <>
-                    <Plus size={16} />
-                    {t(lang, 'nodes.create')}
-                  </>
-                )}
+              <Button size="sm" onClick={addNode} disabled={creating || !label.trim() || !countryCode}>
+                {creating ? '...' : t(lang, 'nodes.add')}
               </Button>
             </div>
           </div>
         </Modal>
       )}
+
+      {/* Nodes List */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">{t(lang, 'nodes.your_nodes')}</h2>
+          <span className="text-xs text-muted-foreground font-mono">
+            {nodes.length} {tx('nodes total', 'نود')}
+          </span>
+        </div>
+
+        {loading ? (
+          <Spinner />
+        ) : nodes.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-muted-foreground space-y-3">
+            <Server className="h-8 w-8 mx-auto text-muted-foreground/60" />
+            <p className="font-semibold">{t(lang, 'nodes.empty')}</p>
+            <p className="text-xs">{t(lang, 'nodes.empty_msg')}</p>
+            <Button onClick={() => setShowAdd(true)} size="sm">
+              <Plus className="h-4 w-4" />
+              <span>{t(lang, 'nodes.add')}</span>
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {nodes.map((node) => {
+              const healthy = node.status === 'healthy';
+              return (
+                <Card key={node.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Server className="h-4 w-4 text-primary" />
+                        <span className="font-semibold text-sm">{node.label}</span>
+                      </div>
+                      <Badge
+                        label={healthy ? tx('Healthy', 'آنلاین') : node.status}
+                        variant={healthy ? 'success' : 'warning'}
+                      />
+                    </div>
+                    <CardDescription className="text-xs font-mono">
+                      {node.countryCode} · {t(lang, 'nodes.created')}: {formatDate(node.createdAt, lang)}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/40 font-mono">
+                      <span>Node ID:</span>
+                      <span>{node.id.slice(0, 16)}…</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

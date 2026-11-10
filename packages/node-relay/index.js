@@ -42,7 +42,7 @@ const HOST = process.env.RELAY_HOST || '0.0.0.0';
 const SOCKS_PORT = parseInt(process.env.SOCKS_PORT || '1080', 10);
 const SOCKS_HOST = process.env.SOCKS_HOST || '0.0.0.0';
 
-if (!NODE_SECRET) {
+if (require.main === module && !NODE_SECRET) {
   console.error('[node-relay] FATAL: NODE_SECRET env var is required');
   process.exit(1);
 }
@@ -69,37 +69,152 @@ function constantTimeEqual(a, b) {
   return timingSafeEqual(ab, bb);
 }
 
-function doFetch(params) {
-  return new Promise((resolve, reject) => {
-    let parsed;
-    try { parsed = new URL(params.url); } catch { return reject(new Error('Invalid URL')); }
-    if (!['http:', 'https:'].includes(parsed.protocol)) return reject(new Error('Only http/https supported'));
-    if (isBlockedHost(parsed.hostname)) return reject(new Error('Blocked destination host'));
+function isBinaryContentType(contentType) {
+  if (!contentType) return false;
+  const ct = contentType.toLowerCase().split(';')[0].trim();
+  if (
+    ct.startsWith('text/') ||
+    ct === 'application/json' ||
+    ct === 'application/javascript' ||
+    ct === 'application/xml' ||
+    ct === 'application/xhtml+xml' ||
+    ct === 'application/x-yaml' ||
+    ct === 'application/csv' ||
+    ct === 'application/x-www-form-urlencoded' ||
+    ct.endsWith('+json') ||
+    ct.endsWith('+xml')
+  ) {
+    return false;
+  }
+  return true;
+}
 
-    const method = (params.method || 'GET').toUpperCase();
-    const requestBody = params.body ? Buffer.from(params.body, 'utf8') : undefined;
+async function doFetch(params) {
+  const shouldFollowRedirects = params.followRedirects !== false;
+  const maxRedirects = Math.min(Math.max(params.maxRedirects ?? 5, 0), 10);
+  const effectiveTimeoutMs = Math.min(
+    Math.max(params.timeoutMs ?? REQUEST_TIMEOUT_MS, 1_000),
+    60_000
+  );
+
+  let currentUrl = params.url;
+  let currentMethod = (params.method || 'GET').toUpperCase();
+  let currentBodyStr = params.body;
+  let currentIsBase64 = params.isBase64;
+  let redirectsCount = 0;
+  let totalBytesIn = 0;
+  let totalBytesOut = 0;
+
+  while (true) {
+    let parsed;
+    try {
+      parsed = new URL(currentUrl);
+    } catch {
+      throw new Error(`Invalid URL: ${currentUrl}`);
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Only http/https supported');
+    }
+    if (isBlockedHost(parsed.hostname)) {
+      throw new Error('Blocked destination host');
+    }
+
+    let requestBody;
+    if (currentBodyStr) {
+      requestBody = currentIsBase64
+        ? Buffer.from(currentBodyStr, 'base64')
+        : Buffer.from(currentBodyStr, 'utf8');
+    }
     const bytesOut = requestBody ? requestBody.length : 0;
+    totalBytesOut += bytesOut;
 
     const safeHeaders = { 'User-Agent': 'ProxyNet-NodeRelay/1.0' };
     for (const [k, v] of Object.entries(params.headers || {})) {
       const lower = k.toLowerCase();
-      if (['host', 'connection', 'content-length', 'transfer-encoding',
-           'authorization', 'proxy-authorization'].includes(lower)) continue;
+      // Drop hop-by-hop headers and proxy-authorization. Crucially KEEP 'authorization'!
+      if (
+        [
+          'host',
+          'connection',
+          'content-length',
+          'transfer-encoding',
+          'proxy-authorization',
+          'keep-alive',
+          'upgrade',
+        ].includes(lower)
+      ) {
+        continue;
+      }
       safeHeaders[k] = v;
     }
     if (requestBody) safeHeaders['Content-Length'] = String(requestBody.length);
 
-    const lib = parsed.protocol === 'https:' ? https : http;
-    const defaultPort = parsed.protocol === 'https:' ? 443 : 80;
-
-    const req = lib.request({
-      hostname: parsed.hostname,
-      port: parsed.port ? parseInt(parsed.port, 10) : defaultPort,
-      path: parsed.pathname + parsed.search,
-      method,
+    const singleResult = await executeSingleHttp({
+      parsed,
+      method: currentMethod,
       headers: safeHeaders,
-      timeout: REQUEST_TIMEOUT_MS,
-    }, (res) => {
+      body: requestBody,
+      timeoutMs: effectiveTimeoutMs,
+      insecure: params.insecure,
+      responseEncoding: params.responseEncoding,
+    });
+
+    totalBytesIn += singleResult.bytesIn;
+
+    const isRedirect = [301, 302, 303, 307, 308].includes(singleResult.status);
+    const location = singleResult.headers['location'];
+    if (shouldFollowRedirects && isRedirect && location && redirectsCount < maxRedirects) {
+      redirectsCount++;
+      currentUrl = new URL(location, currentUrl).toString();
+
+      if (singleResult.status === 303) {
+        currentMethod = 'GET';
+        currentBodyStr = undefined;
+        currentIsBase64 = false;
+      } else if (
+        (singleResult.status === 301 || singleResult.status === 302) &&
+        currentMethod === 'POST'
+      ) {
+        currentMethod = 'GET';
+        currentBodyStr = undefined;
+        currentIsBase64 = false;
+      }
+      continue;
+    }
+
+    return {
+      status: singleResult.status,
+      headers: singleResult.headers,
+      body: singleResult.body,
+      isBase64: singleResult.isBase64,
+      bytesIn: totalBytesIn,
+      bytesOut: totalBytesOut,
+      redirectsFollowed: redirectsCount,
+    };
+  }
+}
+
+function executeSingleHttp(options) {
+  return new Promise((resolve, reject) => {
+    const isHttps = options.parsed.protocol === 'https:';
+    const lib = isHttps ? https : http;
+    const defaultPort = isHttps ? 443 : 80;
+
+    const reqOptions = {
+      hostname: options.parsed.hostname,
+      port: options.parsed.port ? parseInt(options.parsed.port, 10) : defaultPort,
+      path: options.parsed.pathname + options.parsed.search,
+      method: options.method,
+      headers: options.headers,
+      timeout: options.timeoutMs,
+    };
+
+    if (isHttps && options.insecure) {
+      reqOptions.rejectUnauthorized = false;
+    }
+
+    const req = lib.request(reqOptions, (res) => {
       const chunks = [];
       let total = 0;
       res.on('data', (chunk) => {
@@ -111,19 +226,31 @@ function doFetch(params) {
         chunks.push(chunk);
       });
       res.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf8');
+        const buffer = Buffer.concat(chunks);
         const outHeaders = {};
         for (const [k, v] of Object.entries(res.headers)) {
           if (typeof v === 'string') outHeaders[k] = v;
           else if (Array.isArray(v)) outHeaders[k] = v.join(', ');
         }
-        resolve({ status: res.statusCode || 200, headers: outHeaders, body, bytesIn: total, bytesOut });
+        const contentType = outHeaders['content-type'];
+        const shouldBase64 =
+          options.responseEncoding === 'base64' ||
+          (options.responseEncoding !== 'utf8' && isBinaryContentType(contentType));
+
+        resolve({
+          status: res.statusCode || 200,
+          headers: outHeaders,
+          body: shouldBase64 ? buffer.toString('base64') : buffer.toString('utf8'),
+          isBase64: shouldBase64,
+          bytesIn: total,
+        });
       });
       res.on('error', reject);
     });
+
     req.on('error', reject);
-    req.on('timeout', () => req.destroy(new Error('Request timed out after 30s')));
-    if (requestBody) req.write(requestBody);
+    req.on('timeout', () => req.destroy(new Error(`Request timed out after ${options.timeoutMs}ms`)));
+    if (options.body) req.write(options.body);
     req.end();
   });
 }
@@ -191,9 +318,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`[node-relay] listening on ${HOST}:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    console.log(`[node-relay] listening on ${HOST}:${PORT}`);
+  });
+}
 
 // SOCKS5 is deliberately a separate listener from the private HTTP relay. It
 // accepts only username/password authentication, verifies every new connection
@@ -588,7 +717,7 @@ async function connectSocksDestination(client, context, host, port, takePendingD
   connectNext(0);
 }
 
-if (CONTROL_PLANE_URL && NODE_ID && Number.isInteger(SOCKS_PORT) && SOCKS_PORT > 0 && SOCKS_PORT < 65536) {
+if (require.main === module && CONTROL_PLANE_URL && NODE_ID && Number.isInteger(SOCKS_PORT) && SOCKS_PORT > 0 && SOCKS_PORT < 65536) {
   const socksServer = net.createServer(createSocksConnection);
   socksServer.on('error', (error) => console.error(`[socks5] server error: ${error.message}`));
   socksServer.listen(SOCKS_PORT, SOCKS_HOST, () => {
@@ -604,3 +733,6 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
     server.close(() => process.exit(0));
   });
 }
+
+module.exports = { doFetch, isBinaryContentType };
+

@@ -2,39 +2,53 @@
 
 import { useEffect, useState } from 'react';
 import { api, WalletMeResponse, WalletTransaction } from '../../../lib/api';
-import { PageHeader, Card, Alert, Spinner, colors } from '../../../components/user-ui';
+import {
+  PageHeader,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Alert,
+  Spinner,
+  Badge,
+  Table,
+  Tr,
+  Td,
+} from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { AccountStatusStrip } from '../../../lib/account-status';
+import {
+  Wallet,
+  Coins,
+  AlertCircle,
+  Receipt,
+  Sparkles,
+} from 'lucide-react';
 
 function fmtNum(n: string | number, lang: string): string {
   const num = typeof n === 'string' ? Number(n) : n;
   return num.toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
 }
 
-function typeColor(type: string, amount: bigint): { bg: string; color: string } {
-  const positive = amount >= 0n;
-  if (type.startsWith('topup')) return { bg: '#dcfce7', color: '#166534' };
-  if (type === 'refund') return { bg: '#dbeafe', color: '#1e40af' };
-  if (type === 'adjustment_admin') return positive
-    ? { bg: '#e0e7ff', color: '#3730a3' }
-    : { bg: '#fef3c7', color: '#92400e' };
-  return { bg: '#fee2e2', color: '#991b1b' }; // debits (gateway_call / forwarder_call)
-}
-
 export default function WalletPage() {
   const { lang } = useLang();
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
   const [wallet, setWallet] = useState<WalletMeResponse | null>(null);
   const [txns, setTxns] = useState<WalletTransaction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([api.wallet.me(), api.wallet.transactions(50)])
-      .then(([w, t]) => { setWallet(w); setTxns(t); })
+      .then(([w, t]) => {
+        setWallet(w);
+        setTxns(t);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'load failed'));
   }, []);
 
-  if (error) return <Alert message={error} />;
+  if (error) return <Alert message={error} type="error" />;
   if (!wallet || !txns) return <Spinner />;
 
   const balance = BigInt(wallet.balanceToman);
@@ -42,150 +56,207 @@ export default function WalletPage() {
   const belowMin = balance < minBalance;
 
   return (
-    <div>
+    <div className="space-y-6">
       <AccountStatusStrip lang={lang} />
-      <PageHeader title={t(lang, 'wallet.title')} />
 
-      {/* Balance card */}
-      <Card style={{
-        padding: '28px 30px', marginBottom: 20,
-        background: belowMin
-          ? 'linear-gradient(135deg, #fef2f2 0%, #ffffff 60%)'
-          : 'linear-gradient(135deg, #ecfdf5 0%, #ffffff 60%)',
-        border: `1px solid ${belowMin ? '#fecaca' : '#a7f3d0'}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t(lang, 'wallet.balance')}
+      <PageHeader
+        title={t(lang, 'wallet.title')}
+        description={tx(
+          'View your prepaid credit balance, platform tariffs, and ledger history.',
+          'مشاهده اعتبار پیش‌پرداخت، نرخ‌های فعال سامانه و صورت‌حساب ریز تراکنش‌ها.'
+        )}
+      />
+
+      {/* Main Balance Banner Card */}
+      <Card
+        className={`border-2 ${
+          belowMin
+            ? 'border-destructive/40 bg-gradient-to-br from-destructive/10 via-background to-background'
+            : 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-background to-background'
+        }`}
+      >
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Wallet className="h-4 w-4" />
+                <span>{t(lang, 'wallet.balance')}</span>
+              </div>
+              <div className="flex items-baseline gap-2 pt-1">
+                <span
+                  className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${
+                    belowMin ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
+                  }`}
+                  dir="ltr"
+                >
+                  {fmtNum(wallet.balanceToman, lang)}
+                </span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {t(lang, 'wallet.currency')}
+                </span>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
-              <span style={{ fontSize: 42, fontWeight: 700, color: belowMin ? '#991b1b' : '#065f46', direction: 'ltr' }}>
-                {fmtNum(wallet.balanceToman, lang)}
+
+            <Badge
+              label={belowMin ? tx('Low Balance', 'نیازمند شارژ') : tx('Good Standing', 'موجودی کافی')}
+              variant={belowMin ? 'destructive' : 'success'}
+              className="self-start sm:self-auto py-1 px-3 text-xs"
+            />
+          </div>
+
+          {belowMin && (
+            <div className="mt-4 p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-xs sm:text-sm text-destructive flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>
+                {balance === 0n
+                  ? t(lang, 'wallet.zero_balance').replace(
+                      '{min}',
+                      fmtNum(wallet.pricing.minBalanceToman, lang)
+                    )
+                  : t(lang, 'wallet.low_balance_warning')}
               </span>
-              <span style={{ fontSize: 15, color: colors.textMuted }}>{t(lang, 'wallet.currency')}</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Pricing Rates Overview */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Coins className="h-5 w-5 text-primary" />
+            <CardTitle className="text-base">{t(lang, 'wallet.pricing_title')}</CardTitle>
+          </div>
+          <CardDescription className="text-xs">
+            {tx(
+              'Automated billing rules applied on every forwarder and gateway request.',
+              'نرخ‌های کسر اعتبار به ازای هر درخواست و ترافیک ارسالی.'
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-lg border bg-muted/20 space-y-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t(lang, 'wallet.pricing_per_request')}
+              </span>
+              <div className="flex items-baseline gap-1 pt-1 font-mono">
+                <span className="text-xl font-bold">
+                  {fmtNum(wallet.pricing.perRequestToman, lang)}
+                </span>
+                <span className="text-xs text-muted-foreground">{t(lang, 'wallet.currency')}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border bg-muted/20 space-y-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t(lang, 'wallet.pricing_per_mb')}
+              </span>
+              <div className="flex items-baseline gap-1 pt-1 font-mono">
+                <span className="text-xl font-bold">
+                  {fmtNum(wallet.pricing.perMbToman, lang)}
+                </span>
+                <span className="text-xs text-muted-foreground">{t(lang, 'wallet.currency')}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border bg-muted/20 space-y-1">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t(lang, 'wallet.pricing_min_balance')}
+              </span>
+              <div className="flex items-baseline gap-1 pt-1 font-mono">
+                <span className="text-xl font-bold">
+                  {fmtNum(wallet.pricing.minBalanceToman, lang)}
+                </span>
+                <span className="text-xs text-muted-foreground">{t(lang, 'wallet.currency')}</span>
+              </div>
             </div>
           </div>
-        </div>
-        {belowMin && (
-          <div style={{
-            marginTop: 18, padding: '12px 16px', borderRadius: 6, background: '#fef2f2',
-            border: '1px solid #fca5a5', fontSize: 13, color: '#991b1b', lineHeight: 1.5,
-          }}>
-            ⚠ {balance === 0n
-              ? t(lang, 'wallet.zero_balance').replace('{min}', fmtNum(wallet.pricing.minBalanceToman, lang))
-              : t(lang, 'wallet.low_balance_warning')}
+
+          <div className="p-3 rounded-lg border bg-sky-50 dark:bg-sky-950/20 text-xs text-sky-900 dark:text-sky-200 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-sky-600 shrink-0" />
+            <span>{t(lang, 'wallet.topup_note')}</span>
           </div>
-        )}
+        </CardContent>
       </Card>
 
-      {/* Pricing card */}
-      <Card style={{ padding: '20px 26px', marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy, marginBottom: 12 }}>
-          {t(lang, 'wallet.pricing_title')}
+      {/* Transaction History Ledger */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Receipt className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-base font-semibold">{t(lang, 'wallet.transactions')}</h2>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-          <PriceStat label={t(lang, 'wallet.pricing_per_request')} value={fmtNum(wallet.pricing.perRequestToman, lang)} unit={t(lang, 'wallet.currency')} />
-          <PriceStat label={t(lang, 'wallet.pricing_per_mb')} value={fmtNum(wallet.pricing.perMbToman, lang)} unit={t(lang, 'wallet.currency')} />
-          <PriceStat label={t(lang, 'wallet.pricing_min_balance')} value={fmtNum(wallet.pricing.minBalanceToman, lang)} unit={t(lang, 'wallet.currency')} />
-        </div>
-        <p style={{ margin: '16px 0 0', padding: '10px 14px', borderRadius: 6, background: '#f0f9ff', color: '#0c4a6e', fontSize: 12, lineHeight: 1.6 }}>
-          💡 {t(lang, 'wallet.topup_note')}
-        </p>
-      </Card>
 
-      {/* Transactions */}
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '18px 24px 12px', borderBottom: `1px solid ${colors.border}` }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: colors.navy }}>
-            {t(lang, 'wallet.transactions')}
-          </div>
-        </div>
         {txns.length === 0 ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: colors.textMuted, fontSize: 13 }}>
-            {t(lang, 'wallet.no_transactions')}
-          </div>
+          <Card className="p-8 text-center text-sm text-muted-foreground">
+            <p>{t(lang, 'wallet.no_transactions')}</p>
+          </Card>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: `1px solid ${colors.border}` }}>
-                  <Th>{t(lang, 'wallet.tx.date')}</Th>
-                  <Th>{t(lang, 'wallet.tx.type')}</Th>
-                  <Th>{t(lang, 'wallet.tx.description')}</Th>
-                  <Th align="end">{t(lang, 'wallet.tx.amount')}</Th>
-                  <Th align="end">{t(lang, 'wallet.tx.balance')}</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {txns.map((tx) => {
-                  const amount = BigInt(tx.amountToman);
-                  const isCredit = amount >= 0n;
-                  const chip = typeColor(tx.type, amount);
-                  return (
-                    <tr key={tx.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                      <Td style={{ color: colors.textMuted, fontSize: 12 }}>
-                        {new Date(tx.createdAt).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US', {
-                          dateStyle: 'short', timeStyle: 'short',
-                        })}
-                      </Td>
-                      <Td>
-                        <span style={{
-                          padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
-                          background: chip.bg, color: chip.color, whiteSpace: 'nowrap',
-                        }}>
-                          {t(lang, `wallet.type.${tx.type}`) === `wallet.type.${tx.type}` ? tx.type : t(lang, `wallet.type.${tx.type}`)}
-                        </span>
-                      </Td>
-                      <Td style={{ fontSize: 12, color: colors.textMuted, maxWidth: 420, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                          title={tx.description ?? ''}>
-                        {tx.description ?? '—'}
-                      </Td>
-                      <Td align="end" style={{
-                        fontVariantNumeric: 'tabular-nums', fontWeight: 600, direction: 'ltr',
-                        color: isCredit ? '#166534' : '#991b1b',
-                      }}>
-                        {isCredit ? '+' : ''}{fmtNum(tx.amountToman, lang)}
-                      </Td>
-                      <Td align="end" style={{ fontVariantNumeric: 'tabular-nums', color: colors.textMuted, direction: 'ltr' }}>
-                        {fmtNum(tx.balanceAfterToman, lang)}
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <Card className="overflow-hidden">
+            <Table
+              headers={[
+                t(lang, 'wallet.tx.date'),
+                t(lang, 'wallet.tx.type'),
+                t(lang, 'wallet.tx.description'),
+                t(lang, 'wallet.tx.amount'),
+                t(lang, 'wallet.tx.balance'),
+              ]}
+            >
+              {txns.map((txItem) => {
+                const amount = BigInt(txItem.amountToman);
+                const isCredit = amount >= 0n;
+
+                return (
+                  <Tr key={txItem.id}>
+                    <Td>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(txItem.createdAt).toLocaleString(
+                          lang === 'fa' ? 'fa-IR' : 'en-US',
+                          { dateStyle: 'short', timeStyle: 'short' }
+                        )}
+                      </span>
+                    </Td>
+                    <Td>
+                      <Badge
+                        label={
+                          t(lang, `wallet.type.${txItem.type}`) ===
+                          `wallet.type.${txItem.type}`
+                            ? txItem.type
+                            : t(lang, `wallet.type.${txItem.type}`)
+                        }
+                        variant={isCredit ? 'success' : 'secondary'}
+                      />
+                    </Td>
+                    <Td>
+                      <span
+                        className="text-xs text-muted-foreground line-clamp-1 max-w-[280px]"
+                        title={txItem.description ?? ''}
+                      >
+                        {txItem.description || '—'}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span
+                        className={`text-xs font-mono font-bold ${
+                          isCredit ? 'text-emerald-600' : 'text-destructive'
+                        }`}
+                        dir="ltr"
+                      >
+                        {isCredit ? '+' : ''}
+                        {fmtNum(txItem.amountToman, lang)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="text-xs font-mono text-muted-foreground" dir="ltr">
+                        {fmtNum(txItem.balanceAfterToman, lang)}
+                      </span>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </Table>
+          </Card>
         )}
-      </Card>
-    </div>
-  );
-}
-
-function Th({ children, align = 'start' }: { children: React.ReactNode; align?: 'start' | 'end' }) {
-  return (
-    <th style={{
-      padding: '10px 16px', textAlign: align, fontWeight: 600, fontSize: 11,
-      color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em',
-    }}>
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, align = 'start', style, title }: { children: React.ReactNode; align?: 'start' | 'end'; style?: React.CSSProperties; title?: string }) {
-  return <td style={{ padding: '10px 16px', textAlign: align, ...style }} title={title}>{children}</td>;
-}
-
-function PriceStat({ label, value, unit }: { label: string; value: string; unit: string }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: colors.text, direction: 'ltr' }}>{value}</span>
-        <span style={{ fontSize: 12, color: colors.textMuted }}>{unit}</span>
       </div>
     </div>
   );
