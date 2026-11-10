@@ -7,6 +7,7 @@ import {
   WalletMeResponse,
   Forwarder,
   Socks5Endpoint,
+  getPublicApiBase,
 } from '../../../lib/api';
 import {
   StatCard,
@@ -41,8 +42,6 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'http://localhost:3001/api';
-
 interface Me {
   id: string;
   displayName: string | null;
@@ -73,6 +72,11 @@ function fmtNum(n: string | number, lang: string): string {
 export default function UserDashboardPage() {
   const { lang, isRTL } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
+  const [apiBase, setApiBase] = useState<string>(() => getPublicApiBase());
+  useEffect(() => {
+    setApiBase(getPublicApiBase());
+  }, []);
 
   const [me, setMe] = useState<Me | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
@@ -355,7 +359,7 @@ export default function UserDashboardPage() {
         {/* Quick Connection Endpoint Widget */}
         <div className="xl:col-span-5 flex flex-col">
           <GatewayCard
-            apiBase={API_BASE}
+            apiBase={apiBase}
             activeCred={activeCred}
             socksEndpoints={socksEndpoints}
             socksRequiresPlan={socksRequiresPlan}

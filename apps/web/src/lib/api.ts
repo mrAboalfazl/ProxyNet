@@ -1,5 +1,15 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
+export function getPublicApiBase(): string {
+  if (process.env.NEXT_PUBLIC_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
+  }
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return `${window.location.origin}/api`;
+  }
+  return 'https://panel.civonex.ir/api';
+}
+
 export function getToken(): string {
   if (typeof window === 'undefined') return '';
   return localStorage.getItem('admin_token') || '';

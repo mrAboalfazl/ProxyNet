@@ -48,6 +48,9 @@ Thumbs.db
 
 # Next.js
 .next
+
+# Agent binaries
+agent/platform-agent-*
 out
 
 test-output

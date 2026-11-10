@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api, Forwarder } from '../../../lib/api';
+import { api, Forwarder, getPublicApiBase } from '../../../lib/api';
 import {
   PageHeader,
   Card,
@@ -30,8 +30,6 @@ import {
   Trash2,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'http://localhost:3000/api';
-
 type TestState =
   | { loading: true }
   | { loading: false; ok: boolean; status?: number; timeMs?: number; msg?: string };
@@ -59,6 +57,10 @@ function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }
 export default function ForwardersPage() {
   const { lang } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+  const [apiBase, setApiBase] = useState<string>(() => getPublicApiBase());
+  useEffect(() => {
+    setApiBase(getPublicApiBase());
+  }, []);
   const [userSlug, setUserSlug] = useState('');
   const [fwds, setFwds] = useState<Forwarder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,7 +196,7 @@ export default function ForwardersPage() {
     return fwds.find((f) => f.enabled) ?? fwds[0];
   }, [fwds, exampleFwdId]);
   const featuredUrl =
-    featuredForwarder && userSlug ? `${API_BASE}/f/${userSlug}/${featuredForwarder.slug}` : null;
+    featuredForwarder && userSlug ? `${apiBase}/f/${userSlug}/${featuredForwarder.slug}` : null;
 
   return (
     <div className="space-y-6">
@@ -326,7 +328,7 @@ export default function ForwardersPage() {
       ) : (
         <div className="space-y-4">
           {fwds.map((fwd) => {
-            const publicUrl = `${API_BASE}/f/${userSlug}/${fwd.slug}`;
+            const publicUrl = `${apiBase}/f/${userSlug}/${fwd.slug}`;
             const isCopied = copiedId === fwd.id;
 
             return (

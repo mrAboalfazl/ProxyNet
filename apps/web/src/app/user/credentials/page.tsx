@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api, Socks5Endpoint } from '../../../lib/api';
+import { api, Socks5Endpoint, getPublicApiBase } from '../../../lib/api';
 import {
   PageHeader,
   Card,
@@ -33,8 +33,6 @@ import {
   Lock,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_PUBLIC_API_BASE || 'http://localhost:3001/api';
-
 interface Credential {
   id: string;
   uuid: string;
@@ -60,12 +58,14 @@ function SecretBanner({
   lang,
   endpoints,
   requiresActivePlan,
+  apiBase,
   onDismiss,
 }: {
   cred: NewlyCreated;
   lang: string;
   endpoints: Socks5Endpoint[];
   requiresActivePlan: boolean;
+  apiBase: string;
   onDismiss: () => void;
 }) {
   const basicAuth = buildBasicAuth(cred.uuid, cred.secret);
@@ -80,7 +80,7 @@ function SecretBanner({
     setTimeout(() => setCopiedKey(null), 2000);
   }
 
-  const curlExample = `curl -X POST ${API_BASE}/gateway/fetch \\
+  const curlExample = `curl -X POST ${apiBase}/gateway/fetch \\
   -H "Authorization: Basic ${basicAuth}" \\
   -H "Content-Type: application/json" \\
   -d '{"url":"https://example.com/api/data"}'`;
@@ -185,6 +185,10 @@ function SecretBanner({
 export default function UserCredentialsPage() {
   const { lang } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+  const [apiBase, setApiBase] = useState<string>(() => getPublicApiBase());
+  useEffect(() => {
+    setApiBase(getPublicApiBase());
+  }, []);
   const [creds, setCreds] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -325,6 +329,7 @@ export default function UserCredentialsPage() {
           lang={lang}
           endpoints={socksEndpoints}
           requiresActivePlan={socksRequiresPlan}
+          apiBase={apiBase}
           onDismiss={() => setNewlyCreated(null)}
         />
       )}
@@ -484,7 +489,7 @@ export default function UserCredentialsPage() {
             <CodeExamplesPanel
               lang={lang}
               intro={t(lang, 'examples.intro.gateway')}
-              snippets={buildGatewaySnippets(API_BASE, featuredCred.uuid)}
+              snippets={buildGatewaySnippets(apiBase, featuredCred.uuid)}
             />
           </div>
         ) : (

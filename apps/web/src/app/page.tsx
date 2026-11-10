@@ -196,7 +196,7 @@ export default function LandingPage() {
               </div>
               <pre className="p-4 text-xs font-mono leading-relaxed text-zinc-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" dir="ltr">
                 <code>{`# Outbound API Request via ProxyNet Gateway
-curl -X POST "http://localhost:3000/api/gateway/fetch" \\
+curl -X POST "https://panel.civonex.ir/api/gateway/fetch" \\
   -H "Authorization: Basic base64(uuid:secret)" \\
   -H "Content-Type: application/json" \\
   -d '{"url": "https://api.ipify.org?format=json"}'
