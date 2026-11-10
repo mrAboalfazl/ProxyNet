@@ -17,6 +17,13 @@ import {
   ApiPropertyOptional,
   ApiBasicAuth,
 } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
+} from 'class-validator';
 import { GatewayService } from './gateway.service';
 import { ProxyCredentialsService } from '../proxy-credentials/proxy-credentials.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -27,6 +34,8 @@ export class FetchRequestDto {
     description: 'آدرس کامل مقصد جهت ارسال درخواست (Target URL)',
     example: 'https://api.ipify.org?format=json',
   })
+  @IsString()
+  @IsNotEmpty()
   url: string;
 
   @ApiPropertyOptional({
@@ -35,6 +44,8 @@ export class FetchRequestDto {
     enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'],
     default: 'GET',
   })
+  @IsOptional()
+  @IsString()
   method?: string;
 
   @ApiPropertyOptional({
@@ -45,12 +56,15 @@ export class FetchRequestDto {
       'User-Agent': 'ProxyNetClient/1.0',
     },
   })
+  @IsOptional()
   headers?: Record<string, string>;
 
   @ApiPropertyOptional({
     description: 'بدنه درخواست در متدهای POST/PUT (متن معمولی یا Base64)',
     example: '{"key": "value"}',
   })
+  @IsOptional()
+  @IsString()
   body?: string;
 
   @ApiPropertyOptional({
@@ -58,6 +72,8 @@ export class FetchRequestDto {
     example: false,
     default: false,
   })
+  @IsOptional()
+  @IsBoolean()
   isBase64?: boolean;
 
   @ApiPropertyOptional({
@@ -66,6 +82,8 @@ export class FetchRequestDto {
     enum: ['auto', 'utf8', 'base64'],
     default: 'auto',
   })
+  @IsOptional()
+  @IsString()
   responseEncoding?: 'utf8' | 'base64' | 'auto';
 
   @ApiPropertyOptional({
@@ -73,6 +91,8 @@ export class FetchRequestDto {
     example: true,
     default: true,
   })
+  @IsOptional()
+  @IsBoolean()
   followRedirects?: boolean;
 
   @ApiPropertyOptional({
@@ -80,6 +100,8 @@ export class FetchRequestDto {
     example: 5,
     default: 5,
   })
+  @IsOptional()
+  @IsNumber()
   maxRedirects?: number;
 
   @ApiPropertyOptional({
@@ -88,6 +110,8 @@ export class FetchRequestDto {
     example: false,
     default: false,
   })
+  @IsOptional()
+  @IsBoolean()
   insecure?: boolean;
 
   @ApiPropertyOptional({
@@ -95,6 +119,8 @@ export class FetchRequestDto {
     example: 30000,
     default: 30000,
   })
+  @IsOptional()
+  @IsNumber()
   timeoutMs?: number;
 }
 
