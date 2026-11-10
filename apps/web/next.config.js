@@ -3,7 +3,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
-    const cpPort = process.env.CONTROL_PLANE_PORT || '3001';
+    const cpPort = process.env.CONTROL_PLANE_PORT || '3000';
     return [
       {
         source: '/api/:path*',
