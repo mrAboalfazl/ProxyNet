@@ -362,7 +362,8 @@ export class ForwarderProxyController {
         url: finalUrl,
         method,
         headers,
-        body: body?.toString('utf8'),
+        body: body ? body.toString('base64') : undefined,
+        isBase64: !!body,
       }),
       'utf8',
     );
@@ -399,13 +400,17 @@ export class ForwarderProxyController {
                 status: number;
                 headers: Record<string, string>;
                 body: string;
+                isBase64?: boolean;
                 bytesIn: number;
                 bytesOut: number;
               };
               resolve({
                 status: envelope.status,
                 headers: envelope.headers,
-                body: Buffer.from(envelope.body ?? '', 'utf8'),
+                body: Buffer.from(
+                  envelope.body ?? '',
+                  envelope.isBase64 ? 'base64' : 'utf8',
+                ),
                 bytesIn: envelope.bytesIn ?? 0,
                 bytesOut: envelope.bytesOut ?? 0,
               });
