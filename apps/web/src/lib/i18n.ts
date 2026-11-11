@@ -130,6 +130,7 @@ const tr: Record<Lang, Record<string, string>> = {
     // User layout
     'user.panel': 'ProxyNet',
     'user.nav.dashboard': 'Dashboard',
+    'user.nav.plans': 'Plans & Subscription',
     'user.nav.credentials': 'My Credentials',
     'user.nav.profile': 'Profile',
     'user.signout': 'Sign out',
@@ -145,7 +146,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'udash.used': 'used',
     'udash.period': 'Period',
     'udash.no_plan': 'No active plan',
-    'udash.no_plan_msg': 'Contact your administrator to get a plan assigned.',
+    'udash.no_plan_msg': 'Choose a plan and activate it from your wallet balance.',
     'udash.proxy_title': 'Proxy Credentials',
     'udash.proxy_msg':
       'Manage your VLESS credentials and copy connection URIs.',
@@ -170,7 +171,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'cred.status.revoked': 'Revoked',
 
     // User nodes
-    'user.nav.nodes': 'My Nodes',
+    'user.nav.nodes': 'My Private Nodes',
     'user.nav.forwarders': 'Forwarders',
     'user.nav.wallet': 'Wallet',
     'user.nav.billing': 'Usage & billing',
@@ -195,7 +196,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.tx.amount': 'Amount',
     'wallet.tx.balance': 'Balance',
     'wallet.topup_note':
-      'To add funds, contact support. Automatic payment integration is coming soon.',
+      'Wallet top-up is handled by an administrator. Contact support to add funds; plan purchases are paid from your wallet balance.',
+    'wallet.type.plan_purchase': 'Plan purchase',
     'wallet.type.topup_admin': 'Admin top-up',
     'wallet.type.forwarder_call': 'Forwarder call',
     'wallet.type.gateway_call': 'Gateway call',
@@ -269,10 +271,10 @@ const tr: Record<Lang, Record<string, string>> = {
     'health.plan': 'plan',
     'health.no_plan': 'no plan assigned',
     'health.last_checked': 'last checked',
-    'nodes.title': 'My Nodes',
+    'nodes.title': 'My Private Nodes',
     'nodes.add': 'Add Node',
     'nodes.kicker': 'Network contribution',
-    'nodes.hero_title': 'Add your own server to ProxyNet',
+    'nodes.hero_title': 'Connect your own server (optional BYO node)',
     'nodes.hero_desc':
       'Connect a server you control and help expand the network. You will receive a one-time installation command after creating the node.',
     'nodes.view_guide': 'View setup guide',
@@ -486,6 +488,7 @@ const tr: Record<Lang, Record<string, string>> = {
 
     'user.panel': 'پروکسی‌نت',
     'user.nav.dashboard': 'داشبورد',
+    'user.nav.plans': 'پلن و اشتراک',
     'user.nav.credentials': 'اعتبارنامه‌های من',
     'user.nav.profile': 'پروفایل',
     'user.signout': 'خروج',
@@ -500,7 +503,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'udash.used': 'استفاده شده',
     'udash.period': 'دوره',
     'udash.no_plan': 'پلن فعالی ندارید',
-    'udash.no_plan_msg': 'برای دریافت پلن با ادمین تماس بگیرید.',
+    'udash.no_plan_msg': 'یک پلن انتخاب کنید و از موجودی کیف پول فعال کنید.',
     'udash.proxy_title': 'اعتبارنامه‌های پراکسی',
     'udash.proxy_msg':
       'اعتبارنامه‌های VLESS خود را مدیریت کنید و آدرس اتصال را کپی کنید.',
@@ -524,7 +527,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'cred.status.revoked': 'لغو شده',
 
     // User nodes (FA)
-    'user.nav.nodes': 'نودهای من',
+    'user.nav.nodes': 'نودهای اختصاصی من',
     'user.nav.forwarders': 'فوروارد آدرس‌ها',
     'user.nav.wallet': 'کیف پول',
     'user.nav.billing': 'گزارش مصرف و مالی',
@@ -549,7 +552,8 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.tx.amount': 'مبلغ',
     'wallet.tx.balance': 'موجودی',
     'wallet.topup_note':
-      'برای افزایش موجودی با پشتیبانی تماس بگیرید. اتصال به درگاه پرداخت به‌زودی اضافه می‌شود.',
+      'شارژ کیف پول فقط توسط ادمین انجام می‌شود؛ برای افزایش موجودی با پشتیبانی تماس بگیرید. خرید پلن‌ها از موجودی کیف پول پرداخت می‌شود.',
+    'wallet.type.plan_purchase': 'خرید پلن',
     'wallet.type.topup_admin': 'شارژ توسط مدیر',
     'wallet.type.forwarder_call': 'فراخوانی فورواردر',
     'wallet.type.gateway_call': 'فراخوانی گیت‌وی',
@@ -622,10 +626,10 @@ const tr: Record<Lang, Record<string, string>> = {
     'health.plan': 'پلن',
     'health.no_plan': 'پلن اختصاص نیافته',
     'health.last_checked': 'آخرین بررسی',
-    'nodes.title': 'نودهای من',
+    'nodes.title': 'نودهای اختصاصی من',
     'nodes.add': 'افزودن نود',
     'nodes.kicker': 'مشارکت در شبکه',
-    'nodes.hero_title': 'سرور خود را به پروکسی‌نت اضافه کنید',
+    'nodes.hero_title': 'سرور اختصاصی خود را متصل کنید (نود BYO اختیاری)',
     'nodes.hero_desc':
       'یک سرور تحت کنترل خود را متصل کنید و به گسترش شبکه کمک کنید. پس از ایجاد نود، دستور نصب یک‌بارمصرف دریافت می‌کنید.',
     'nodes.view_guide': 'مشاهده راهنمای نصب',

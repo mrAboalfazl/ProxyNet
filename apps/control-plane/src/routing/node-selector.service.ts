@@ -47,8 +47,14 @@ export class NodeSelectorService {
     return { mode, preferredCountry };
   }
 
-  async selectForUser(userId: bigint): Promise<SelectedNode | null> {
-    const { mode, preferredCountry } = await this.getPreference(userId);
+  async selectForUser(
+    userId: bigint,
+    overrideCountry?: string | null,
+  ): Promise<SelectedNode | null> {
+    const pref = await this.getPreference(userId);
+    const override = overrideCountry?.trim().toUpperCase() || null;
+    const mode = override ? 'country' : pref.mode;
+    const preferredCountry = override ?? pref.preferredCountry;
 
     if (mode === 'local') return null;
 

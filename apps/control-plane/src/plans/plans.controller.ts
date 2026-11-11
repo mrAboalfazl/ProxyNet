@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Request, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PlansService } from './plans.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,5 +13,10 @@ export class PlansController {
   @Get()
   findAll() {
     return this.plans.findAll();
+  }
+
+  @Post(':id/purchase')
+  purchase(@Request() req, @Param('id') id: string) {
+    return this.plans.purchase(BigInt(req.user.id), BigInt(id));
   }
 }

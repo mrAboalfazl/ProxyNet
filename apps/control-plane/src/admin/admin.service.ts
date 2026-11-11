@@ -58,6 +58,7 @@ export class AdminService {
     monthlyBandwidthGb: number;
     maxConcurrentSessions?: number;
     allowedProtocols?: string[];
+    priceToman?: number | string;
   }) {
     return this.prisma.plan.create({
       data: {
@@ -66,6 +67,30 @@ export class AdminService {
         maxConcurrentSessions: data.maxConcurrentSessions ?? 10,
         allowedProtocols: data.allowedProtocols ?? ['http', 'socks5', 'tcp', 'udp'],
         allowedCountries: [],
+        priceToman: BigInt(data.priceToman ?? 0),
+      },
+    });
+  }
+
+  async updatePlan(
+    id: string,
+    data: {
+      name?: string;
+      monthlyBandwidthGb?: number;
+      maxConcurrentSessions?: number;
+      priceToman?: number | string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.prisma.plan.update({
+      where: { id: BigInt(id) },
+      data: {
+        name: data.name,
+        monthlyBandwidthGb: data.monthlyBandwidthGb,
+        maxConcurrentSessions: data.maxConcurrentSessions,
+        priceToman:
+          data.priceToman === undefined ? undefined : BigInt(data.priceToman),
+        isActive: data.isActive,
       },
     });
   }

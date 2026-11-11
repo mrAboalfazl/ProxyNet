@@ -135,7 +135,16 @@ export const api = {
       connectionsUsed: number;
       periodStart: string;
       periodEnd: string;
-      plan?: { name: string; monthlyBandwidthGb: number };
+      subscriptionId?: string | null;
+      subscriptionStatus?: string | null;
+      plan?: {
+        id?: string;
+        name: string;
+        monthlyBandwidthGb: number;
+        maxConcurrentSessions?: number;
+        priceToman?: string;
+        allowedCountries?: string[];
+      } | null;
     }>('GET', '/metering/usage/me'),
   financialReport: (
     params: Partial<{
@@ -333,6 +342,7 @@ export const api = {
       forwardAuthHeader?: boolean;
       preservePath?: boolean;
       preserveQuery?: boolean;
+      countryCode?: string | null;
     }) => request<Forwarder>('POST', '/forwarders', data),
     update: (
       id: string,
@@ -343,6 +353,7 @@ export const api = {
         forwardAuthHeader: boolean;
         preservePath: boolean;
         preserveQuery: boolean;
+        countryCode: string | null;
       }>,
     ) => request<Forwarder>('PATCH', `/forwarders/${id}`, data),
     remove: (id: string) => request<void>('DELETE', `/forwarders/${id}`),
@@ -355,7 +366,29 @@ export const api = {
       name: string;
       monthlyBandwidthGb: number;
       maxConcurrentSessions?: number;
+      priceToman?: number | string;
     }) => request<Plan>('POST', '/admin/plans', data),
+    update: (
+      id: string,
+      data: Partial<{
+        name: string;
+        monthlyBandwidthGb: number;
+        maxConcurrentSessions: number;
+        priceToman: number | string;
+        isActive: boolean;
+      }>,
+    ) => request<Plan>('PATCH', `/admin/plans/${id}`, data),
+    purchase: (id: string) =>
+      request<{
+        subscription: {
+          id: string;
+          status: string;
+          periodStart: string;
+          periodEnd: string;
+        };
+        plan: Plan;
+        wallet: { balanceToman: string };
+      }>('POST', `/plans/${id}/purchase`),
     assignToUser: (userId: string, planId: string) =>
       request<unknown>('POST', `/admin/users/${userId}/assign-plan/${planId}`),
   },
@@ -468,6 +501,9 @@ export interface Plan {
   monthlyBandwidthGb: number;
   maxConcurrentSessions: number;
   allowedProtocols: string[];
+  allowedCountries: string[];
+  priceToman: string;
+  isActive?: boolean;
 }
 
 export interface Country {
@@ -613,6 +649,7 @@ export interface Forwarder {
   slug: string;
   label: string;
   targetUrl: string;
+  countryCode: string | null;
   enabled: boolean;
   preservePath: boolean;
   preserveQuery: boolean;

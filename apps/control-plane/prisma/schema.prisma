@@ -86,6 +86,7 @@ model Forwarder {
   preservePath     Boolean  @default(true) @map("preserve_path")
   preserveQuery    Boolean  @default(true) @map("preserve_query")
   forwardAuthHeader Boolean @default(true) @map("forward_auth_header")
+  countryCode      String?  @map("country_code")
   enabled          Boolean  @default(true)
   callCount        BigInt   @default(0) @map("call_count")
   bytesIn          BigInt   @default(0) @map("bytes_in")
@@ -97,6 +98,7 @@ model Forwarder {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, enabled])
+  @@index([countryCode])
   @@map("forwarders")
 }
 
@@ -178,6 +180,7 @@ model Plan {
   allowedCountries      String[] @map("allowed_countries")
   autoModeEnabled       Boolean  @default(true) @map("auto_mode_enabled")
   priorityClass         Int      @default(0) @map("priority_class")
+  priceToman            BigInt   @default(0) @map("price_toman")
   isActive              Boolean  @default(true) @map("is_active")
   createdAt             DateTime @default(now()) @map("created_at")
 

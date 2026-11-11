@@ -21,7 +21,7 @@ import {
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
-import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
+import { CodeExamplesPanel, CopyableCodeBlock, buildGatewaySnippets } from '../../../lib/code-examples';
 import { toast } from 'sonner';
 import {
   KeyRound,
@@ -33,7 +33,18 @@ import {
   ShieldAlert,
   Server,
   Lock,
+  Send,
+  ChevronDown,
 } from 'lucide-react';
+import Link from 'next/link';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { TelegramGuideModal } from '@/components/telegram-guide-modal';
+import { cn } from '@/lib/utils';
 
 interface Credential {
   id: string;
@@ -161,23 +172,7 @@ function SecretBanner({
             <Terminal className="h-3.5 w-3.5" />
             {lang === 'fa' ? 'دستور تست سریع با cURL:' : 'Quick cURL test command:'}
           </span>
-          <div className="relative">
-            <pre
-              className="p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"
-              dir="ltr"
-            >
-              {curlExample}
-            </pre>
-            <div className="absolute top-2 right-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => copy(curlExample, 'curl', 'cURL')}
-              >
-                {copiedKey === 'curl' ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-          </div>
+          <CopyableCodeBlock code={curlExample} filename="terminal — bash" isRTL={lang === 'fa'} />
         </div>
       </CardContent>
     </Card>
@@ -198,10 +193,13 @@ export default function UserCredentialsPage() {
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showTelegramGuide, setShowTelegramGuide] = useState(false);
   const [newlyCreated, setNewlyCreated] = useState<NewlyCreated | null>(null);
   const [socksEndpoints, setSocksEndpoints] = useState<Socks5Endpoint[]>([]);
   const [socksRequiresPlan, setSocksRequiresPlan] = useState(false);
   const [copiedUuid, setCopiedUuid] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [guideNode, setGuideNode] = useState<Socks5Endpoint | null>(null);
 
   async function load() {
     setLoading(true);
@@ -222,6 +220,15 @@ export default function UserCredentialsPage() {
 
   async function create() {
     if (!newLabel.trim()) return;
+    if (socksRequiresPlan) {
+      toast.error(
+        tx(
+          'An active plan is required to create a credential.',
+          'برای ساخت کلید به اشتراک فعال نیاز دارید.'
+        )
+      );
+      return;
+    }
     setCreating(true);
     setError('');
     try {
@@ -270,6 +277,25 @@ export default function UserCredentialsPage() {
     setTimeout(() => setCopiedUuid(null), 2000);
   }
 
+  function copyValue(text: string, key: string, label: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success(
+      lang === 'fa' ? `${label} کپی شد` : `${label} copied to clipboard`
+    );
+    setTimeout(() => setCopiedKey(null), 2000);
+  }
+
+  function countryFlag(code?: string) {
+    if (!code || code.length !== 2) return '🌐';
+    const offset = 127397;
+    return code
+      .toUpperCase()
+      .split('')
+      .map((c) => String.fromCodePoint(c.charCodeAt(0) + offset))
+      .join('');
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -290,10 +316,25 @@ export default function UserCredentialsPage() {
           'مدیریت شناسه‌ها و کلیدهای دسترسی جهت استفاده در پروکسی SOCKS5 و درخواست‌های درگاه HTTP.'
         )}
         action={
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-            <span>{t(lang, 'cred.new')}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTelegramGuide(true)}
+              className="gap-1.5 text-xs text-sky-700 dark:text-sky-300 border-sky-500/30 hover:bg-sky-500/10"
+            >
+              <Send className="h-3.5 w-3.5 text-sky-500" />
+              <span>{tx('Telegram Guide', 'راهنمای اتصال تلگرام')}</span>
+            </Button>
+            <Button
+              onClick={() => setShowCreate(true)}
+              size="sm"
+              disabled={socksRequiresPlan}
+            >
+              <Plus className="h-4 w-4" />
+              <span>{t(lang, 'cred.new')}</span>
+            </Button>
+          </div>
         }
       />
 
@@ -337,50 +378,149 @@ export default function UserCredentialsPage() {
 
       {error && <Alert message={error} type="error" />}
 
-      {/* SOCKS5 Endpoint Status Info */}
+      {/* SOCKS5 endpoints */}
       {!loading && (
         <Card
           className={`border ${
             socksRequiresPlan
               ? 'border-amber-200 bg-amber-50/50 dark:bg-amber-950/10'
-              : 'border-blue-200 bg-blue-50/50 dark:bg-blue-950/10'
+              : 'border-border/80'
           }`}
         >
-          <CardContent className="p-4 flex items-start gap-3">
-            {socksRequiresPlan ? (
-              <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            ) : (
-              <Server className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            )}
-            <div className="space-y-1 text-xs">
-              <span className="font-bold text-foreground">SOCKS5 Node Relays</span>
-              {socksRequiresPlan ? (
-                <p className="text-amber-800 dark:text-amber-300">
-                  {lang === 'fa'
-                    ? 'نودهای پروکسی آماده اتصال هستند، اما برای دریافت دسترسی نیازمند اشتراک فعال هستید.'
-                    : 'Relay nodes are operational, but an active plan is required to connect.'}
-                </p>
-              ) : socksEndpoints.length ? (
-                <div className="space-y-1 pt-1">
-                  {socksEndpoints.map((ep) => (
-                    <div key={ep.nodeId} className="flex items-center gap-2 font-mono">
-                      <span className="font-semibold text-foreground">
-                        {ep.countryName} ({ep.label}):
-                      </span>
-                      <code>
-                        {ep.host}:{ep.port}
-                      </code>
-                    </div>
-                  ))}
+          <CardContent className="p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                {socksRequiresPlan ? (
+                  <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Server className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-1 text-xs">
+                  <span className="font-bold text-foreground">SOCKS5 Node Relays</span>
+                  {socksRequiresPlan ? (
+                    <p className="text-amber-800 dark:text-amber-300">
+                      {lang === 'fa'
+                        ? 'نودهای پروکسی آماده اتصال هستند، اما برای دریافت دسترسی نیازمند اشتراک فعال هستید.'
+                        : 'Relay nodes are operational, but an active plan is required to connect.'}
+                    </p>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      {lang === 'fa'
+                        ? 'یک نود انتخاب کنید و مشخصات اتصال آماده را کپی کنید.'
+                        : 'Pick a node and copy its ready-to-use connection details.'}
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-muted-foreground">
-                  {lang === 'fa'
-                    ? 'در حال حاضر نود SOCKS5 در این منطقه ثبت نشده است.'
-                    : 'No active SOCKS5 relays registered.'}
-                </p>
+              </div>
+
+              {socksRequiresPlan && (
+                <Link href="/user/plans">
+                  <Button size="sm" className="gap-1.5 shrink-0">
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{tx('Buy a plan', 'خرید اشتراک')}</span>
+                  </Button>
+                </Link>
               )}
             </div>
+
+            {!socksRequiresPlan && socksEndpoints.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {socksEndpoints.map((ep) => {
+                  const endpoint = `${ep.host}:${ep.port}`;
+                  const template = `socks5://${featuredCred?.uuid ?? 'YOUR_UUID'}:YOUR_SECRET@${ep.host}:${ep.port}`;
+                  return (
+                    <div
+                      key={ep.nodeId}
+                      className="rounded-xl border border-border/80 bg-card p-3.5 space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{countryFlag(ep.countryCode)}</span>
+                          <div>
+                            <div className="font-semibold text-sm">{ep.countryName}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {ep.label}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge label={tx('Online', 'آنلاین')} variant="success" />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <code
+                          className="flex-1 p-2 rounded-md bg-muted/60 text-xs font-mono border"
+                          dir="ltr"
+                        >
+                          {endpoint}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() =>
+                            copyValue(
+                              endpoint,
+                              `ep-${ep.nodeId}`,
+                              tx('Endpoint', 'آدرس نود')
+                            )
+                          }
+                        >
+                          {copiedKey === `ep-${ep.nodeId}` ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            copyValue(
+                              template,
+                              `cfg-${ep.nodeId}`,
+                              tx('Connection template', 'قالب اتصال')
+                            )
+                          }
+                        >
+                          {copiedKey === `cfg-${ep.nodeId}` ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                          <span>{tx('Copy config', 'کپی کانفیگ')}</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setGuideNode(ep)}
+                        >
+                          <Send className="h-3.5 w-3.5 text-sky-500" />
+                          <span>{tx('Guide', 'راهنما')}</span>
+                        </Button>
+                      </div>
+
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        {tx(
+                          'Replace YOUR_SECRET with the secret shown when the credential was created.',
+                          'مقدار YOUR_SECRET را با Secret نمایش‌داده‌شده هنگام ساخت کلید جایگزین کنید.'
+                        )}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {!socksRequiresPlan && socksEndpoints.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                {lang === 'fa'
+                  ? 'در حال حاضر نود SOCKS5 در این منطقه ثبت نشده است.'
+                  : 'No active SOCKS5 relays registered.'}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -481,17 +621,32 @@ export default function UserCredentialsPage() {
                 <span className="text-xs font-medium text-muted-foreground">
                   {t(lang, 'examples.select_credential')}:
                 </span>
-                <select
-                  value={featuredCred.uuid}
-                  onChange={(e) => setExampleCredUuid(e.target.value)}
-                  className="p-1.5 rounded-md border text-xs bg-background"
-                >
-                  {creds.map((c) => (
-                    <option key={c.id} value={c.uuid}>
-                      {c.label || c.uuid.slice(0, 8)}
-                    </option>
-                  ))}
-                </select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-normal border-input bg-background">
+                      <span>{featuredCred.label || featuredCred.uuid.slice(0, 8)}</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[8rem] p-1">
+                    {creds.map((c) => {
+                      const isSelected = c.uuid === featuredCred.uuid;
+                      return (
+                        <DropdownMenuItem
+                          key={c.id}
+                          onClick={() => setExampleCredUuid(c.uuid)}
+                          className={cn(
+                            'text-xs cursor-pointer flex items-center justify-between px-2.5 py-1.5',
+                            isSelected && 'font-semibold bg-accent text-accent-foreground'
+                          )}
+                        >
+                          <span>{c.label || c.uuid.slice(0, 8)}</span>
+                          {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
             <CodeExamplesPanel
@@ -506,6 +661,23 @@ export default function UserCredentialsPage() {
           </Card>
         )}
       </div>
+      {/* Telegram Guide Modal */}
+      <TelegramGuideModal
+        open={showTelegramGuide}
+        onClose={() => setShowTelegramGuide(false)}
+        credentialUuid={featuredCred?.uuid}
+        lang={lang}
+      />
+
+      {/* Per-node guide modal */}
+      <TelegramGuideModal
+        open={!!guideNode}
+        onClose={() => setGuideNode(null)}
+        nodeIp={guideNode?.host}
+        nodePort={guideNode?.port}
+        credentialUuid={featuredCred?.uuid}
+        lang={lang}
+      />
     </div>
   );
 }

@@ -41,7 +41,7 @@ export class MeteringService {
   }
 
   async getUsageStats(userId: bigint) {
-    return this.prisma.usageAccount.findUnique({
+    const account = await this.prisma.usageAccount.findUnique({
       where: { userId },
       include: {
         user: {
@@ -56,6 +56,15 @@ export class MeteringService {
         },
       },
     });
+    if (!account) return null;
+    const { user, ...usage } = account;
+    const subscription = user.subscriptions[0] ?? null;
+    return {
+      ...usage,
+      subscriptionId: subscription?.id ?? null,
+      subscriptionStatus: subscription?.status ?? null,
+      plan: subscription?.plan ?? null,
+    };
   }
 
   /** A transparent financial/usage view backed by the wallet ledger. */

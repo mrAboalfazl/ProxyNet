@@ -40,6 +40,9 @@ import {
   RefreshCw,
   UserCheck,
   AlertCircle,
+  CheckCircle2,
+  Circle,
+  CreditCard,
 } from 'lucide-react';
 
 interface Me {
@@ -55,7 +58,14 @@ interface Usage {
   connectionsUsed: number | string;
   periodStart: string;
   periodEnd: string;
-  plan?: { name: string; monthlyBandwidthGb: number };
+  plan?: {
+    id?: string;
+    name: string;
+    monthlyBandwidthGb: number;
+    maxConcurrentSessions?: number;
+    priceToman?: string;
+    allowedCountries?: string[];
+  } | null;
 }
 
 function fmtBytes(n: number): string {
@@ -154,6 +164,37 @@ export default function UserDashboardPage() {
   }, [usage, bytesUsed]);
 
   const activeCred = creds.find((c) => c.enabled) || creds[0];
+
+  const quickSteps = [
+    {
+      key: 'plan',
+      done: !!usage?.plan,
+      title: tx('Activate a plan', 'اشتراک را فعال کنید'),
+      href: '/user/plans',
+    },
+    {
+      key: 'country',
+      done: !!(
+        me?.routingPreference?.preferredCountry ||
+        forwarders.some((f) => f.countryCode)
+      ),
+      title: tx('Choose an exit country', 'کشور خروج را انتخاب کنید'),
+      href: '/user/profile',
+    },
+    {
+      key: 'credential',
+      done: creds.length > 0,
+      title: tx('Create a credential', 'کلید دسترسی بسازید'),
+      href: '/user/credentials',
+    },
+    {
+      key: 'forwarder',
+      done: forwarders.length > 0,
+      title: tx('Create a forwarder', 'فورواردر بسازید'),
+      href: '/user/forwarders',
+    },
+  ];
+  const quickDone = quickSteps.filter((step) => step.done).length;
 
   if (loading) return <Spinner />;
 
@@ -264,6 +305,61 @@ export default function UserDashboardPage() {
         />
       </div>
 
+      {/* Quick start wizard */}
+      <Card className="border-primary/20">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-base font-semibold">
+                {tx('Quick start', 'شروع سریع')}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {tx(
+                  'Four steps from subscription to your first connection.',
+                  'چهار قدم از خرید اشتراک تا اولین اتصال.',
+                )}
+              </CardDescription>
+            </div>
+            <span className="text-xs font-bold text-primary shrink-0">
+              {quickDone}/4
+            </span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mt-2">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${(quickDone / 4) * 100}%` }}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 pt-0">
+          {quickSteps.map((step, index) => (
+            <Link
+              key={step.key}
+              href={step.href}
+              className={`flex items-center gap-2.5 rounded-lg border p-2.5 text-xs transition-colors ${
+                step.done
+                  ? 'border-emerald-500/30 bg-emerald-500/5'
+                  : 'border-border/80 hover:border-primary/40'
+              }`}
+            >
+              {step.done ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              ) : (
+                <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="flex-1 font-medium">
+                {index + 1}. {step.title}
+              </span>
+              {isRTL ? (
+                <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
+
       {/* Plan / Bandwidth Quota Progress or Top-up Notice */}
       {planGb && usedPct !== null ? (
         <Card>
@@ -301,6 +397,28 @@ export default function UserDashboardPage() {
                 {formatDate(usage.periodEnd, lang, { format: 'short' })}
               </p>
             )}
+          </CardContent>
+        </Card>
+      ) : !usage?.plan ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <CreditCard className="h-5 w-5 text-primary shrink-0" />
+              <div>
+                <p className="font-semibold text-sm">
+                  {t(lang, 'udash.no_plan')}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {t(lang, 'udash.no_plan_msg')}
+                </p>
+              </div>
+            </div>
+            <Link href="/user/plans">
+              <Button size="sm" className="shrink-0 gap-1.5">
+                <CreditCard className="h-4 w-4" />
+                <span>{tx('View plans', 'مشاهده پلن‌ها')}</span>
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       ) : isBalanceLow ? (

@@ -11,6 +11,7 @@ import {
   ArrowDownUp,
   AlertTriangle,
   XCircle,
+  CreditCard,
 } from 'lucide-react';
 import { api, HealthMeResponse } from './api';
 import { t, Lang } from './i18n';
@@ -131,6 +132,21 @@ export function AccountStatusStrip({ lang }: { lang: Lang }) {
               <span className="text-[11px] text-muted-foreground">{tx('Balance', 'موجودی')}:</span>
               <span className="font-bold text-foreground">
                 {balanceFmt} {tx('Toman', 'تومان')}
+              </span>
+            </Link>
+
+            <div className="hidden h-3 w-px bg-border/70 md:block" />
+
+            {/* Subscription */}
+            <Link
+              href="/user/plans"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-colors"
+              title={tx('Subscription plan — click to manage', 'پلن اشتراک — کلیک جهت مدیریت')}
+            >
+              <CreditCard className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="text-[11px] text-muted-foreground">{tx('Plan', 'پلن')}:</span>
+              <span className="font-semibold text-foreground">
+                {data.plan?.name ?? tx('None', 'ندارد')}
               </span>
             </Link>
 

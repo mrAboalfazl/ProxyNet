@@ -12,6 +12,7 @@ export type ChargeType =
   | 'socks5_session'
   | 'topup_admin'
   | 'adjustment_admin'
+  | 'plan_purchase'
   | 'refund';
 
 export interface ChargeMetadata {

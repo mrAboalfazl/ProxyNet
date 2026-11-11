@@ -156,9 +156,25 @@ export class AdminController {
       name: string;
       monthlyBandwidthGb: number;
       maxConcurrentSessions?: number;
+      priceToman?: number | string;
     },
   ) {
     return this.admin.createPlan(body);
+  }
+
+  @Patch('plans/:id')
+  updatePlan(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      monthlyBandwidthGb?: number;
+      maxConcurrentSessions?: number;
+      priceToman?: number | string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.admin.updatePlan(id, body);
   }
 
   @Get('plans')

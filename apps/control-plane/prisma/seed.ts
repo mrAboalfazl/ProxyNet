@@ -30,6 +30,7 @@ async function main() {
       allowedProtocols: ['http', 'socks5', 'tcp'],
       allowedCountries: [],
       priorityClass: 0,
+      priceToman: 100000,
     },
     {
       name: 'Pro',
@@ -38,6 +39,7 @@ async function main() {
       allowedProtocols: ['http', 'socks5', 'tcp', 'udp'],
       allowedCountries: [],
       priorityClass: 1,
+      priceToman: 250000,
     },
     {
       name: 'Business',
@@ -46,13 +48,14 @@ async function main() {
       allowedProtocols: ['http', 'socks5', 'tcp', 'udp'],
       allowedCountries: [],
       priorityClass: 2,
+      priceToman: 400000,
     },
   ];
 
   for (const plan of plans) {
     const existing = await prisma.plan.findFirst({ where: { name: plan.name } });
     if (!existing) await prisma.plan.create({ data: plan });
-    else await prisma.plan.update({ where: { id: existing.id }, data: { monthlyBandwidthGb: plan.monthlyBandwidthGb } });
+    else await prisma.plan.update({ where: { id: existing.id }, data: { monthlyBandwidthGb: plan.monthlyBandwidthGb, priceToman: plan.priceToman } });
   }
 
   console.log('Seed complete: 6 countries, 3 plans');

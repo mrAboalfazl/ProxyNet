@@ -19,7 +19,9 @@ import {
   FileCode,
   Sliders,
   Info,
+  Send,
 } from 'lucide-react';
+import { TelegramGuideModal } from '@/components/telegram-guide-modal';
 import { toast } from 'sonner';
 import {
   Card,
@@ -56,6 +58,7 @@ export function GatewayCard({
   const [activeTab, setActiveTab] = useState<TabType>('curl');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [showSchemaGuide, setShowSchemaGuide] = useState(false);
+  const [showTelegramGuide, setShowTelegramGuide] = useState(false);
 
   // Playground state
   const [targetUrl, setTargetUrl] = useState('https://api.ipify.org?format=json');
@@ -414,6 +417,15 @@ console.log('Exit Node IP:', data);`,
                   <Sparkles className="h-3 w-3" />
                   <span>{tx('Live Test', 'تست زنده')}</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTelegramGuide(true)}
+                  className="px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 shrink-0 text-sky-600 dark:text-sky-400 hover:bg-sky-500/10 border border-sky-500/20"
+                >
+                  <Send className="h-3 w-3" />
+                  <span>{tx('Telegram Guide', 'راهنمای اتصال تلگرام')}</span>
+                </button>
               </div>
             </div>
 
@@ -729,6 +741,14 @@ console.log('Exit Node IP:', data);`,
           </div>
         </div>
       </CardFooter>
+
+      {/* Telegram Guide Modal */}
+      <TelegramGuideModal
+        open={showTelegramGuide}
+        onClose={() => setShowTelegramGuide(false)}
+        credentialUuid={activeCred?.uuid}
+        lang={lang}
+      />
     </Card>
   );
 }
