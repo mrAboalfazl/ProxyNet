@@ -106,7 +106,7 @@ function CountryPicker({
               : 'border-border hover:border-primary/40'
           }`}
         >
-          {tx('Auto (any country)', 'خودکار (همه کشورها)')}
+          {tx('Auto (account routing)', 'خودکار (تنظیمات حساب)')}
         </button>
 
         {options.map((country) => {
