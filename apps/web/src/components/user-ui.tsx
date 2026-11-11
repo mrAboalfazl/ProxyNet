@@ -5,6 +5,9 @@ import React from 'react';
 
 export * from '../lib/ui';
 export { Checkbox } from './ui/checkbox';
+export { Pagination, usePagination } from './ui/pagination';
+export { BilingualDatePicker } from './ui/bilingual-date-picker';
+export { formatDate, formatDateTime, toPersianDigits } from '../lib/jalali';
 
 export function Tooltip({ content, children }: { content: string; children: React.ReactNode }) {
   return (

@@ -282,7 +282,7 @@ export default function RegisterPage() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder={copy.codePlaceholder}
                   dir="ltr"
-                  className="font-mono text-center tracking-widest text-lg h-11"
+                  className="text-center tracking-widest text-lg h-11 font-bold"
                   required
                 />
               </div>

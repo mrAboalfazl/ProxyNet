@@ -13,6 +13,7 @@ import {
   Alert,
   Spinner,
   Button,
+  formatDateTime,
 } from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
 import { toast } from 'sonner';
@@ -197,7 +198,7 @@ export default function AdminStatisticsPage() {
                     </span>
                     <Icon className={`h-4 w-4 ${item.color}`} />
                   </div>
-                  <div className="text-lg font-bold font-mono text-foreground">
+                  <div className="text-lg font-bold text-foreground">
                     {item.value}
                   </div>
                 </div>
@@ -224,8 +225,8 @@ export default function AdminStatisticsPage() {
               )}
             </p>
           </div>
-          <span className="text-xs text-muted-foreground font-mono self-start sm:self-auto shrink-0">
-            {new Date(stats.generatedAt).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}
+          <span className="text-xs text-muted-foreground self-start sm:self-auto shrink-0">
+            {formatDateTime(stats.generatedAt, lang)}
           </span>
         </CardContent>
       </Card>

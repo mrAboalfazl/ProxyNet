@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle, FinancialReport, Plan } from '../../../../lib/api';
-import { PageHeader, Card, Badge, Button, Alert, Spinner, colors } from '../../../../lib/ui';
+import { PageHeader, Card, Badge, Button, Alert, Spinner, colors, Pagination, usePagination, formatDateTime } from '../../../../lib/ui';
+import { useLang } from '../../../../lib/lang-context';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -23,6 +24,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export default function AdminUserDetailPage() {
+  const { lang } = useLang();
   const params = useParams<{ id: string }>();
   const [user, setUser] = useState<AdminUserDetails | null>(null);
   const [vless, setVless] = useState<AdminVlessBundle | null>(null);
@@ -37,6 +39,9 @@ export default function AdminUserDetailPage() {
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [assigningPlan, setAssigningPlan] = useState(false);
   const [financial, setFinancial] = useState<FinancialReport | null>(null);
+
+  const walletPagination = usePagination(wallet?.transactions ?? [], 10);
+  const usagePagination = usePagination(financial?.usage ?? [], 10);
 
   async function loadWallet() {
     try {
@@ -229,23 +234,23 @@ export default function AdminUserDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {wallet.transactions.slice(0, 20).map((tx) => {
+                {walletPagination.paginatedItems.map((tx) => {
                   const amt = BigInt(tx.amountToman);
                   const positive = amt >= 0n;
                   return (
                     <tr key={tx.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
                       <td style={{ padding: '8px 14px', color: colors.textMuted }}>
-                        {new Date(tx.createdAt).toLocaleString()}
+                        {formatDateTime(tx.createdAt, lang)}
                       </td>
                       <td style={{ padding: '8px 14px' }}>{tx.type}</td>
                       <td style={{ padding: '8px 14px', color: colors.textMuted, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={tx.description ?? ''}>
                         {tx.description ?? '—'}
                       </td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: positive ? '#166534' : '#991b1b', direction: 'ltr' }}>
-                        {positive ? '+' : ''}{Number(tx.amountToman).toLocaleString('en-US')}
+                        {positive ? '+' : ''}{Number(tx.amountToman).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}
                       </td>
                       <td style={{ padding: '8px 14px', textAlign: 'right', color: colors.textMuted, fontVariantNumeric: 'tabular-nums', direction: 'ltr' }}>
-                        {Number(tx.balanceAfterToman).toLocaleString('en-US')}
+                        {Number(tx.balanceAfterToman).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}
                       </td>
                     </tr>
                   );
@@ -253,6 +258,14 @@ export default function AdminUserDetailPage() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={walletPagination.page}
+            totalItems={walletPagination.total}
+            pageSize={walletPagination.pageSize}
+            onPageChange={walletPagination.setPage}
+            onPageSizeChange={walletPagination.setPageSize}
+            lang={lang}
+          />
         </Card>
       )}
 
@@ -263,7 +276,42 @@ export default function AdminUserDetailPage() {
             {financial.categories.map((item) => <div key={item.category} style={{ padding: 12, border: `1px solid ${colors.border}`, borderRadius: 8 }}><div style={{ fontSize: 11, color: colors.textMuted }}>{item.category.replace('_', ' ')}</div><strong style={{ display: 'block', marginTop: 5, direction: 'ltr' }}>{Number(item.spentToman).toLocaleString()} toman</strong></div>)}
           </div>
           <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>Usage records: {financial.usageTotal} · Financial transactions: {financial.transactionsTotal}</div>
-          {financial.usage.length > 0 && <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr style={{ background: '#f8fafc' }}><th style={{ padding: 8, textAlign: 'start' }}>Protocol</th><th style={{ padding: 8, textAlign: 'start' }}>Type</th><th style={{ padding: 8, textAlign: 'end' }}>Bytes</th><th style={{ padding: 8, textAlign: 'start' }}>Occurred</th></tr></thead><tbody>{financial.usage.map((u) => <tr key={u.id} style={{ borderTop: `1px solid ${colors.border}` }}><td style={{ padding: 8 }}>{u.protocol}</td><td style={{ padding: 8 }}>{u.eventType}</td><td style={{ padding: 8, textAlign: 'end', direction: 'ltr' }}>{(Number(u.bytesIn) + Number(u.bytesOut)).toLocaleString()}</td><td style={{ padding: 8 }}>{new Date(u.occurredAt).toLocaleString()}</td></tr>)}</tbody></table></div>}
+          {financial.usage.length > 0 && (
+            <div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc' }}>
+                      <th style={{ padding: 8, textAlign: 'start' }}>Protocol</th>
+                      <th style={{ padding: 8, textAlign: 'start' }}>Type</th>
+                      <th style={{ padding: 8, textAlign: 'end' }}>Bytes</th>
+                      <th style={{ padding: 8, textAlign: 'start' }}>Occurred</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usagePagination.paginatedItems.map((u) => (
+                      <tr key={u.id} style={{ borderTop: `1px solid ${colors.border}` }}>
+                        <td style={{ padding: 8 }}>{u.protocol}</td>
+                        <td style={{ padding: 8 }}>{u.eventType}</td>
+                        <td style={{ padding: 8, textAlign: 'end', direction: 'ltr' }}>
+                          {(Number(u.bytesIn) + Number(u.bytesOut)).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US')}
+                        </td>
+                        <td style={{ padding: 8 }}>{formatDateTime(u.occurredAt, lang)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={usagePagination.page}
+                totalItems={usagePagination.total}
+                pageSize={usagePagination.pageSize}
+                onPageChange={usagePagination.setPage}
+                onPageSizeChange={usagePagination.setPageSize}
+                lang={lang}
+              />
+            </div>
+          )}
         </Card>
       )}
 

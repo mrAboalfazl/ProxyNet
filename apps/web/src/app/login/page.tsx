@@ -318,7 +318,7 @@ export default function LoginPage() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder={t(lang, 'login.code.placeholder')}
                   dir="ltr"
-                  className="font-mono text-center tracking-widest text-base"
+                  className="text-center tracking-widest text-base font-bold"
                   required
                 />
               </div>
@@ -370,11 +370,11 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => fillCredentials('bitserver@local.test', 'admin123')}
+                onClick={() => fillCredentials('thisismilad71@gmail.com', 'admin123')}
                 className="p-2 rounded-lg border border-border/70 bg-muted/40 hover:bg-muted text-start text-xs transition-colors"
               >
-                <div className="font-semibold text-foreground truncate">کاربر تستی (User)</div>
-                <div className="text-[10px] text-muted-foreground font-mono">bitserver@local.test</div>
+                <div className="font-semibold text-foreground truncate">کاربر سیستم (User)</div>
+                <div className="text-[10px] text-muted-foreground">thisismilad71@gmail.com</div>
               </button>
             </div>
           </div>

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { api, Node } from '../../../lib/api';
 import {
   PageHeader, Card, Table, Tr, Td, Badge, Button, Input,
-  Alert, Spinner, Modal, colors,
+  Alert, Spinner, Modal, colors, Pagination, usePagination, formatDateTime, toPersianDigits,
 } from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
 
@@ -106,6 +106,8 @@ export default function AdminNodesPage() {
 
   const pendingUserNodes = nodes.filter((n) => n.status === 'pending' && n.submittedById);
   const otherNodes = nodes.filter((n) => !(n.status === 'pending' && n.submittedById));
+  const pendingPagination = usePagination(pendingUserNodes, 5);
+  const otherPagination = usePagination(otherNodes, 10);
 
   return (
     <div>
@@ -142,12 +144,12 @@ export default function AdminNodesPage() {
                   background: '#fef3c7', color: '#92400e', borderRadius: 12,
                   fontSize: 12, fontWeight: 700, padding: '2px 10px',
                 }}>
-                  {pendingUserNodes.length}
+                  {lang === 'fa' ? toPersianDigits(pendingUserNodes.length) : pendingUserNodes.length}
                 </span>
               </div>
               <Card>
                 <Table headers={[tx('Label', 'برچسب'), tx('Country', 'کشور'), tx('Submitted by', 'ارسال‌کننده'), tx('Agent', 'ایجنت'), tx('Actions', 'عملیات')]}>
-                  {pendingUserNodes.map((node) => (
+                  {pendingPagination.paginatedItems.map((node) => (
                     <Tr key={node.id}>
                       <Td style={{ fontWeight: 600 }}>{node.label}</Td>
                       <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
@@ -183,6 +185,14 @@ export default function AdminNodesPage() {
                     </Tr>
                   ))}
                 </Table>
+                <Pagination
+                  currentPage={pendingPagination.page}
+                  totalItems={pendingPagination.total}
+                  pageSize={pendingPagination.pageSize}
+                  onPageChange={pendingPagination.setPage}
+                  onPageSizeChange={pendingPagination.setPageSize}
+                  lang={lang}
+                />
               </Card>
             </div>
           )}
@@ -202,7 +212,7 @@ export default function AdminNodesPage() {
                       {tx('No nodes yet.', 'هنوز نودی وجود ندارد.')}
                     </td>
                   </Tr>
-                ) : otherNodes.map((node) => (
+                ) : otherPagination.paginatedItems.map((node) => (
                   <Tr key={node.id}>
                     <Td style={{ fontWeight: 600 }}><Link href={`/admin/nodes/${node.id}`} style={{ color: colors.primary, textDecoration: 'none' }}>{node.label}</Link></Td>
                     <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span><div style={{ color: colors.textMuted, fontSize: 11, direction: 'ltr' }}>{node.ipv4Address ?? node.ipv6Address ?? 'IP pending'}</div></Td>
@@ -216,7 +226,7 @@ export default function AdminNodesPage() {
                       </div>
                     </Td>
                     <Td><Badge label={node.status} /><div style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{node.nodeSecretHash ? 'Connected' : 'Not enrolled'}{node.metrics?.[0]?.cpuPct != null && ` · CPU ${node.metrics[0].cpuPct}%`}</div></Td>
-                    <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? new Date(node.heartbeats[0].reportedAt).toLocaleString() : (node.updatedAt ? new Date(node.updatedAt).toLocaleString() : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
+                    <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? formatDateTime(node.heartbeats[0].reportedAt, lang) : (node.updatedAt ? formatDateTime(node.updatedAt, lang) : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
                       <div style={{ display: 'flex', gap: 8 }}>
                         {!node.nodeSecretHash && node.status !== 'pending' ? (
@@ -234,6 +244,14 @@ export default function AdminNodesPage() {
                   </Tr>
                 ))}
               </Table>
+              <Pagination
+                currentPage={otherPagination.page}
+                totalItems={otherPagination.total}
+                pageSize={otherPagination.pageSize}
+                onPageChange={otherPagination.setPage}
+                onPageSizeChange={otherPagination.setPageSize}
+                lang={lang}
+              />
             </Card>
           </div>
         </>

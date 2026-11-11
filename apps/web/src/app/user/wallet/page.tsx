@@ -15,10 +15,12 @@ import {
   Table,
   Tr,
   Td,
+  Pagination,
+  usePagination,
+  formatDateTime,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
-import { AccountStatusStrip } from '../../../lib/account-status';
 import {
   Wallet,
   Coins,
@@ -39,6 +41,8 @@ export default function WalletPage() {
   const [txns, setTxns] = useState<WalletTransaction[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const pagination = usePagination(txns ?? [], 10);
+
   useEffect(() => {
     Promise.all([api.wallet.me(), api.wallet.transactions(50)])
       .then(([w, t]) => {
@@ -57,8 +61,6 @@ export default function WalletPage() {
 
   return (
     <div className="space-y-6">
-      <AccountStatusStrip lang={lang} />
-
       <PageHeader
         title={t(lang, 'wallet.title')}
         description={tx(
@@ -140,7 +142,7 @@ export default function WalletPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {t(lang, 'wallet.pricing_per_request')}
               </span>
-              <div className="flex items-baseline gap-1 pt-1 font-mono">
+              <div className="flex items-baseline gap-1 pt-1">
                 <span className="text-xl font-bold">
                   {fmtNum(wallet.pricing.perRequestToman, lang)}
                 </span>
@@ -152,7 +154,7 @@ export default function WalletPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {t(lang, 'wallet.pricing_per_mb')}
               </span>
-              <div className="flex items-baseline gap-1 pt-1 font-mono">
+              <div className="flex items-baseline gap-1 pt-1">
                 <span className="text-xl font-bold">
                   {fmtNum(wallet.pricing.perMbToman, lang)}
                 </span>
@@ -164,7 +166,7 @@ export default function WalletPage() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {t(lang, 'wallet.pricing_min_balance')}
               </span>
-              <div className="flex items-baseline gap-1 pt-1 font-mono">
+              <div className="flex items-baseline gap-1 pt-1">
                 <span className="text-xl font-bold">
                   {fmtNum(wallet.pricing.minBalanceToman, lang)}
                 </span>
@@ -202,7 +204,7 @@ export default function WalletPage() {
                 t(lang, 'wallet.tx.balance'),
               ]}
             >
-              {txns.map((txItem) => {
+              {pagination.paginatedItems.map((txItem) => {
                 const amount = BigInt(txItem.amountToman);
                 const isCredit = amount >= 0n;
 
@@ -210,10 +212,7 @@ export default function WalletPage() {
                   <Tr key={txItem.id}>
                     <Td>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(txItem.createdAt).toLocaleString(
-                          lang === 'fa' ? 'fa-IR' : 'en-US',
-                          { dateStyle: 'short', timeStyle: 'short' }
-                        )}
+                        {formatDateTime(txItem.createdAt, lang)}
                       </span>
                     </Td>
                     <Td>
@@ -237,7 +236,7 @@ export default function WalletPage() {
                     </Td>
                     <Td>
                       <span
-                        className={`text-xs font-mono font-bold ${
+                        className={`text-xs font-bold ${
                           isCredit ? 'text-emerald-600' : 'text-destructive'
                         }`}
                         dir="ltr"
@@ -247,7 +246,7 @@ export default function WalletPage() {
                       </span>
                     </Td>
                     <Td>
-                      <span className="text-xs font-mono text-muted-foreground" dir="ltr">
+                      <span className="text-xs text-muted-foreground" dir="ltr">
                         {fmtNum(txItem.balanceAfterToman, lang)}
                       </span>
                     </Td>
@@ -255,6 +254,15 @@ export default function WalletPage() {
                 );
               })}
             </Table>
+
+            <Pagination
+              currentPage={pagination.page}
+              totalItems={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+              onPageSizeChange={pagination.setPageSize}
+              lang={lang}
+            />
           </Card>
         )}
       </div>

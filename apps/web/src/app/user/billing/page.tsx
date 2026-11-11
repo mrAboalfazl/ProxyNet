@@ -16,8 +16,11 @@ import {
   Table,
   Tr,
   Td,
+  Pagination,
+  BilingualDatePicker,
+  formatDate,
+  formatDateTime,
 } from '../../../components/user-ui';
-import { AccountStatusStrip } from '../../../lib/account-status';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import {
@@ -25,8 +28,6 @@ import {
   Calendar,
   Layers,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
   TrendingDown,
 } from 'lucide-react';
 
@@ -54,7 +55,7 @@ function fmtBytes(v: string, lang: string) {
 }
 
 export default function BillingPage() {
-  const { lang, isRTL } = useLang();
+  const { lang } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
 
   const [report, setReport] = useState<FinancialReport | null>(null);
@@ -96,12 +97,6 @@ export default function BillingPage() {
   if (error) return <Alert message={error} type="error" />;
   if (!report) return <Spinner />;
 
-  const totalPages = Math.max(1, Math.ceil(report.transactionsTotal / report.limit));
-  const usagePages = Math.max(
-    1,
-    Math.ceil(report.usageTotal / report.usageLimit)
-  );
-
   function resetFilters() {
     setCategory('');
     setFrom('');
@@ -112,8 +107,6 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <AccountStatusStrip lang={lang} />
-
       <PageHeader
         title={tx('Usage & Financial Reports', 'گزارش مصرف و مالی')}
         description={tx(
@@ -156,15 +149,14 @@ export default function BillingPage() {
                 <Calendar className="h-3.5 w-3.5" />
                 <span>{tx('From Date', 'از تاریخ')}</span>
               </label>
-              <input
-                type="date"
+              <BilingualDatePicker
                 value={from}
-                onChange={(e) => {
-                  setFrom(e.target.value);
+                onChange={(val) => {
+                  setFrom(val);
                   setPage(1);
                   setUsagePage(1);
                 }}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                lang={lang}
               />
             </div>
 
@@ -173,15 +165,14 @@ export default function BillingPage() {
                 <Calendar className="h-3.5 w-3.5" />
                 <span>{tx('To Date', 'تا تاریخ')}</span>
               </label>
-              <input
-                type="date"
+              <BilingualDatePicker
                 value={to}
-                onChange={(e) => {
-                  setTo(e.target.value);
+                onChange={(val) => {
+                  setTo(val);
                   setPage(1);
                   setUsagePage(1);
                 }}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-mono"
+                lang={lang}
               />
             </div>
 
@@ -235,9 +226,9 @@ export default function BillingPage() {
               );
             })}
           </div>
-          <div className="flex justify-between text-xs text-muted-foreground pt-2 font-mono">
-            <span>{report.dailySpending[0]?.day ?? '—'}</span>
-            <span>{report.dailySpending.at(-1)?.day ?? '—'}</span>
+          <div className="flex justify-between text-xs text-muted-foreground pt-2">
+            <span>{report.dailySpending[0]?.day ? formatDate(report.dailySpending[0].day, lang, { format: 'short' }) : '—'}</span>
+            <span>{report.dailySpending.at(-1)?.day ? formatDate(report.dailySpending.at(-1)!.day, lang, { format: 'short' }) : '—'}</span>
           </div>
         </CardContent>
       </Card>
@@ -290,7 +281,7 @@ export default function BillingPage() {
                     </Td>
                     <Td>
                       <span
-                        className={`text-xs font-mono font-bold ${
+                        className={`text-xs font-bold ${
                           isCredit ? 'text-emerald-600' : 'text-destructive'
                         }`}
                         dir="ltr"
@@ -301,9 +292,7 @@ export default function BillingPage() {
                     </Td>
                     <Td>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(txn.createdAt).toLocaleDateString(
-                          lang === 'fa' ? 'fa-IR' : 'en-US'
-                        )}
+                        {formatDateTime(txn.createdAt, lang)}
                       </span>
                     </Td>
                   </Tr>
@@ -312,33 +301,13 @@ export default function BillingPage() {
             )}
           </Table>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-3 border-t">
-              <span className="text-xs text-muted-foreground">
-                {page} / {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                  <span>{tx('Prev', 'قبلی')}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  <span>{tx('Next', 'بعدی')}</span>
-                  {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalItems={report.transactionsTotal}
+            pageSize={15}
+            onPageChange={setPage}
+            lang={lang}
+          />
         </Card>
       </div>
 
@@ -375,7 +344,7 @@ export default function BillingPage() {
               report.usage.map((u) => (
                 <Tr key={u.id}>
                   <Td>
-                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted">
                       {u.protocol.toUpperCase()}
                     </span>
                   </Td>
@@ -383,15 +352,13 @@ export default function BillingPage() {
                     <span className="text-xs text-muted-foreground">{u.eventType}</span>
                   </Td>
                   <Td>
-                    <span className="text-xs font-mono font-medium" dir="ltr">
+                    <span className="text-xs font-medium" dir="ltr">
                       {fmtBytes(String(Number(u.bytesIn) + Number(u.bytesOut)), lang)}
                     </span>
                   </Td>
                   <Td>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(u.occurredAt).toLocaleString(
-                        lang === 'fa' ? 'fa-IR' : 'en-US'
-                      )}
+                      {formatDateTime(u.occurredAt, lang)}
                     </span>
                   </Td>
                 </Tr>
@@ -399,33 +366,13 @@ export default function BillingPage() {
             )}
           </Table>
 
-          {usagePages > 1 && (
-            <div className="flex items-center justify-between p-3 border-t">
-              <span className="text-xs text-muted-foreground">
-                {usagePage} / {usagePages}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={usagePage <= 1}
-                  onClick={() => setUsagePage((p) => Math.max(1, p - 1))}
-                >
-                  {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                  <span>{tx('Prev', 'قبلی')}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={usagePage >= usagePages}
-                  onClick={() => setUsagePage((p) => Math.min(usagePages, p + 1))}
-                >
-                  <span>{tx('Next', 'بعدی')}</span>
-                  {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={usagePage}
+            totalItems={report.usageTotal}
+            pageSize={25}
+            onPageChange={setUsagePage}
+            lang={lang}
+          />
         </Card>
       </div>
     </div>

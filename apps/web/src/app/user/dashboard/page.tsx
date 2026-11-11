@@ -21,10 +21,10 @@ import {
   CardFooter,
   Button,
   Badge,
+  formatDate,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
-import { AccountStatusStrip } from '../../../lib/account-status';
 import { UsageAreaChart } from '../../../components/ui/chart';
 import { GatewayCard } from './gateway-card';
 import { toast } from 'sonner';
@@ -159,9 +159,6 @@ export default function UserDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Live Account Status Strip */}
-      <AccountStatusStrip lang={lang} />
-
       {/* Main Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
         <div>
@@ -216,7 +213,7 @@ export default function UserDashboardPage() {
               className={`h-4 w-4 ${isBalanceLow ? 'text-destructive' : 'text-emerald-600'}`}
             />
           </div>
-          <div className="flex items-baseline gap-1 pt-1 font-mono">
+          <div className="flex items-baseline gap-1 pt-1">
             <span
               className={`text-2xl font-bold tracking-tight ${
                 isBalanceLow ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
@@ -281,11 +278,11 @@ export default function UserDashboardPage() {
                 </CardDescription>
               </div>
               <span
-                className={`text-2xl font-bold font-mono ${
+                className={`text-2xl font-bold ${
                   usedPct > 85 ? 'text-destructive' : usedPct > 65 ? 'text-amber-600' : 'text-emerald-600'
                 }`}
               >
-                {usedPct}%
+                {lang === 'fa' ? `${usedPct}٪` : `${usedPct}%`}
               </span>
             </div>
           </CardHeader>
@@ -300,8 +297,8 @@ export default function UserDashboardPage() {
             </div>
             {usage && (
               <p className="text-xs text-muted-foreground">
-                {t(lang, 'udash.period')}: {new Date(usage.periodStart).toLocaleDateString()} –{' '}
-                {new Date(usage.periodEnd).toLocaleDateString()}
+                {t(lang, 'udash.period')}: {formatDate(usage.periodStart, lang, { format: 'short' })} –{' '}
+                {formatDate(usage.periodEnd, lang, { format: 'short' })}
               </p>
             )}
           </CardContent>

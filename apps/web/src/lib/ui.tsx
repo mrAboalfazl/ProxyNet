@@ -31,6 +31,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
+export { Pagination, usePagination } from '@/components/ui/pagination';
+export { BilingualDatePicker } from '@/components/ui/bilingual-date-picker';
+export { formatDate, formatDateTime, toPersianDigits } from './jalali';
 
 // ── Legacy Design Tokens for Backwards Compatibility ────────────────────────
 export const colors = {

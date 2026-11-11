@@ -22,6 +22,7 @@ import {
   Alert,
   Spinner,
   Input,
+  toPersianDigits,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
@@ -294,8 +295,8 @@ export default function UserProfilePage() {
                       </div>
                       <div className="flex items-center gap-1.5">
                         {status && status.healthy > 0 && (
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-medium" title={`${status.healthy} healthy nodes`}>
-                            {status.healthy}
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium" title={`${status.healthy} healthy nodes`}>
+                            {lang === 'fa' ? toPersianDigits(status.healthy) : status.healthy}
                           </span>
                         )}
                         {selected && <Check className="h-3.5 w-3.5 text-primary" />}

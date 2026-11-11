@@ -14,11 +14,13 @@ import {
   Input,
   Modal,
   Checkbox,
+  Pagination,
+  usePagination,
+  formatDateTime,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t, Lang } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildForwarderSnippets } from '../../../lib/code-examples';
-import { AccountStatusStrip } from '../../../lib/account-status';
 import { toast } from 'sonner';
 import {
   Network,
@@ -39,7 +41,7 @@ function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }
   const good = state.ok;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium border ${
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border ${
         good
           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
           : 'bg-destructive/10 text-destructive border-destructive/30'
@@ -63,6 +65,7 @@ export default function ForwardersPage() {
   }, []);
   const [userSlug, setUserSlug] = useState('');
   const [fwds, setFwds] = useState<Forwarder[]>([]);
+  const pagination = usePagination(fwds, 5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -200,8 +203,6 @@ export default function ForwardersPage() {
 
   return (
     <div className="space-y-6">
-      <AccountStatusStrip lang={lang} />
-
       <PageHeader
         title={t(lang, 'fwd.title')}
         description={tx(
@@ -327,7 +328,7 @@ export default function ForwardersPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {fwds.map((fwd) => {
+          {pagination.paginatedItems.map((fwd) => {
             const publicUrl = `${apiBase}/f/${userSlug}/${fwd.slug}`;
             const isCopied = copiedId === fwd.id;
 
@@ -351,9 +352,7 @@ export default function ForwardersPage() {
                         <span>
                           {t(lang, 'fwd.last_used')}:{' '}
                           {fwd.lastUsedAt
-                            ? new Date(fwd.lastUsedAt).toLocaleString(
-                                lang === 'fa' ? 'fa-IR' : 'en-US'
-                              )
+                            ? formatDateTime(fwd.lastUsedAt, lang)
                             : t(lang, 'fwd.never_used')}
                         </span>
                       </div>
@@ -444,6 +443,15 @@ export default function ForwardersPage() {
               </Card>
             );
           })}
+
+          <Pagination
+            currentPage={pagination.page}
+            totalItems={pagination.total}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            lang={lang}
+          />
         </div>
       )}
 

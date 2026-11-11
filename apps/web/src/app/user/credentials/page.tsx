@@ -15,11 +15,13 @@ import {
   Badge,
   Input,
   Modal,
+  Pagination,
+  usePagination,
+  formatDateTime,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, buildGatewaySnippets } from '../../../lib/code-examples';
-import { AccountStatusStrip } from '../../../lib/account-status';
 import { toast } from 'sonner';
 import {
   KeyRound,
@@ -190,6 +192,7 @@ export default function UserCredentialsPage() {
     setApiBase(getPublicApiBase());
   }, []);
   const [creds, setCreds] = useState<Credential[]>([]);
+  const pagination = usePagination(creds, 5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -280,8 +283,6 @@ export default function UserCredentialsPage() {
 
   return (
     <div className="space-y-6">
-      <AccountStatusStrip lang={lang} />
-
       <PageHeader
         title={t(lang, 'cred.title')}
         description={tx(
@@ -393,7 +394,7 @@ export default function UserCredentialsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {creds.map((cred) => {
+          {pagination.paginatedItems.map((cred) => {
             const isCopied = copiedUuid === cred.id;
             return (
               <Card key={cred.id}>
@@ -412,9 +413,7 @@ export default function UserCredentialsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {t(lang, 'cred.created')}:{' '}
-                        {new Date(cred.createdAt).toLocaleDateString(
-                          lang === 'fa' ? 'fa-IR' : 'en-US'
-                        )}
+                        {formatDateTime(cred.createdAt, lang)}
                       </p>
                     </div>
 
@@ -461,6 +460,15 @@ export default function UserCredentialsPage() {
               </Card>
             );
           })}
+
+          <Pagination
+            currentPage={pagination.page}
+            totalItems={pagination.total}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            lang={lang}
+          />
         </div>
       )}
 

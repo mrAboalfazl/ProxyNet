@@ -214,25 +214,25 @@ curl -X POST "https://panel.civonex.ir/api/gateway/fetch" \\
         <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
+              <p className="text-2xl sm:text-3xl font-black text-foreground" dir="ltr">
                 {tx('99.9%', '۹۹.۹٪')}
               </p>
               <p className="text-xs text-muted-foreground">{tx('Uptime SLA', 'پایداری شبکه (SLA)')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
-                +6
+              <p className="text-2xl sm:text-3xl font-black text-foreground" dir="ltr">
+                {tx('+6', '+۶')}
               </p>
               <p className="text-xs text-muted-foreground">{tx('Global Exit Regions', 'لوکیشن‌های خروج بین‌المللی')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-foreground font-mono" dir="ltr">
-                &lt; 35ms
+              <p className="text-2xl sm:text-3xl font-black text-foreground" dir="ltr">
+                {tx('< 35ms', '< ۳۵ میلی‌ثانیه')}
               </p>
               <p className="text-xs text-muted-foreground">{tx('Routing Latency', 'میانگین زمان پاسخگویی')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono" dir="ltr">
+              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400" dir="ltr">
                 SOCKS5 / HTTP
               </p>
               <p className="text-xs text-muted-foreground">{tx('Standard Protocols', 'پروتکل‌های ارتباطی استاندارد')}</p>
@@ -296,7 +296,7 @@ curl -X POST "https://panel.civonex.ir/api/gateway/fetch" \\
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {steps.map((st, i) => (
               <div key={i} className="p-6 rounded-2xl border border-border/80 bg-card space-y-3 relative shadow-sm">
-                <span className="font-mono text-2xl font-black text-primary/40 block">
+                <span className="text-2xl font-black text-primary/40 block">
                   {st.step}
                 </span>
                 <h3 className="text-base sm:text-lg font-bold text-foreground">{st.title}</h3>

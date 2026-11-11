@@ -13,6 +13,9 @@ import {
   Alert,
   Spinner,
   Input,
+  Pagination,
+  usePagination,
+  toPersianDigits,
 } from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
 import { toast } from 'sonner';
@@ -89,12 +92,13 @@ export default function AdminCountriesPage() {
     );
   }, [countries, search]);
 
+  const pagination = usePagination(filtered, 10);
   const enabledCount = countries.filter((c) => c.enabled).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${tx('Exit Locations & Countries', 'موقعیت‌های خروج و کشورها')} (${enabledCount} ${tx('Active', 'فعال')})`}
+        title={`${tx('Exit Locations & Countries', 'موقعیت‌های خروج و کشورها')} (${lang === 'fa' ? toPersianDigits(enabledCount) : enabledCount} ${tx('Active', 'فعال')})`}
         description={tx(
           'Manage geographic relay endpoints and enable/disable specific country pools.',
           'مدیریت نقاط خروج جغرافیایی و فعال یا غیرفعال‌سازی استخرهای پروکسی کشورها.'
@@ -119,7 +123,7 @@ export default function AdminCountriesPage() {
           />
         </div>
         <div className="text-xs text-muted-foreground whitespace-nowrap">
-          {tx(`Showing ${filtered.length} locations`, `نمایش ${filtered.length} موقعیت`)}
+          {tx(`Showing ${filtered.length} locations`, `نمایش ${toPersianDigits(filtered.length)} موقعیت`)}
         </div>
       </div>
 
@@ -137,13 +141,13 @@ export default function AdminCountriesPage() {
               tx('Actions', 'عملیات'),
             ]}
           >
-            {filtered.map((country) => {
+            {pagination.paginatedItems.map((country) => {
               const pool = poolStatus[country.code] || { totalNodes: 0, healthyNodes: 0 };
               return (
                 <Tr key={country.code}>
                   <Td>
-                    <div className="flex items-center gap-2 font-mono font-bold text-sm">
-                      <span className="p-1 px-1.5 rounded bg-muted/60 text-xs">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <span className="p-1 px-1.5 rounded bg-muted/60 text-xs font-mono">
                         {country.code}
                       </span>
                     </div>
@@ -155,17 +159,19 @@ export default function AdminCountriesPage() {
                     </div>
                   </Td>
                   <Td>
-                    <span className="text-muted-foreground font-mono">
-                      {pool.totalNodes}
+                    <span className="text-muted-foreground font-semibold">
+                      {lang === 'fa' ? toPersianDigits(pool.totalNodes) : pool.totalNodes}
                     </span>
                   </Td>
                   <Td>
                     {pool.healthyNodes > 0 ? (
-                      <span className="font-semibold text-emerald-600 font-mono">
-                        {pool.healthyNodes}
+                      <span className="font-semibold text-emerald-600">
+                        {lang === 'fa' ? toPersianDigits(pool.healthyNodes) : pool.healthyNodes}
                       </span>
                     ) : (
-                      <span className="text-muted-foreground font-mono">0</span>
+                      <span className="text-muted-foreground">
+                        {lang === 'fa' ? '۰' : '0'}
+                      </span>
                     )}
                   </Td>
                   <Td>
@@ -193,6 +199,14 @@ export default function AdminCountriesPage() {
               );
             })}
           </Table>
+          <Pagination
+            currentPage={pagination.page}
+            totalItems={pagination.total}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            lang={lang}
+          />
         </Card>
       )}
     </div>

@@ -288,7 +288,7 @@ console.log('Exit Node IP:', data);`,
                   <CardTitle className="text-sm sm:text-base font-bold whitespace-nowrap">
                     {tx('HTTP Fetch Gateway', 'درگاه اتصال سریع HTTP')}
                   </CardTitle>
-                  <span className="hidden xs:inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold shrink-0">
+                  <span className="hidden xs:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold shrink-0">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     v1
                   </span>
@@ -651,7 +651,7 @@ console.log('Exit Node IP:', data);`,
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             testResult.status === 200
                               ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
                               : testResult.status === 401
@@ -661,7 +661,7 @@ console.log('Exit Node IP:', data);`,
                         >
                           {testResult.status > 0 ? `${testResult.status} ${testResult.success ? 'OK' : 'Error'}` : 'Net Error'}
                         </span>
-                        <span className="text-[11px] text-muted-foreground font-mono">
+                        <span className="text-[11px] text-muted-foreground">
                           {testResult.latencyMs}ms
                         </span>
                       </div>
@@ -701,7 +701,7 @@ console.log('Exit Node IP:', data);`,
                 <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                 <span>{tx('Auth', 'احراز هویت')}</span>
               </div>
-              <span className="font-mono font-semibold text-xs text-foreground">
+              <span className="font-semibold text-xs text-foreground">
                 Basic Auth
               </span>
             </div>

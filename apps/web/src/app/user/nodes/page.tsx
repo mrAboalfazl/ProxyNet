@@ -25,6 +25,10 @@ import {
   Badge,
   Input,
   Modal,
+  Pagination,
+  usePagination,
+  formatDate,
+  toPersianDigits,
 } from '../../../components/user-ui';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
@@ -43,14 +47,8 @@ const faCountryNames: Record<string, string> = {
   US: 'ایالات متحده',
 };
 
-function displayCountry(country: Country, lang: string) {
-  return lang === 'fa' ? faCountryNames[country.code] ?? country.name : country.name;
-}
-
-function formatDate(value: string, lang: string) {
-  return new Intl.DateTimeFormat(lang === 'fa' ? 'fa-IR' : 'en-US', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+function displayCountry(country: { code: string; name?: string }, lang: string) {
+  return lang === 'fa' ? faCountryNames[country.code] ?? (country.name || country.code) : (country.name || country.code);
 }
 
 export default function UserNodesPage() {
@@ -58,6 +56,7 @@ export default function UserNodesPage() {
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
 
   const [nodes, setNodes] = useState<Node[]>([]);
+  const pagination = usePagination(nodes, 6);
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -226,22 +225,24 @@ export default function UserNodesPage() {
           <span className="text-xs font-medium text-muted-foreground">
             {t(lang, 'nodes.total')}
           </span>
-          <div className="text-2xl font-bold font-mono mt-1">{stats.total}</div>
+          <div className="text-2xl font-bold mt-1">
+            {lang === 'fa' ? toPersianDigits(stats.total) : stats.total}
+          </div>
         </Card>
         <Card className="p-4 border-border/70">
           <span className="text-xs font-medium text-muted-foreground">
             {t(lang, 'nodes.healthy_count')}
           </span>
-          <div className="text-2xl font-bold font-mono text-emerald-600 mt-1">
-            {stats.healthy}
+          <div className="text-2xl font-bold text-emerald-600 mt-1">
+            {lang === 'fa' ? toPersianDigits(stats.healthy) : stats.healthy}
           </div>
         </Card>
         <Card className="p-4 border-border/70">
           <span className="text-xs font-medium text-muted-foreground">
             {t(lang, 'nodes.pending_count')}
           </span>
-          <div className="text-2xl font-bold font-mono text-amber-600 mt-1">
-            {stats.pending}
+          <div className="text-2xl font-bold text-amber-600 mt-1">
+            {lang === 'fa' ? toPersianDigits(stats.pending) : stats.pending}
           </div>
         </Card>
       </div>
@@ -352,8 +353,8 @@ export default function UserNodesPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">{t(lang, 'nodes.your_nodes')}</h2>
-          <span className="text-xs text-muted-foreground font-mono">
-            {nodes.length} {tx('nodes total', 'نود')}
+          <span className="text-xs text-muted-foreground">
+            {lang === 'fa' ? toPersianDigits(nodes.length) : nodes.length} {tx('nodes total', 'نود')}
           </span>
         </div>
 
@@ -370,35 +371,46 @@ export default function UserNodesPage() {
             </Button>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {nodes.map((node) => {
-              const healthy = node.status === 'healthy';
-              return (
-                <Card key={node.id}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Server className="h-4 w-4 text-primary" />
-                        <span className="font-semibold text-sm">{node.label}</span>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {pagination.paginatedItems.map((node) => {
+                const healthy = node.status === 'healthy';
+                return (
+                  <Card key={node.id}>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Server className="h-4 w-4 text-primary" />
+                          <span className="font-semibold text-sm">{node.label}</span>
+                        </div>
+                        <Badge
+                          label={healthy ? tx('Healthy', 'آنلاین') : node.status}
+                          variant={healthy ? 'success' : 'warning'}
+                        />
                       </div>
-                      <Badge
-                        label={healthy ? tx('Healthy', 'آنلاین') : node.status}
-                        variant={healthy ? 'success' : 'warning'}
-                      />
-                    </div>
-                    <CardDescription className="text-xs font-mono">
-                      {node.countryCode} · {t(lang, 'nodes.created')}: {formatDate(node.createdAt, lang)}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/40 font-mono">
-                      <span>Node ID:</span>
-                      <span>{node.id.slice(0, 16)}…</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      <CardDescription className="text-xs">
+                        {displayCountry({ code: node.countryCode, name: node.countryCode }, lang)} · {t(lang, 'nodes.created')}: {formatDate(node.createdAt, lang)}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between p-2 rounded bg-muted/40 font-mono">
+                        <span>Node ID:</span>
+                        <span>{node.id.slice(0, 16)}…</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            <Pagination
+              currentPage={pagination.page}
+              totalItems={pagination.total}
+              pageSize={pagination.pageSize}
+              onPageChange={pagination.setPage}
+              onPageSizeChange={pagination.setPageSize}
+              lang={lang}
+            />
           </div>
         )}
       </div>

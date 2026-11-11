@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { api, Plan } from '../../../lib/api';
-import { PageHeader, Card, Table, Tr, Td, Button, Input, Alert, Spinner, Modal, colors } from '../../../lib/ui';
+import { PageHeader, Card, Table, Tr, Td, Button, Input, Alert, Spinner, Modal, colors, Pagination, usePagination, toPersianDigits } from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
 
 export default function AdminPlansPage() {
   const { lang } = useLang();
   const tx = (en: string, fa: string) => lang === 'fa' ? fa : en;
   const [plans, setPlans] = useState<Plan[]>([]);
+  const pagination = usePagination(plans, 10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -60,14 +61,16 @@ export default function AdminPlansPage() {
                   {tx('No plans yet.', 'هنوز پلنی وجود ندارد.')}
                 </td>
               </Tr>
-            ) : plans.map((plan) => (
+            ) : pagination.paginatedItems.map((plan) => (
               <Tr key={plan.id}>
                 <Td style={{ fontWeight: 600 }}>{plan.name}</Td>
                 <Td>
-                  <span style={{ fontWeight: 600, color: colors.navy }}>{plan.monthlyBandwidthGb} GB</span>
+                  <span style={{ fontWeight: 600, color: colors.navy }}>
+                    {lang === 'fa' ? toPersianDigits(plan.monthlyBandwidthGb) : plan.monthlyBandwidthGb} GB
+                  </span>
                   <span style={{ color: colors.textMuted, fontSize: 12, marginInlineStart: 6 }}>{tx('/mo', '/ماه')}</span>
                 </Td>
-                <Td>{plan.maxConcurrentSessions}</Td>
+                <Td>{lang === 'fa' ? toPersianDigits(plan.maxConcurrentSessions) : plan.maxConcurrentSessions}</Td>
                 <Td>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {(plan.allowedProtocols || []).map((p) => (
@@ -80,6 +83,14 @@ export default function AdminPlansPage() {
               </Tr>
             ))}
           </Table>
+          <Pagination
+            currentPage={pagination.page}
+            totalItems={pagination.total}
+            pageSize={pagination.pageSize}
+            onPageChange={pagination.setPage}
+            onPageSizeChange={pagination.setPageSize}
+            lang={lang}
+          />
         </Card>
       )}
 

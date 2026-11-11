@@ -8,6 +8,7 @@ import { clearToken, getToken } from '../../lib/api';
 import { useLang } from '../../lib/lang-context';
 import { t } from '../../lib/i18n';
 import { Tooltip } from '../../components/user-ui';
+import { AccountStatusStrip } from '../../lib/account-status';
 import './user-panel.css';
 
 const navigation = [
@@ -61,7 +62,12 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
             <button className="user-button user-button--danger" style={{ width: '100%' }} onClick={handleLogout}><LogOut size={17} />{t(lang, 'user.signout')}</button>
           </div>
         </aside>
-        <main className="user-main"><div className="user-content">{children}</div></main>
+        <main className="user-main">
+          <div className="user-content">
+            <AccountStatusStrip lang={lang} />
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

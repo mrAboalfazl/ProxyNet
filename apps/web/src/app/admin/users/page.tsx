@@ -14,6 +14,9 @@ import {
   Alert,
   Spinner,
   Input,
+  Pagination,
+  formatDateTime,
+  toPersianDigits,
 } from '../../../lib/ui';
 import { useLang } from '../../../lib/lang-context';
 import { toast } from 'sonner';
@@ -97,12 +100,11 @@ export default function AdminUsersPage() {
   }, [users, search]);
 
   const pageSize = 20;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${tx('Registered Users', 'مدیریت کاربران')} (${total})`}
+        title={`${tx('Registered Users', 'مدیریت کاربران')} (${lang === 'fa' ? toPersianDigits(total) : total})`}
         description={tx(
           'View, inspect, suspend, or ban customer accounts.',
           'مشاهده، بازرسی سهمیه، تعلیق و مسدودسازی حساب‌های کاربری پلتفرم.'
@@ -127,7 +129,7 @@ export default function AdminUsersPage() {
           />
         </div>
         <div className="text-xs text-muted-foreground whitespace-nowrap">
-          {tx(`Showing ${filtered.length} users`, `نمایش ${filtered.length} کاربر`)}
+          {tx(`Showing ${filtered.length} users`, `نمایش ${toPersianDigits(filtered.length)} کاربر`)}
         </div>
       </div>
 
@@ -188,11 +190,7 @@ export default function AdminUsersPage() {
                     <Td>
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
-                        <span>
-                          {new Date(user.createdAt).toLocaleDateString(
-                            lang === 'fa' ? 'fa-IR' : 'en-US'
-                          )}
-                        </span>
+                        <span>{formatDateTime(user.createdAt, lang)}</span>
                       </div>
                     </Td>
                     <Td>
@@ -245,42 +243,18 @@ export default function AdminUsersPage() {
                 ))
               )}
             </Table>
-          </Card>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-muted-foreground">
-                {tx(`Page ${page} of ${totalPages}`, `صفحه ${page} از ${totalPages}`)}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    const next = Math.max(1, page - 1);
-                    setPage(next);
-                    load(next);
-                  }}
-                  disabled={page <= 1}
-                  variant="outline"
-                  size="sm"
-                >
-                  {tx('Previous', 'قبلی')}
-                </Button>
-                <Button
-                  onClick={() => {
-                    const next = Math.min(totalPages, page + 1);
-                    setPage(next);
-                    load(next);
-                  }}
-                  disabled={page >= totalPages}
-                  variant="outline"
-                  size="sm"
-                >
-                  {tx('Next', 'بعدی')}
-                </Button>
-              </div>
-            </div>
-          )}
+            <Pagination
+              currentPage={page}
+              totalItems={total}
+              pageSize={pageSize}
+              onPageChange={(p) => {
+                setPage(p);
+                load(p);
+              }}
+              lang={lang}
+            />
+          </Card>
         </>
       )}
     </div>
