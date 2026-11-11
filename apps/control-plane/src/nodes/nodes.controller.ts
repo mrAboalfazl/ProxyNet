@@ -10,7 +10,9 @@ import {
   HttpStatus,
   BadRequestException,
   Req,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { NodesService } from './nodes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -102,12 +104,41 @@ export class NodesController {
   // All share NodeAuthGuard which reads :id from path params
   // ──────────────────────────────────────────────
 
-  /** Node relay stores its authenticated relay credential, encrypted at rest. */
+  /** Node relay stores its authenticated relay credential and reports its build. */
   @UseGuards(NodeAuthGuard)
   @Post(':id/relay-register')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async registerRelaySecret(@Param('id') id: string, @Req() req: { nodeSecret?: string }) {
-    await this.nodes.registerRelaySecret(BigInt(id), req.nodeSecret!);
+  @HttpCode(HttpStatus.OK)
+  registerRelaySecret(
+    @Param('id') id: string,
+    @Req() req: { nodeSecret?: string },
+    @Body() body: { relayVersion?: string; relaySha256?: string },
+  ) {
+    return this.nodes.registerRelaySecret(BigInt(id), req.nodeSecret!, {
+      relayVersion: body?.relayVersion,
+      relaySha256: body?.relaySha256,
+    });
+  }
+
+  /** Node relay downloads the latest relay build from the control plane. */
+  @UseGuards(NodeAuthGuard)
+  @Get(':id/artifact/relay')
+  getRelayArtifact(@Res() res: Response) {
+    const artifact = this.nodes.getRelayArtifact();
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('X-Relay-Sha256', artifact.sha256);
+    res.setHeader('X-Relay-Version', artifact.version);
+    res.send(artifact.content);
+  }
+
+  /** Node relay reports the outcome of a self-update. */
+  @UseGuards(NodeAuthGuard)
+  @Post(':id/update-result')
+  @HttpCode(HttpStatus.OK)
+  reportUpdate(
+    @Param('id') id: string,
+    @Body() body: { status: string; message?: string },
+  ) {
+    return this.nodes.reportNodeUpdate(BigInt(id), body);
   }
 
   /** Agent heartbeat */
@@ -155,7 +186,7 @@ export class NodesController {
     }
 
     const valid = await this.proxyCredentials.verify(body.uuid, body.secret);
-    if (!valid) {
+    if (!valid.valid) {
       return { allowed: false, reason: 'invalid_credential' };
     }
 

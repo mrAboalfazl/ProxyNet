@@ -241,6 +241,10 @@ export const api = {
       request<Node>('POST', `/admin/nodes/${id}/approve`, {}),
     reject: (id: string) =>
       request<Node>('POST', `/admin/nodes/${id}/reject`, {}),
+    update: (id: string) =>
+      request<Node>('POST', `/admin/nodes/${id}/update`, {}),
+    updateAll: () =>
+      request<{ requested: number }>('POST', '/admin/nodes/update-all', {}),
   },
 
   // Nodes (user self-service)
@@ -405,6 +409,11 @@ export interface Node {
   cpuCores?: number | null;
   memoryBytes?: string | null;
   uptimeSeconds?: string | null;
+  relayVersion?: string | null;
+  relaySha256?: string | null;
+  updateRequestedAt?: string | null;
+  updateStatus?: string | null;
+  updateMessage?: string | null;
   country?: { code: string; name: string } | null;
   heartbeats?: Array<{
     agentVersion: string | null;

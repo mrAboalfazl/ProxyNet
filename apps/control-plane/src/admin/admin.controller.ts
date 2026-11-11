@@ -138,6 +138,16 @@ export class AdminController {
     return this.nodes.rejectNode(BigInt(id));
   }
 
+  @Post('nodes/update-all')
+  updateAllNodes() {
+    return this.nodes.requestAllNodesUpdate();
+  }
+
+  @Post('nodes/:id/update')
+  updateNode(@Param('id') id: string) {
+    return this.nodes.requestNodeUpdate(BigInt(id));
+  }
+
   // ── Plans ──
   @Post('plans')
   createPlan(

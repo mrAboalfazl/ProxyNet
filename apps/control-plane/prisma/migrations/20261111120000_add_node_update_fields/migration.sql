@@ -1,0 +1,5 @@
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "relay_version" TEXT;
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "relay_sha256" TEXT;
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "update_requested_at" TIMESTAMP(3);
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "update_status" TEXT;
+ALTER TABLE "nodes" ADD COLUMN IF NOT EXISTS "update_message" TEXT;

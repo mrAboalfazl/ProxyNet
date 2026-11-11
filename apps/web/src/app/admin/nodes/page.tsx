@@ -24,6 +24,9 @@ export default function AdminNodesPage() {
   const [countryCode, setCountryCode] = useState('');
   const [roles, setRoles] = useState('edge,exit');
   const [creating, setCreating] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingAll, setUpdatingAll] = useState(false);
+  const [notice, setNotice] = useState('');
 
   async function load() {
     setLoading(true);
@@ -102,6 +105,40 @@ export default function AdminNodesPage() {
     }
   }
 
+  async function updateNode(nodeId: string) {
+    setUpdatingId(nodeId);
+    setNotice('');
+    try {
+      await api.nodes.update(nodeId);
+      setNotice(tx(
+        'Update requested — the node will fetch it and restart within a minute.',
+        'درخواست آپدیت ثبت شد — نود حداکثر تا یک دقیقه دیگر دریافت و ری‌استارت می‌کند.',
+      ));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to request update');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function updateAllNodes() {
+    setUpdatingAll(true);
+    setNotice('');
+    try {
+      const res = await api.nodes.updateAll();
+      setNotice(tx(
+        `${res.requested} node(s) queued for update.`,
+        `${toPersianDigits(res.requested)} نود در صف آپدیت قرار گرفت.`,
+      ));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to request updates');
+    } finally {
+      setUpdatingAll(false);
+    }
+  }
+
   useEffect(() => { load(); }, []);
 
   const pendingUserNodes = nodes.filter((n) => n.status === 'pending' && n.submittedById);
@@ -111,9 +148,20 @@ export default function AdminNodesPage() {
 
   return (
     <div>
-      <PageHeader title={tx('Nodes', 'نودها')} action={<Button onClick={() => setShowCreate(true)}>+ {tx('Add Node', 'افزودن نود')}</Button>} />
+      <PageHeader
+        title={tx('Nodes', 'نودها')}
+        action={(
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button onClick={updateAllNodes} disabled={updatingAll} variant="secondary">
+              {updatingAll ? tx('Updating…', 'در حال آپدیت…') : tx('Update All', 'آپدیت همه')}
+            </Button>
+            <Button onClick={() => setShowCreate(true)}>+ {tx('Add Node', 'افزودن نود')}</Button>
+          </div>
+        )}
+      />
 
       {error && <div style={{ marginBottom: 16 }}><Alert message={error} /></div>}
+      {notice && <div style={{ marginBottom: 16 }}><Alert type="success" message={notice} /></div>}
 
       {enrollmentToken && (
         <div style={{ marginBottom: 16 }}>
@@ -205,10 +253,10 @@ export default function AdminNodesPage() {
               </h2>
             )}
             <Card>
-              <Table headers={[tx('Node', 'نود'), tx('Country / IP', 'کشور / IP'), tx('Roles', 'نقش‌ها'), tx('Health', 'سلامت'), tx('Last heartbeat', 'آخرین ضربان'), tx('Actions', 'عملیات')]}>
+              <Table headers={[tx('Node', 'نود'), tx('Country / IP', 'کشور / IP'), tx('Roles', 'نقش‌ها'), tx('Health', 'سلامت'), tx('Last heartbeat', 'آخرین ضربان'), tx('Version', 'نسخه'), tx('Actions', 'عملیات')]}>
                 {otherNodes.length === 0 ? (
                   <Tr>
-                    <td colSpan={6} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
+                    <td colSpan={7} style={{ padding: '32px 16px', color: colors.textMuted, textAlign: 'center', fontSize: 14 }}>
                       {tx('No nodes yet.', 'هنوز نودی وجود ندارد.')}
                     </td>
                   </Tr>
@@ -228,7 +276,36 @@ export default function AdminNodesPage() {
                     <Td><Badge label={node.status} /><div style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{node.nodeSecretHash ? 'Connected' : 'Not enrolled'}{node.metrics?.[0]?.cpuPct != null && ` · CPU ${node.metrics[0].cpuPct}%`}</div></Td>
                     <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? formatDateTime(node.heartbeats[0].reportedAt, lang) : (node.updatedAt ? formatDateTime(node.updatedAt, lang) : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
+                      <div style={{ fontFamily: 'monospace', fontSize: 11, direction: 'ltr', lineHeight: 1.5 }}>
+                        <div>agent {node.heartbeats?.[0]?.agentVersion ?? '—'}</div>
+                        <div>relay {node.relayVersion ?? (node.relaySha256 ? node.relaySha256.slice(0, 8) : '—')}</div>
+                      </div>
+                      {node.updateStatus && (
+                        <div style={{
+                          fontSize: 11,
+                          marginTop: 4,
+                          color: node.updateStatus === 'failed'
+                            ? '#dc2626'
+                            : node.updateStatus === 'success'
+                              ? '#166534'
+                              : colors.textMuted,
+                        }}>
+                          {node.updateStatus}{node.updateMessage ? `: ${node.updateMessage}` : ''}
+                        </div>
+                      )}
+                    </Td>
+                    <Td>
                       <div style={{ display: 'flex', gap: 8 }}>
+                        {node.nodeSecretHash && (
+                          <Button
+                            onClick={() => updateNode(node.id)}
+                            variant="secondary"
+                            size="sm"
+                            disabled={updatingId === node.id}
+                          >
+                            {updatingId === node.id ? tx('Queued…', 'در صف…') : tx('Update', 'آپدیت')}
+                          </Button>
+                        )}
                         {!node.nodeSecretHash && node.status !== 'pending' ? (
                           <Button onClick={() => resetEnrollment(node.id)} variant="primary" size="sm">{tx('Reset enrollment', 'بازنشانی ثبت نود')}</Button>
                         ) : (

@@ -2,12 +2,21 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import * as fs from 'fs';
+import * as path from 'path';
 import { encryptRelaySecret } from './relay-secret.crypto';
 import { RoutingSnapshotService } from '../routing/routing-snapshot.service';
+
+export interface RelayArtifact {
+  version: string;
+  sha256: string;
+  content: Buffer;
+}
 
 @Injectable()
 export class NodesService {
@@ -193,10 +202,130 @@ export class NodesService {
     return bcrypt.compare(secret, node.nodeSecretHash);
   }
 
-  async registerRelaySecret(nodeId: bigint, secret: string): Promise<void> {
+  private resolveRepoRoot(): string {
+    const candidates = [
+      process.env.PROXYNET_REPO_ROOT,
+      process.cwd(),
+      path.resolve(process.cwd(), '..'),
+      path.resolve(process.cwd(), '../..'),
+      path.resolve(__dirname, '../../..'),
+      path.resolve(__dirname, '../../../..'),
+    ].filter((value): value is string => Boolean(value));
+
+    for (const root of candidates) {
+      if (fs.existsSync(path.join(root, 'packages/node-relay/index.js'))) {
+        return root;
+      }
+    }
+    throw new ServiceUnavailableException(
+      'Relay artifact is not available on this control plane',
+    );
+  }
+
+  getRelayArtifact(): RelayArtifact {
+    const root = this.resolveRepoRoot();
+    const file = path.join(root, 'packages/node-relay/index.js');
+    const content = fs.readFileSync(file);
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const versionFile = path.join(root, 'packages/node-relay/VERSION');
+    const version = fs.existsSync(versionFile)
+      ? fs.readFileSync(versionFile, 'utf8').trim()
+      : sha256.slice(0, 12);
+    return { version, sha256, content };
+  }
+
+  async registerRelaySecret(
+    nodeId: bigint,
+    secret: string,
+    meta?: { relayVersion?: string; relaySha256?: string },
+  ): Promise<{ update: { requestedAt: string; relay: { version: string; sha256: string; url: string } } | null }> {
+    const node = await this.prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { updateRequestedAt: true },
+    });
+    const requestedAt = node?.updateRequestedAt ?? null;
+
+    let artifact: RelayArtifact | null = null;
+    try {
+      artifact = this.getRelayArtifact();
+    } catch {
+      artifact = null;
+    }
+
+    const matchesCurrentBuild = Boolean(
+      artifact && meta?.relaySha256 && meta.relaySha256 === artifact.sha256,
+    );
+
     await this.prisma.node.update({
       where: { id: nodeId },
-      data: { relaySecretEncrypted: encryptRelaySecret(secret) },
+      data: {
+        relaySecretEncrypted: encryptRelaySecret(secret),
+        ...(meta?.relayVersion ? { relayVersion: meta.relayVersion } : {}),
+        ...(meta?.relaySha256 ? { relaySha256: meta.relaySha256 } : {}),
+        ...(requestedAt && matchesCurrentBuild
+          ? { updateRequestedAt: null, updateStatus: 'success', updateMessage: null }
+          : {}),
+      },
+    });
+
+    if (!requestedAt || matchesCurrentBuild || !artifact) {
+      return { update: null };
+    }
+
+    return {
+      update: {
+        requestedAt: requestedAt.toISOString(),
+        relay: {
+          version: artifact.version,
+          sha256: artifact.sha256,
+          url: `/api/nodes/${nodeId}/artifact/relay`,
+        },
+      },
+    };
+  }
+
+  async requestNodeUpdate(nodeId: bigint) {
+    const node = await this.prisma.node.findUnique({
+      where: { id: nodeId },
+      select: { id: true },
+    });
+    if (!node) throw new NotFoundException('Node not found');
+    return this.prisma.node.update({
+      where: { id: nodeId },
+      data: {
+        updateRequestedAt: new Date(),
+        updateStatus: 'requested',
+        updateMessage: null,
+      },
+    });
+  }
+
+  async requestAllNodesUpdate() {
+    const result = await this.prisma.node.updateMany({
+      where: {
+        nodeSecretHash: { not: null },
+        status: { not: 'disabled' },
+      },
+      data: {
+        updateRequestedAt: new Date(),
+        updateStatus: 'requested',
+        updateMessage: null,
+      },
+    });
+    return { requested: result.count };
+  }
+
+  async reportNodeUpdate(
+    nodeId: bigint,
+    data: { status: string; message?: string },
+  ) {
+    return this.prisma.node.update({
+      where: { id: nodeId },
+      data: {
+        updateStatus: data.status,
+        updateMessage: data.message ?? null,
+        ...(data.status === 'success' ? { updateRequestedAt: null } : {}),
+      },
     });
   }
 

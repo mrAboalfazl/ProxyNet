@@ -23,7 +23,8 @@ const dgram = require('dgram');
 const dns = require('dns').promises;
 const fs = require('fs');
 const { URL } = require('url');
-const { timingSafeEqual, randomUUID } = require('crypto');
+const { timingSafeEqual, randomUUID, createHash } = require('crypto');
+const { spawn } = require('child_process');
 
 function readAgentConfig() {
   try {
@@ -41,6 +42,18 @@ const PORT = parseInt(process.env.RELAY_PORT || '9443', 10);
 const HOST = process.env.RELAY_HOST || '0.0.0.0';
 const SOCKS_PORT = parseInt(process.env.SOCKS_PORT || '1080', 10);
 const SOCKS_HOST = process.env.SOCKS_HOST || '0.0.0.0';
+
+// Version + content hash are reported to the control plane so it can show the
+// installed relay build and push a verified self-update when requested.
+const RELAY_VERSION = process.env.RELAY_VERSION || '2026.11.11.1';
+function computeRelaySha256() {
+  try {
+    return createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
+  } catch {
+    return '';
+  }
+}
+const RELAY_SHA256 = computeRelaySha256();
 
 if (require.main === module && !NODE_SECRET) {
   console.error('[node-relay] FATAL: NODE_SECRET env var is required');
@@ -277,7 +290,12 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', ts: new Date().toISOString() }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      version: RELAY_VERSION,
+      sha256: RELAY_SHA256,
+      ts: new Date().toISOString(),
+    }));
     return;
   }
 
@@ -433,18 +451,68 @@ async function controlRequest(path, body) {
   }
 }
 
+let relayUpdateInFlight = false;
+
+async function applyRelayUpdate(artifact) {
+  if (relayUpdateInFlight || !artifact?.url || !artifact?.sha256) return;
+  if (artifact.sha256 === RELAY_SHA256) return; // already running this build
+  relayUpdateInFlight = true;
+
+  const target = '/usr/local/lib/proxynet/node-relay.js';
+  const next = `${target}.new`;
+  const script = '/usr/local/lib/proxynet/apply-relay-update.sh';
+
+  try {
+    const url = artifact.url.startsWith('http') ? artifact.url : `${CONTROL_PLANE_URL}${artifact.url}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${NODE_SECRET}` },
+    });
+    if (!response.ok) throw new Error(`artifact download failed: ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const digest = createHash('sha256').update(buffer).digest('hex');
+    if (digest !== artifact.sha256) throw new Error('artifact checksum mismatch');
+
+    fs.writeFileSync(next, buffer, { mode: 0o644 });
+    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/update-result`, {
+      status: 'restarting',
+      message: `relay ${artifact.version || artifact.sha256.slice(0, 12)} downloaded`,
+    }).catch(() => {});
+
+    fs.writeFileSync(
+      script,
+      `#!/bin/bash\nsleep 2\nmv -f '${next}' '${target}'\nsystemctl restart proxynet-relay\n`,
+      { mode: 0o755 },
+    );
+    console.log(`[node-relay] applying update ${artifact.version || artifact.sha256.slice(0, 12)}`);
+    spawn('/bin/bash', [script], { detached: true, stdio: 'ignore' }).unref();
+  } catch (error) {
+    relayUpdateInFlight = false;
+    console.warn(`[node-relay] relay update failed: ${error.message}`);
+    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/update-result`, {
+      status: 'failed',
+      message: error.message,
+    }).catch(() => {});
+  }
+}
+
 async function registerRelayCredential() {
   if (!CONTROL_PLANE_URL || !NODE_ID) return;
   try {
-    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/relay-register`, {});
+    const result = await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/relay-register`, {
+      relayVersion: RELAY_VERSION,
+      relaySha256: RELAY_SHA256,
+    });
     console.log('[node-relay] relay credential registered');
+    if (result?.update?.relay) {
+      void applyRelayUpdate(result.update.relay);
+    }
   } catch (error) {
     console.warn(`[node-relay] relay credential registration failed: ${error.message}`);
   }
 }
 
 void registerRelayCredential();
-setInterval(() => void registerRelayCredential(), 5 * 60 * 1000).unref();
+setInterval(() => void registerRelayCredential(), 60 * 1000).unref();
 
 async function authorizeSocksCredential(username, password) {
   if (!CONTROL_PLANE_URL || !NODE_ID) throw new Error('SOCKS5 is not configured with a control plane endpoint');
