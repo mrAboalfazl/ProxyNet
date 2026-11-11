@@ -145,6 +145,9 @@ export class GatewayService {
     // candidates are cooling down.
     const fresh = nodes.filter((node) => !this.isCoolingDown(node.id));
     if (fresh.length) nodes = fresh;
+    // In automatic mode prefer real remote relays over the co-located edge so
+    // the panel's own IP is only used as a last resort.
+    nodes.sort((a, b) => Number(a.isLocal) - Number(b.isLocal));
     nodes = nodes.slice(0, failover ? maxAttempts : 1);
 
     if (!nodes.length) {
