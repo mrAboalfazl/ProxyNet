@@ -10,6 +10,7 @@ import {
 } from '../routing/node-selector.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PricingService } from '../wallet/pricing.service';
+import { redactUrl } from '../common/redact';
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -347,7 +348,7 @@ export class ForwarderProxyController {
         fwd.userId,
         cost,
         'forwarder_call',
-        `${req.method} ${finalUrl}`.slice(0, 200),
+        `${req.method} ${redactUrl(finalUrl)}`.slice(0, 200),
         {
           forwarderId: fwd.id.toString(),
           bytesIn,

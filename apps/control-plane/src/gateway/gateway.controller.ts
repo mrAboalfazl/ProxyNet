@@ -30,6 +30,7 @@ import { GatewayService } from './gateway.service';
 import { ProxyCredentialsService } from '../proxy-credentials/proxy-credentials.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PricingService } from '../wallet/pricing.service';
+import { redactUrl } from '../common/redact';
 
 export class FetchRequestDto {
   @ApiProperty({
@@ -248,8 +249,8 @@ export class GatewayController {
     // Post-charge (fire-and-forget so a metering failure never breaks the response)
     const cost = this.pricing.computeRequestCost(pricing);
     this.wallet
-      .chargeSilently(userId, cost, 'gateway_call', `${body.method ?? 'GET'} ${body.url}`.slice(0, 200), {
-        requestUrl: body.url,
+      .chargeSilently(userId, cost, 'gateway_call', `${body.method ?? 'GET'} ${redactUrl(body.url)}`.slice(0, 200), {
+        requestUrl: redactUrl(body.url),
         bytesIn: result.bytesIn,
         bytesOut: result.bytesOut,
         credentialUuid: uuid,
