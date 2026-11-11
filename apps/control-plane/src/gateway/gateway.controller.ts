@@ -1,8 +1,10 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   Headers,
+  Query,
   UnauthorizedException,
   BadRequestException,
   HttpCode,
@@ -122,6 +124,43 @@ export class FetchRequestDto {
   @IsOptional()
   @IsNumber()
   timeoutMs?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'در صورت خطای یک نود، به‌صورت خودکار نودهای سالم بعدی امتحان شوند.',
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  failover?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'حداکثر تعداد نودهای امتحان‌شده در حالت failover (۱ تا ۵)',
+    example: 3,
+    default: 3,
+  })
+  @IsOptional()
+  @IsNumber()
+  maxAttempts?: number;
+
+  @ApiPropertyOptional({
+    description: 'اجبار به خروج از یک کشور مشخص (مثلاً DE)',
+    example: 'DE',
+  })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'در حالت auto، اگر همه نودها خطا دادند از خروجی مستقیم سرور پنل استفاده شود. برای کارهای حساس به IP خاموش بماند.',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allowLocalFallback?: boolean;
 }
 
 @ApiTags('gateway')
@@ -165,35 +204,18 @@ export class GatewayController {
   })
   async fetch(
     @Headers('authorization') authHeader: string,
+    @Headers('x-api-key') apiKeyHeader: string,
     @Body() body: FetchRequestDto,
   ) {
-    if (!authHeader?.startsWith('Basic ')) {
-      throw new UnauthorizedException('Basic authentication required (uuid:secret)');
-    }
+    const { uuid, userId } = await this.authenticate(authHeader, apiKeyHeader);
 
-    let uuid: string;
-    let secret: string;
-    try {
-      const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
-      const colon = decoded.indexOf(':');
-      if (colon < 1) throw new Error();
-      uuid = decoded.slice(0, colon);
-      secret = decoded.slice(colon + 1);
-    } catch {
-      throw new UnauthorizedException('Malformed Basic auth header');
-    }
-
-    const verified = await this.credentials.verify(uuid, secret);
-    if (!verified.valid) {
-      throw new UnauthorizedException('Invalid or revoked proxy credential');
-    }
     if (!body?.url) {
       throw new BadRequestException('url is required');
     }
 
     // Pre-flight balance check
     const pricing = await this.pricing.get();
-    const hasBalance = await this.wallet.hasMinBalance(verified.userId, pricing.minBalanceToman);
+    const hasBalance = await this.wallet.hasMinBalance(userId, pricing.minBalanceToman);
     if (!hasBalance) {
       throw new HttpException(
         {
@@ -216,13 +238,17 @@ export class GatewayController {
       maxRedirects: body.maxRedirects,
       insecure: body.insecure,
       timeoutMs: body.timeoutMs,
-      userId: verified.userId,
+      failover: body.failover,
+      maxAttempts: body.maxAttempts,
+      country: body.country,
+      allowLocalFallback: body.allowLocalFallback,
+      userId,
     });
 
     // Post-charge (fire-and-forget so a metering failure never breaks the response)
     const cost = this.pricing.computeRequestCost(pricing);
     this.wallet
-      .chargeSilently(verified.userId, cost, 'gateway_call', `${body.method ?? 'GET'} ${body.url}`.slice(0, 200), {
+      .chargeSilently(userId, cost, 'gateway_call', `${body.method ?? 'GET'} ${body.url}`.slice(0, 200), {
         requestUrl: body.url,
         bytesIn: result.bytesIn,
         bytesOut: result.bytesOut,
@@ -234,5 +260,64 @@ export class GatewayController {
       ...result,
       costToman: cost.toString(),
     };
+  }
+
+  @Get('nodes')
+  @ApiOperation({
+    summary: 'وضعیت نودهای قابل استفاده',
+    description:
+      'نودهای سالم/فعال قابل استفاده برای این API Key را برمی‌گرداند تا کلاینت بداند کدام نودها در دسترس هستند.',
+  })
+  async nodes(
+    @Headers('authorization') authHeader: string,
+    @Headers('x-api-key') apiKeyHeader: string,
+    @Query('country') country?: string,
+  ) {
+    const { userId } = await this.authenticate(authHeader, apiKeyHeader);
+    return this.gateway.listNodes(userId, country ?? null);
+  }
+
+  private async authenticate(
+    authHeader?: string,
+    apiKeyHeader?: string,
+  ): Promise<{ uuid: string; userId: bigint }> {
+    let token: string | undefined;
+
+    if (authHeader?.startsWith('Basic ')) {
+      token = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
+    } else if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7).trim();
+    } else if (apiKeyHeader?.trim()) {
+      token = apiKeyHeader.trim();
+    }
+
+    if (!token) {
+      throw new UnauthorizedException(
+        'API key required: use Basic, Bearer <uuid:secret>, or X-Api-Key',
+      );
+    }
+
+    let decoded = token;
+    if (!decoded.includes(':')) {
+      try {
+        const base64Decoded = Buffer.from(token, 'base64').toString('utf8');
+        if (base64Decoded.includes(':')) decoded = base64Decoded;
+      } catch {
+        /* keep raw token */
+      }
+    }
+
+    const colon = decoded.indexOf(':');
+    if (colon < 1) {
+      throw new UnauthorizedException('Malformed API key (expected uuid:secret)');
+    }
+
+    const uuid = decoded.slice(0, colon);
+    const secret = decoded.slice(colon + 1);
+    const verified = await this.credentials.verify(uuid, secret);
+    if (!verified.valid) {
+      throw new UnauthorizedException('Invalid or revoked API key');
+    }
+    return { uuid, userId: verified.userId };
   }
 }

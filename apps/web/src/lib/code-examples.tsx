@@ -186,31 +186,31 @@ echo curl_exec($ch);`,
 export function buildGatewaySnippets(apiBase: string, uuid: string, secretPlaceholder = 'YOUR_SECRET'): Snippet {
   const basicRaw = `${uuid}:${secretPlaceholder}`;
   return {
-    curl: `# Base64-encode UUID:SECRET for Basic auth
-BASIC=$(echo -n "${basicRaw}" | base64)
+    curl: `# API key = UUID:SECRET (shown once when the credential is created).
+API_KEY="${basicRaw}"
 
-# 1. Standard Request
+# 1. Auto-failover across healthy nodes
 curl -X POST "${apiBase}/gateway/fetch" \\
-  -H "Authorization: Basic $BASIC" \\
+  -H "X-Api-Key: $API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"url":"https://api.ipify.org?format=json"}'
+  -d '{"url":"https://api.ipify.org?format=json","failover":true,"maxAttempts":3}'
 
-# 2. Advanced: Upstream Auth, Redirects & Insecure SSL
+# 2. Pin a country (never falls back to the panel IP)
 curl -X POST "${apiBase}/gateway/fetch" \\
-  -H "Authorization: Basic $BASIC" \\
+  -H "X-Api-Key: $API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "url": "https://api.example.com/v1/secure-endpoint",
-    "method": "POST",
-    "headers": {
-      "Authorization": "Bearer YOUR_UPSTREAM_TOKEN",
-      "Content-Type": "application/json"
-    },
-    "body": "{\\"action\\":\\"execute\\"}",
-    "followRedirects": true,
-    "insecure": false,
-    "timeoutMs": 30000
-  }'`,
+  -d '{"url":"https://api.ipify.org?format=json","country":"DE","failover":true}'
+
+# 3. Allow panel IP fallback when the exit IP does not matter
+curl -X POST "${apiBase}/gateway/fetch" \\
+  -H "X-Api-Key: $API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"url":"https://api.ipify.org?format=json","allowLocalFallback":true}'
+
+# 4. Inspect currently eligible nodes
+curl "${apiBase}/gateway/nodes" -H "X-Api-Key: $API_KEY"
+
+# Basic auth (base64 UUID:SECRET) is still supported.`,
 
     python: `import base64
 import requests
@@ -260,10 +260,12 @@ const r = await fetch("${apiBase}/gateway/fetch", {
     followRedirects: true,
     insecure: false, // Set true if destination uses Self-Signed SSL
     timeoutMs: 30000,
+    failover: true,
+    maxAttempts: 3,
   }),
 });
 const data = await r.json();
-console.log(data.status, data.viaCountry, data.body);`,
+console.log(data.status, data.viaCountry, data.attempts, data.body);`,
 
     node: `// Node.js 18+
 const UUID = "${uuid}";
@@ -287,6 +289,8 @@ const r = await fetch("${apiBase}/gateway/fetch", {
     followRedirects: true,
     insecure: false,
     timeoutMs: 30000,
+    failover: true,
+    maxAttempts: 3,
   }),
 });
 const data = await r.json();

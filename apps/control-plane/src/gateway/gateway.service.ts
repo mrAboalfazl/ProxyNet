@@ -30,6 +30,14 @@ const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REQUEST_TIMEOUT_MS = 60_000;
 
+export interface GatewayAttempt {
+  nodeId?: number;
+  country?: string;
+  ok: boolean;
+  ms: number;
+  error?: string;
+}
+
 export interface FetchResult {
   status: number;
   headers: Record<string, string>;
@@ -39,6 +47,7 @@ export interface FetchResult {
   bytesOut: number;
   viaNodeId?: number;
   viaCountry?: string;
+  attempts?: GatewayAttempt[];
   redirectsFollowed?: number;
 }
 
@@ -53,6 +62,10 @@ export interface FetchParams {
   maxRedirects?: number;
   insecure?: boolean;
   timeoutMs?: number;
+  failover?: boolean;
+  maxAttempts?: number;
+  country?: string | null;
+  allowLocalFallback?: boolean;
 }
 
 function isBinaryContentType(contentType?: string): boolean {
@@ -85,39 +98,123 @@ export class GatewayService {
     return BLOCKED_HOSTS.some((re) => re.test(hostname));
   }
 
+  private readonly failedUntil = new Map<number, number>();
+  private readonly failureCooldownMs = 60_000;
+
+  private isCoolingDown(nodeId: number): boolean {
+    return (this.failedUntil.get(nodeId) ?? 0) > Date.now();
+  }
+
+  private markFailed(nodeId: number): void {
+    this.failedUntil.set(nodeId, Date.now() + this.failureCooldownMs);
+  }
+
+  async listNodes(userId: bigint, country?: string | null) {
+    const nodes = await this.nodeSelector.listAvailableNodes(userId, country);
+    return { nodes, generatedAt: new Date().toISOString() };
+  }
+
   async fetch(params: FetchParams & { userId?: bigint }): Promise<FetchResult> {
-    if (params.userId !== undefined) {
-      const preference = await this.nodeSelector.getPreference(params.userId);
-      const node = await this.nodeSelector.selectForUser(params.userId);
-      if (preference.mode === 'country' && !node) {
+    if (params.userId === undefined) {
+      return this.fetchLocal(params);
+    }
+
+    const preference = await this.nodeSelector.getPreference(params.userId);
+    const overrideCountry = params.country?.trim().toUpperCase() || null;
+    const effectiveMode = overrideCountry ? 'country' : preference.mode;
+    const preferredCountry = overrideCountry ?? preference.preferredCountry;
+
+    if (effectiveMode === 'local') {
+      const result = await this.fetchLocal(params);
+      return { ...result, attempts: [] };
+    }
+
+    const maxAttempts = Math.max(1, Math.min(params.maxAttempts ?? 3, 5));
+    const failover = params.failover !== false;
+    const requested = failover ? Math.min(maxAttempts * 2, 10) : 1;
+
+    let nodes = await this.nodeSelector.selectCandidatesForUser(
+      params.userId,
+      {
+        country: effectiveMode === 'country' ? preferredCountry : null,
+        limit: requested,
+      },
+    );
+
+    // Skip nodes that recently failed, but keep them as a last resort if all
+    // candidates are cooling down.
+    const fresh = nodes.filter((node) => !this.isCoolingDown(node.id));
+    if (fresh.length) nodes = fresh;
+    nodes = nodes.slice(0, failover ? maxAttempts : 1);
+
+    if (!nodes.length) {
+      if (effectiveMode === 'country') {
         throw new ServiceUnavailableException(
-          `No healthy relay is currently available in ${preference.preferredCountry ?? 'the selected country'}`,
+          `No healthy relay is currently available in ${preferredCountry ?? 'the selected country'}`,
         );
       }
-      if (node && !node.isLocal) {
-        try {
-          const result = await this.fetchViaNode(node, params);
-          return {
-            ...result,
-            viaNodeId: node.id,
-            viaCountry: node.countryCode,
-          };
-        } catch (err) {
-          if (preference.mode === 'country') {
-            throw new ServiceUnavailableException(
-              `The selected ${node.countryCode} relay is temporarily unavailable`,
-            );
-          }
-          this.logger.warn(
-            `node ${node.id} (${node.label}) failed: ${(err as Error).message} — falling back to local egress`,
-          );
-        }
-      } else if (node?.isLocal) {
+      if (params.allowLocalFallback) {
         const result = await this.fetchLocal(params);
-        return { ...result, viaNodeId: node.id, viaCountry: node.countryCode };
+        return { ...result, attempts: [] };
+      }
+      throw new ServiceUnavailableException(
+        'No healthy relay nodes are currently available',
+      );
+    }
+
+    const attempts: GatewayAttempt[] = [];
+
+    for (const node of nodes) {
+      const started = Date.now();
+      try {
+        const result = node.isLocal
+          ? await this.fetchLocal(params)
+          : await this.fetchViaNode(node, params);
+        attempts.push({
+          nodeId: node.id,
+          country: node.countryCode,
+          ok: true,
+          ms: Date.now() - started,
+        });
+        return {
+          ...result,
+          viaNodeId: node.id,
+          viaCountry: node.countryCode,
+          attempts,
+        };
+      } catch (err) {
+        attempts.push({
+          nodeId: node.id,
+          country: node.countryCode,
+          ok: false,
+          ms: Date.now() - started,
+          error: (err as Error).message,
+        });
+        this.markFailed(node.id);
+        this.logger.warn(
+          `gateway node ${node.id} (${node.label}) failed: ${(err as Error).message}`,
+        );
+        if (!failover) break;
       }
     }
-    return this.fetchLocal(params);
+
+    // Explicit country choices must never silently fall back to the panel's IP.
+    if (effectiveMode !== 'country' && params.allowLocalFallback) {
+      const result = await this.fetchLocal(params);
+      return { ...result, attempts };
+    }
+
+    if (effectiveMode === 'country') {
+      throw new ServiceUnavailableException(
+        `The selected ${preferredCountry} relay is temporarily unavailable`,
+      );
+    }
+
+    throw new ServiceUnavailableException({
+      error: 'all_nodes_failed',
+      message: 'No relay node could complete the request',
+      attempts,
+    });
   }
 
   private async fetchViaNode(

@@ -47,20 +47,28 @@ export class NodeSelectorService {
     return { mode, preferredCountry };
   }
 
-  async selectForUser(
+  /**
+   * Return an ordered list of usable exit nodes for automatic routing/failover.
+   * Round-robin is applied to the candidate list so consecutive requests spread
+   * across nodes instead of always hammering the first one.
+   */
+  async selectCandidatesForUser(
     userId: bigint,
-    overrideCountry?: string | null,
-  ): Promise<SelectedNode | null> {
+    options: { country?: string | null; limit?: number; excludeIds?: number[] } = {},
+  ): Promise<SelectedNode[]> {
     const pref = await this.getPreference(userId);
-    const override = overrideCountry?.trim().toUpperCase() || null;
+    const override = options.country?.trim().toUpperCase() || null;
     const mode = override ? 'country' : pref.mode;
     const preferredCountry = override ?? pref.preferredCountry;
 
-    if (mode === 'local') return null;
+    if (mode === 'local') return [];
 
     const snap = await this.snapshot.getCurrentSnapshot();
+    const exclude = new Set(options.excludeIds ?? []);
     let candidates = snap.nodes.filter(
-      (n) => n.status === 'healthy' || n.status === 'active',
+      (n) =>
+        (n.status === 'healthy' || n.status === 'active') &&
+        !exclude.has(Number(n.id)),
     );
 
     if (mode === 'country' && preferredCountry) {
@@ -71,15 +79,70 @@ export class NodeSelectorService {
       this.logger.debug(
         `no candidates for user=${userId} mode=${mode} country=${preferredCountry ?? '-'}`,
       );
-      return null;
+      return [];
     }
 
-    // Automatic mode currently uses round-robin over healthy/active candidates.
-    // The snapshot is rebuilt when node/country status changes, so disabled
-    // countries and unavailable nodes do not remain eligible until the TTL.
-    const pick = candidates[this.rrCursor % candidates.length];
+    const limit = Math.max(1, Math.min(options.limit ?? 1, 10));
+    const start = this.rrCursor % candidates.length;
+    const ordered = candidates.slice(start).concat(candidates.slice(0, start));
     this.rrCursor = (this.rrCursor + 1) % Number.MAX_SAFE_INTEGER;
 
+    const selected: SelectedNode[] = [];
+    for (const pick of ordered) {
+      if (selected.length >= limit) break;
+      const node = await this.buildSelectedNode(pick);
+      if (node) selected.push(node);
+    }
+    return selected;
+  }
+
+  async selectForUser(
+    userId: bigint,
+    overrideCountry?: string | null,
+  ): Promise<SelectedNode | null> {
+    const nodes = await this.selectCandidatesForUser(userId, {
+      country: overrideCountry,
+      limit: 1,
+    });
+    return nodes[0] ?? null;
+  }
+
+  /**
+   * Lightweight, secret-free list used by the gateway status endpoint so an
+   * integration can discover which nodes are currently eligible.
+   */
+  async listAvailableNodes(
+    userId: bigint,
+    country?: string | null,
+  ): Promise<Array<{ id: number; countryCode: string; label: string; status: string }>> {
+    const pref = await this.getPreference(userId);
+    const override = country?.trim().toUpperCase() || null;
+    const mode = override ? 'country' : pref.mode;
+    const preferredCountry = override ?? pref.preferredCountry;
+
+    if (mode === 'local') return [];
+
+    const snap = await this.snapshot.getCurrentSnapshot();
+    let nodes = snap.nodes.filter(
+      (n) => n.status === 'healthy' || n.status === 'active',
+    );
+    if (mode === 'country' && preferredCountry) {
+      nodes = nodes.filter((n) => n.countryCode === preferredCountry);
+    }
+
+    return nodes.map((n) => ({
+      id: Number(n.id),
+      countryCode: n.countryCode,
+      label: n.label,
+      status: n.status,
+    }));
+  }
+
+  private async buildSelectedNode(pick: {
+    id: string;
+    countryCode: string;
+    label: string;
+  }): Promise<SelectedNode | null> {
     // The snapshot doesn't carry ipv4_address (that's a routing detail, not a client detail).
     // Look up the address from the DB.
     const node = await this.prisma.node.findUnique({
@@ -100,9 +163,6 @@ export class NodeSelectorService {
 
     const host = node.ipv4Address ?? node.ipv6Address!;
     const controlPlaneHost = process.env.CONTROL_PLANE_PUBLIC_IP ?? '';
-    // Only skip the network hop when the node's public IP matches the control-plane's
-    // public IP. 127.0.0.1 goes via the relay too — it just happens to be the loopback,
-    // which is the honest behaviour for a co-located dev node.
     const isLocal = !!controlPlaneHost && host === controlPlaneHost;
 
     if (!node.relaySecretEncrypted) {
