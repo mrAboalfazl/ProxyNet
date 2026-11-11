@@ -87,6 +87,7 @@ model Forwarder {
   preserveQuery    Boolean  @default(true) @map("preserve_query")
   forwardAuthHeader Boolean @default(true) @map("forward_auth_header")
   countryCode      String?  @map("country_code")
+  countryCodes     String[] @default([]) @map("country_codes")
   enabled          Boolean  @default(true)
   callCount        BigInt   @default(0) @map("call_count")
   bytesIn          BigInt   @default(0) @map("bytes_in")

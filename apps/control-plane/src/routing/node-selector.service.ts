@@ -54,11 +54,19 @@ export class NodeSelectorService {
    */
   async selectCandidatesForUser(
     userId: bigint,
-    options: { country?: string | null; limit?: number; excludeIds?: number[] } = {},
+    options: {
+      country?: string | null;
+      countries?: string[] | null;
+      limit?: number;
+      excludeIds?: number[];
+    } = {},
   ): Promise<SelectedNode[]> {
     const pref = await this.getPreference(userId);
+    const overrideCountries = (options.countries ?? [])
+      .map((code) => code.trim().toUpperCase())
+      .filter((code) => /^[A-Z]{2}$/.test(code));
     const override = options.country?.trim().toUpperCase() || null;
-    const mode = override ? 'country' : pref.mode;
+    const mode = override || overrideCountries.length ? 'country' : pref.mode;
     const preferredCountry = override ?? pref.preferredCountry;
 
     if (mode === 'local') return [];
@@ -71,21 +79,37 @@ export class NodeSelectorService {
         !exclude.has(Number(n.id)),
     );
 
-    if (mode === 'country' && preferredCountry) {
+    if (overrideCountries.length) {
+      const order = new Map(
+        overrideCountries.map((code, index) => [code, index]),
+      );
+      candidates = candidates
+        .filter((n) => order.has(n.countryCode))
+        .sort(
+          (a, b) =>
+            (order.get(a.countryCode) as number) -
+            (order.get(b.countryCode) as number),
+        );
+    } else if (mode === 'country' && preferredCountry) {
       candidates = candidates.filter((n) => n.countryCode === preferredCountry);
     }
 
     if (!candidates.length) {
       this.logger.debug(
-        `no candidates for user=${userId} mode=${mode} country=${preferredCountry ?? '-'}`,
+        `no candidates for user=${userId} mode=${mode} country=${
+          overrideCountries.join(',') || preferredCountry || '-'
+        }`,
       );
       return [];
     }
 
     const limit = Math.max(1, Math.min(options.limit ?? 1, 10));
-    const start = this.rrCursor % candidates.length;
-    const ordered = candidates.slice(start).concat(candidates.slice(0, start));
-    this.rrCursor = (this.rrCursor + 1) % Number.MAX_SAFE_INTEGER;
+    let ordered = candidates;
+    if (!overrideCountries.length) {
+      const start = this.rrCursor % candidates.length;
+      ordered = candidates.slice(start).concat(candidates.slice(0, start));
+      this.rrCursor = (this.rrCursor + 1) % Number.MAX_SAFE_INTEGER;
+    }
 
     const selected: SelectedNode[] = [];
     for (const pick of ordered) {

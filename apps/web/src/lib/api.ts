@@ -343,6 +343,7 @@ export const api = {
       preservePath?: boolean;
       preserveQuery?: boolean;
       countryCode?: string | null;
+      countryCodes?: string[] | null;
     }) => request<Forwarder>('POST', '/forwarders', data),
     update: (
       id: string,
@@ -354,6 +355,7 @@ export const api = {
         preservePath: boolean;
         preserveQuery: boolean;
         countryCode: string | null;
+        countryCodes: string[] | null;
       }>,
     ) => request<Forwarder>('PATCH', `/forwarders/${id}`, data),
     remove: (id: string) => request<void>('DELETE', `/forwarders/${id}`),
@@ -650,6 +652,7 @@ export interface Forwarder {
   label: string;
   targetUrl: string;
   countryCode: string | null;
+  countryCodes: string[];
   enabled: boolean;
   preservePath: boolean;
   preserveQuery: boolean;

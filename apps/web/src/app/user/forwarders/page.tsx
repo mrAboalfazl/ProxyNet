@@ -66,6 +66,105 @@ function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }
   );
 }
 
+function CountryPicker({
+  value,
+  options,
+  onChange,
+  requiresPlan,
+  lang,
+}: {
+  value: string[];
+  options: { code: string; name: string }[];
+  onChange: (next: string[]) => void;
+  requiresPlan: boolean;
+  lang: Lang;
+}) {
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
+  const toggle = (code: string) => {
+    if (value.includes(code)) {
+      onChange(value.filter((item) => item !== code));
+    } else {
+      onChange([...value, code]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+        <Globe2 className="h-3.5 w-3.5 text-primary" />
+        <span>{tx('Exit countries (optional)', 'کشورهای خروج (اختیاری)')}</span>
+      </label>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors ${
+            value.length === 0
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border hover:border-primary/40'
+          }`}
+        >
+          {tx('Auto (any country)', 'خودکار (همه کشورها)')}
+        </button>
+
+        {options.map((country) => {
+          const index = value.indexOf(country.code);
+          const selected = index >= 0;
+          return (
+            <button
+              type="button"
+              key={country.code}
+              onClick={() => toggle(country.code)}
+              className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors inline-flex items-center gap-1.5 ${
+                selected
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border hover:border-primary/40'
+              }`}
+            >
+              {selected && (
+                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                  {index + 1}
+                </span>
+              )}
+              <span>
+                {country.code} — {country.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {options.length === 0 && (
+        <p className="text-[11px] text-amber-600">
+          {tx(
+            'No country list available; Auto mode will be used.',
+            'لیست کشورها در دسترس نیست؛ حالت خودکار استفاده می‌شود.',
+          )}
+        </p>
+      )}
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        {value.length > 0
+          ? tx(
+              'Nodes are tried in the numbered order (failover).',
+              'نودها به ترتیب شماره امتحان می‌شوند (failover).',
+            )
+          : requiresPlan
+            ? tx(
+                'An active plan is required to pin countries. Auto mode still works without it.',
+                'برای انتخاب کشور به اشتراک فعال نیاز دارید؛ حالت خودکار بدون اشتراک هم کار می‌کند.',
+              )
+            : tx(
+                'Auto picks a healthy node respecting your account routing preference.',
+                'حالت خودکار یک نود سالم را با توجه به تنظیمات مسیریابی حساب انتخاب می‌کند.',
+              )}
+      </p>
+    </div>
+  );
+}
+
 export default function ForwardersPage() {
   const { lang } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
@@ -88,7 +187,7 @@ export default function ForwardersPage() {
   const [form, setForm] = useState({
     label: '',
     targetUrl: '',
-    countryCode: '',
+    countryCodes: [] as string[],
     forwardAuthHeader: true,
     preservePath: true,
     preserveQuery: true,
@@ -99,7 +198,7 @@ export default function ForwardersPage() {
   const [editForm, setEditForm] = useState({
     label: '',
     targetUrl: '',
-    countryCode: '',
+    countryCodes: [] as string[],
     forwardAuthHeader: true,
     preservePath: true,
     preserveQuery: true,
@@ -110,7 +209,11 @@ export default function ForwardersPage() {
     setEditForm({
       label: fwd.label,
       targetUrl: fwd.targetUrl,
-      countryCode: fwd.countryCode ?? '',
+      countryCodes: fwd.countryCodes?.length
+        ? fwd.countryCodes
+        : fwd.countryCode
+          ? [fwd.countryCode]
+          : [],
       forwardAuthHeader: fwd.forwardAuthHeader,
       preservePath: fwd.preservePath,
       preserveQuery: fwd.preserveQuery,
@@ -124,7 +227,9 @@ export default function ForwardersPage() {
       await api.forwarders.update(editingFwd.id, {
         label: editForm.label.trim(),
         targetUrl: editForm.targetUrl.trim(),
-        countryCode: editForm.countryCode || null,
+        countryCodes: editForm.countryCodes.length
+          ? editForm.countryCodes
+          : null,
         forwardAuthHeader: editForm.forwardAuthHeader,
         preservePath: editForm.preservePath,
         preserveQuery: editForm.preserveQuery,
@@ -174,7 +279,7 @@ export default function ForwardersPage() {
       await api.forwarders.create({
         label: form.label.trim(),
         targetUrl: form.targetUrl.trim(),
-        countryCode: form.countryCode || null,
+        countryCodes: form.countryCodes.length ? form.countryCodes : null,
         forwardAuthHeader: form.forwardAuthHeader,
         preservePath: form.preservePath,
         preserveQuery: form.preserveQuery,
@@ -182,7 +287,7 @@ export default function ForwardersPage() {
       setForm({
         label: '',
         targetUrl: '',
-        countryCode: '',
+        countryCodes: [],
         forwardAuthHeader: true,
         preservePath: true,
         preserveQuery: true,
@@ -363,39 +468,15 @@ export default function ForwardersPage() {
               required
             />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                <Globe2 className="h-3.5 w-3.5 text-primary" />
-                <span>{tx('Exit country (optional)', 'کشور خروج (اختیاری)')}</span>
-              </label>
-              <select
-                value={form.countryCode}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, countryCode: e.target.value }))
-                }
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">
-                  {tx('Auto (account routing)', 'خودکار (تنظیمات حساب)')}
-                </option>
-                {countryOptions.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.code} — {country.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {countryRequiresPlan
-                  ? tx(
-                      'An active plan is required to pin a country. Auto mode still works without it.',
-                      'برای انتخاب کشور به اشتراک فعال نیاز دارید؛ حالت خودکار بدون اشتراک هم کار می‌کند.',
-                    )
-                  : tx(
-                      'Traffic for this forwarder exits through the selected country.',
-                      'ترافیک این فورواردر از کشور انتخاب‌شده خارج می‌شود.',
-                    )}
-              </p>
-            </div>
+            <CountryPicker
+              value={form.countryCodes}
+              options={countryOptions}
+              requiresPlan={countryRequiresPlan}
+              lang={lang}
+              onChange={(next) =>
+                setForm((f) => ({ ...f, countryCodes: next }))
+              }
+            />
 
             <div className="space-y-3 pt-3 border-t border-border/50">
               <div className="flex items-center gap-2.5">
@@ -492,39 +573,15 @@ export default function ForwardersPage() {
               required
             />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                <Globe2 className="h-3.5 w-3.5 text-primary" />
-                <span>{tx('Exit country (optional)', 'کشور خروج (اختیاری)')}</span>
-              </label>
-              <select
-                value={editForm.countryCode}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, countryCode: e.target.value }))
-                }
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">
-                  {tx('Auto (account routing)', 'خودکار (تنظیمات حساب)')}
-                </option>
-                {countryOptions.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.code} — {country.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                {countryRequiresPlan
-                  ? tx(
-                      'An active plan is required to pin a country. Auto mode still works without it.',
-                      'برای انتخاب کشور به اشتراک فعال نیاز دارید؛ حالت خودکار بدون اشتراک هم کار می‌کند.',
-                    )
-                  : tx(
-                      'Traffic for this forwarder exits through the selected country.',
-                      'ترافیک این فورواردر از کشور انتخاب‌شده خارج می‌شود.',
-                    )}
-              </p>
-            </div>
+            <CountryPicker
+              value={editForm.countryCodes}
+              options={countryOptions}
+              requiresPlan={countryRequiresPlan}
+              lang={lang}
+              onChange={(next) =>
+                setEditForm((f) => ({ ...f, countryCodes: next }))
+              }
+            />
 
             <div className="space-y-3 pt-3 border-t border-border/50">
               <div className="flex items-center gap-2.5">
@@ -727,7 +784,9 @@ export default function ForwardersPage() {
                       {tx('Exit:', 'خروج:')}
                     </span>
                     <span className="font-mono text-foreground" dir="ltr">
-                      {fwd.countryCode || tx('Auto', 'خودکار')}
+                      {fwd.countryCodes?.length
+                        ? fwd.countryCodes.join(' → ')
+                        : fwd.countryCode || tx('Auto', 'خودکار')}
                     </span>
                   </div>
                 </CardContent>

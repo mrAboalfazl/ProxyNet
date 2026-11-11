@@ -236,22 +236,30 @@ export class ForwarderProxyController {
     // Route through the user's selected exit node(s). An explicit country
     // choice must never silently fall back to local egress.
     const routingPreference = await this.nodeSelector.getPreference(fwd.userId);
-    const countryOverride = fwd.countryCode ?? undefined;
-    const effectiveCountry =
-      countryOverride ??
-      (routingPreference.mode === 'country'
-        ? routingPreference.preferredCountry
-        : null);
+    const countryCodes = fwd.countryCodes?.length
+      ? fwd.countryCodes
+      : fwd.countryCode
+        ? [fwd.countryCode]
+        : [];
+    const effectiveCountries = countryCodes.length
+      ? countryCodes
+      : routingPreference.mode === 'country' &&
+          routingPreference.preferredCountry
+        ? [routingPreference.preferredCountry]
+        : [];
 
     const candidates = await this.nodeSelector.selectCandidatesForUser(
       fwd.userId,
-      { country: countryOverride ?? null, limit: 3 },
+      {
+        countries: countryCodes.length ? countryCodes : null,
+        limit: 3,
+      },
     );
 
-    if (effectiveCountry && !candidates.length) {
+    if (effectiveCountries.length && !candidates.length) {
       res.status(503).json({
         error: 'selected_country_unavailable',
-        message: `No healthy relay is currently available in ${effectiveCountry}`,
+        message: `No healthy relay is currently available in ${effectiveCountries.join(', ')}`,
       });
       return;
     }

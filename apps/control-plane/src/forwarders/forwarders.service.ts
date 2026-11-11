@@ -33,6 +33,7 @@ export interface CreateForwarderDto {
   preserveQuery?: boolean;
   forwardAuthHeader?: boolean;
   countryCode?: string | null;
+  countryCodes?: string[] | null;
 }
 
 export interface UpdateForwarderDto {
@@ -42,6 +43,7 @@ export interface UpdateForwarderDto {
   preserveQuery?: boolean;
   forwardAuthHeader?: boolean;
   countryCode?: string | null;
+  countryCodes?: string[] | null;
   enabled?: boolean;
 }
 
@@ -72,33 +74,46 @@ export class ForwardersService {
   }
 
   /**
-   * Validate an optional exit country. `undefined` means "leave unchanged",
-   * `null`/empty means "clear" (use the account-level routing preference).
+   * Validate an ordered list of exit countries. `undefined` means "leave
+   * unchanged", `null`/empty means "clear" (auto / account routing).
    */
-  private async resolveCountry(userId: bigint, code?: string | null) {
-    if (code === undefined) return undefined;
-    if (code === null || code.trim() === '') return null;
-    const normalized = code.trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(normalized)) {
-      throw new BadRequestException('countryCode must be a 2-letter code');
-    }
-    const country = await this.prisma.country.findUnique({
-      where: { code: normalized },
-    });
-    if (!country || !country.enabled) {
-      throw new BadRequestException('Country is not available');
-    }
+  private async resolveCountries(
+    userId: bigint,
+    codes?: string[] | null,
+  ): Promise<string[] | undefined> {
+    if (codes === undefined) return undefined;
+    if (codes === null) return [];
+
+    const normalized = Array.from(
+      new Set(
+        codes
+          .map((code) => code.trim().toUpperCase())
+          .filter((code) => /^[A-Z]{2}$/.test(code)),
+      ),
+    );
+    if (!normalized.length) return [];
+
     const subscription = await this.prisma.subscription.findFirst({
       where: { userId, status: 'active' },
       include: { plan: true },
       orderBy: { createdAt: 'desc' },
     });
     const allowed = subscription?.plan.allowedCountries ?? [];
-    if (allowed.length > 0 && !allowed.includes(normalized)) {
-      throw new BadRequestException(
-        `Country ${normalized} is not included in your plan`,
-      );
+
+    for (const code of normalized) {
+      const country = await this.prisma.country.findUnique({
+        where: { code },
+      });
+      if (!country || !country.enabled) {
+        throw new BadRequestException(`Country ${code} is not available`);
+      }
+      if (allowed.length > 0 && !allowed.includes(code)) {
+        throw new BadRequestException(
+          `Country ${code} is not included in your plan`,
+        );
+      }
     }
+
     return normalized;
   }
 
@@ -114,7 +129,17 @@ export class ForwardersService {
       throw new BadRequestException('label is required (max 80 chars)');
     }
     this.validateTargetUrl(dto.targetUrl);
-    const countryCode = await this.resolveCountry(userId, dto.countryCode);
+    const countryCodes =
+      dto.countryCodes !== undefined
+        ? await this.resolveCountries(userId, dto.countryCodes)
+        : await this.resolveCountries(
+            userId,
+            dto.countryCode
+              ? [dto.countryCode]
+              : dto.countryCode === null
+                ? null
+                : undefined,
+          );
 
     // Collision-avoidance loop: generate slug, retry if unique-conflict (should never happen with 20 chars)
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -129,7 +154,8 @@ export class ForwardersService {
             preservePath: dto.preservePath ?? true,
             preserveQuery: dto.preserveQuery ?? true,
             forwardAuthHeader: dto.forwardAuthHeader ?? true,
-            countryCode: countryCode ?? null,
+            countryCode: countryCodes?.[0] ?? null,
+            countryCodes: countryCodes ?? [],
           },
         });
       } catch (e: unknown) {
@@ -150,7 +176,15 @@ export class ForwardersService {
     if (dto.label !== undefined && (dto.label.length === 0 || dto.label.length > 80)) {
       throw new BadRequestException('label must be 1-80 chars');
     }
-    const countryCode = await this.resolveCountry(userId, dto.countryCode);
+    const countryCodes =
+      dto.countryCodes !== undefined
+        ? await this.resolveCountries(userId, dto.countryCodes)
+        : dto.countryCode !== undefined
+          ? await this.resolveCountries(
+              userId,
+              dto.countryCode ? [dto.countryCode] : null,
+            )
+          : undefined;
 
     return this.prisma.forwarder.update({
       where: { id },
@@ -160,7 +194,9 @@ export class ForwardersService {
         preservePath: dto.preservePath,
         preserveQuery: dto.preserveQuery,
         forwardAuthHeader: dto.forwardAuthHeader,
-        countryCode,
+        countryCode:
+          countryCodes === undefined ? undefined : countryCodes[0] ?? null,
+        countryCodes,
         enabled: dto.enabled,
       },
     });
