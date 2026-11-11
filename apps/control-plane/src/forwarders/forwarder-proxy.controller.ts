@@ -4,7 +4,10 @@ import { URL } from 'url';
 import * as http from 'http';
 import * as https from 'https';
 import { ForwardersService } from './forwarders.service';
-import { NodeSelectorService } from '../routing/node-selector.service';
+import {
+  NodeSelectorService,
+  SelectedNode,
+} from '../routing/node-selector.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PricingService } from '../wallet/pricing.service';
 
@@ -40,6 +43,14 @@ const HOP_BY_HOP = new Set([
   'proxy-authenticate',
   'upgrade',
 ]);
+
+interface OutboundResult {
+  status: number;
+  headers: Record<string, string | string[] | undefined>;
+  body: Buffer;
+  bytesIn: number;
+  bytesOut: number;
+}
 
 /**
  * Reads up to maxBytes from the client request. We buffer to a byte cap and
@@ -222,170 +233,96 @@ export class ForwarderProxyController {
         outHeaders['content-length'] = String(body.length);
     }
 
-    // Route through the user's selected exit node, if any (reuses NodeSelector).
-    // An explicit country choice must never silently fall back to local egress.
+    // Route through the user's selected exit node(s). An explicit country
+    // choice must never silently fall back to local egress.
     const routingPreference = await this.nodeSelector.getPreference(fwd.userId);
     const countryOverride = fwd.countryCode ?? undefined;
-    const node = await this.nodeSelector.selectForUser(
+    const effectiveCountry =
+      countryOverride ??
+      (routingPreference.mode === 'country'
+        ? routingPreference.preferredCountry
+        : null);
+
+    const candidates = await this.nodeSelector.selectCandidatesForUser(
       fwd.userId,
-      countryOverride,
+      { country: countryOverride ?? null, limit: 3 },
     );
-    if ((countryOverride || routingPreference.mode === 'country') && !node) {
+
+    if (effectiveCountry && !candidates.length) {
       res.status(503).json({
         error: 'selected_country_unavailable',
-        message: `No healthy relay is currently available in ${countryOverride ?? routingPreference.preferredCountry ?? 'the selected country'}`,
+        message: `No healthy relay is currently available in ${effectiveCountry}`,
       });
       return;
     }
 
-    // Decide the actual outbound call: local direct, or hop through a node's relay
+    // In auto mode prefer remote relays over the co-located edge.
+    candidates.sort((a, b) => Number(a.isLocal) - Number(b.isLocal));
+
     let bytesIn = 0;
     let bytesOut = body?.length ?? 0;
+    let result: OutboundResult | null = null;
+    let usedNode: SelectedNode | null = null;
+    let lastError: Error | null = null;
 
     try {
-      if (node && !node.isLocal) {
-        // Hop through the node relay. The relay's /fetch endpoint returns a JSON envelope,
-        // so we translate back to a raw response.
-        const relayPayload = Buffer.from(
-          JSON.stringify({
-            url: finalUrl,
-            method: req.method,
-            headers: outHeaders,
-            body: body?.toString('utf8'),
-          }),
-          'utf8',
-        );
-
-        await new Promise<void>((resolve, reject) => {
-          const relayReq = http.request(
-            {
-              hostname: node.host,
-              port: node.relayPort,
-              path: '/fetch',
-              method: 'POST',
-              timeout: REQUEST_TIMEOUT_MS + 5000,
-              headers: {
-                'content-type': 'application/json',
-                'content-length': String(relayPayload.length),
-                'x-node-secret': node.relaySecret,
-              },
-            },
-            (relayRes) => {
-              const chunks: Buffer[] = [];
-              relayRes.on('data', (c) => chunks.push(c));
-              relayRes.on('end', () => {
-                const raw = Buffer.concat(chunks).toString('utf8');
-                if (relayRes.statusCode !== 200) {
-                  res
-                    .status(502)
-                    .json({
-                      error: 'upstream_relay_error',
-                      status: relayRes.statusCode,
-                      detail: raw.slice(0, 200),
-                    });
-                  resolve();
-                  return;
-                }
-                try {
-                  const envelope = JSON.parse(raw) as {
-                    status: number;
-                    headers: Record<string, string>;
-                    body: string;
-                    bytesIn: number;
-                    bytesOut: number;
-                  };
-                  bytesIn = envelope.bytesIn;
-                  bytesOut = envelope.bytesOut;
-                  // Forward status + headers + body raw
-                  res.status(envelope.status);
-                  for (const [k, v] of Object.entries(envelope.headers)) {
-                    if (HOP_BY_HOP.has(k.toLowerCase())) continue;
-                    try {
-                      res.setHeader(k, v);
-                    } catch {
-                      /* ignore invalid header */
-                    }
-                  }
-                  res.setHeader('x-proxynet-via-node', String(node.id));
-                  res.setHeader('x-proxynet-via-country', node.countryCode);
-                  res.end(envelope.body);
-                } catch (parseErr) {
-                  res.status(502).json({ error: 'invalid_relay_response' });
-                }
-                resolve();
-              });
-              relayRes.on('error', reject);
-            },
+      for (const node of candidates) {
+        try {
+          result = node.isLocal
+            ? await this.directFetch(finalUrl, req.method, outHeaders, body)
+            : await this.relayFetch(node, finalUrl, req.method, outHeaders, body);
+          usedNode = node;
+          break;
+        } catch (err) {
+          lastError = err as Error;
+          this.logger.warn(
+            `forwarder ${fwd.id} (${fwd.slug}) node ${node.id} failed: ${lastError.message}`,
           );
-          relayReq.on('error', reject);
-          relayReq.on('timeout', () =>
-            relayReq.destroy(new Error('relay_timeout')),
-          );
-          relayReq.write(relayPayload);
-          relayReq.end();
-        });
-      } else {
-        // Direct fetch (co-located node or no preferred node)
-        await new Promise<void>((resolve, reject) => {
-          const lib = target.protocol === 'https:' ? https : http;
-          const outReq = lib.request(
-            {
-              hostname: target.hostname,
-              port: target.port
-                ? parseInt(target.port, 10)
-                : target.protocol === 'https:'
-                  ? 443
-                  : 80,
-              path: new URL(finalUrl).pathname + new URL(finalUrl).search,
-              method: req.method,
-              headers: outHeaders,
-              timeout: REQUEST_TIMEOUT_MS,
-            },
-            (targetRes) => {
-              res.status(targetRes.statusCode ?? 502);
-              for (const [k, v] of Object.entries(targetRes.headers)) {
-                if (HOP_BY_HOP.has(k.toLowerCase())) continue;
-                if (v === undefined) continue;
-                try {
-                  res.setHeader(k, Array.isArray(v) ? v.join(', ') : v);
-                } catch {
-                  /* invalid */
-                }
-              }
-              if (node?.isLocal) {
-                res.setHeader('x-proxynet-via-node', String(node.id));
-                res.setHeader('x-proxynet-via-country', node.countryCode);
-              }
-              targetRes.on('data', (chunk: Buffer) => {
-                bytesIn += chunk.length;
-                if (bytesIn > MAX_BODY_BYTES) {
-                  outReq.destroy(new Error('response_too_large'));
-                  return;
-                }
-                res.write(chunk);
-              });
-              targetRes.on('end', () => {
-                res.end();
-                resolve();
-              });
-              targetRes.on('error', reject);
-            },
-          );
-          outReq.on('error', reject);
-          outReq.on('timeout', () =>
-            outReq.destroy(new Error('target_timeout')),
-          );
-          if (body) outReq.write(body);
-          outReq.end();
-        });
+        }
       }
+
+      // No node matched (auto mode): keep the legacy direct/local fallback.
+      if (!result && !candidates.length && !effectiveCountry) {
+        try {
+          result = await this.directFetch(finalUrl, req.method, outHeaders, body);
+        } catch (err) {
+          lastError = err as Error;
+        }
+      }
+
+      if (!result) {
+        res.status(502).json({
+          error: 'all_nodes_failed',
+          detail:
+            lastError?.message ?? 'no relay node could complete the request',
+        });
+        return;
+      }
+
+      bytesIn = result.bytesIn;
+      bytesOut = result.bytesOut;
+
+      res.status(result.status);
+      for (const [k, v] of Object.entries(result.headers)) {
+        if (v === undefined) continue;
+        if (HOP_BY_HOP.has(k.toLowerCase())) continue;
+        try {
+          res.setHeader(k, Array.isArray(v) ? v.join(', ') : v);
+        } catch {
+          /* ignore invalid header */
+        }
+      }
+      if (usedNode) {
+        res.setHeader('x-proxynet-via-node', String(usedNode.id));
+        res.setHeader('x-proxynet-via-country', usedNode.countryCode);
+      }
+      res.end(result.body);
     } catch (err) {
       const msg = (err as Error).message;
       this.logger.warn(`forwarder ${fwd.id} (${fwd.slug}) failed: ${msg}`);
       if (!res.headersSent) {
         res.status(502).json({ error: 'upstream_fetch_failed', detail: msg });
       } else {
-        // response headers already sent — best effort abort
         try {
           res.end();
         } catch {
@@ -407,9 +344,137 @@ export class ForwarderProxyController {
           forwarderId: fwd.id.toString(),
           bytesIn,
           bytesOut,
-          nodeId: node?.id,
+          nodeId: usedNode?.id,
         },
       );
     }
+  }
+
+  private relayFetch(
+    node: SelectedNode,
+    finalUrl: string,
+    method: string,
+    headers: Record<string, string>,
+    body?: Buffer,
+  ): Promise<OutboundResult> {
+    const relayPayload = Buffer.from(
+      JSON.stringify({
+        url: finalUrl,
+        method,
+        headers,
+        body: body?.toString('utf8'),
+      }),
+      'utf8',
+    );
+
+    return new Promise<OutboundResult>((resolve, reject) => {
+      const relayReq = http.request(
+        {
+          hostname: node.host,
+          port: node.relayPort,
+          path: '/fetch',
+          method: 'POST',
+          timeout: REQUEST_TIMEOUT_MS + 5000,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': String(relayPayload.length),
+            'x-node-secret': node.relaySecret,
+          },
+        },
+        (relayRes) => {
+          const chunks: Buffer[] = [];
+          relayRes.on('data', (c: Buffer) => chunks.push(c));
+          relayRes.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8');
+            if (relayRes.statusCode !== 200) {
+              reject(
+                new Error(
+                  `node relay returned HTTP ${relayRes.statusCode}: ${raw.slice(0, 200)}`,
+                ),
+              );
+              return;
+            }
+            try {
+              const envelope = JSON.parse(raw) as {
+                status: number;
+                headers: Record<string, string>;
+                body: string;
+                bytesIn: number;
+                bytesOut: number;
+              };
+              resolve({
+                status: envelope.status,
+                headers: envelope.headers,
+                body: Buffer.from(envelope.body ?? '', 'utf8'),
+                bytesIn: envelope.bytesIn ?? 0,
+                bytesOut: envelope.bytesOut ?? 0,
+              });
+            } catch {
+              reject(new Error('node relay returned invalid JSON'));
+            }
+          });
+          relayRes.on('error', reject);
+        },
+      );
+      relayReq.on('error', reject);
+      relayReq.on('timeout', () =>
+        relayReq.destroy(new Error('relay_timeout')),
+      );
+      relayReq.write(relayPayload);
+      relayReq.end();
+    });
+  }
+
+  private directFetch(
+    finalUrl: string,
+    method: string,
+    headers: Record<string, string>,
+    body?: Buffer,
+  ): Promise<OutboundResult> {
+    const parsed = new URL(finalUrl);
+    const lib = parsed.protocol === 'https:' ? https : http;
+
+    return new Promise<OutboundResult>((resolve, reject) => {
+      const outReq = lib.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port
+            ? parseInt(parsed.port, 10)
+            : parsed.protocol === 'https:'
+              ? 443
+              : 80,
+          path: parsed.pathname + parsed.search,
+          method,
+          headers,
+          timeout: REQUEST_TIMEOUT_MS,
+        },
+        (targetRes) => {
+          const chunks: Buffer[] = [];
+          let total = 0;
+          targetRes.on('data', (chunk: Buffer) => {
+            total += chunk.length;
+            if (total > MAX_BODY_BYTES) {
+              outReq.destroy(new Error('response_too_large'));
+              return;
+            }
+            chunks.push(chunk);
+          });
+          targetRes.on('end', () => {
+            resolve({
+              status: targetRes.statusCode ?? 502,
+              headers: targetRes.headers,
+              body: Buffer.concat(chunks),
+              bytesIn: total,
+              bytesOut: body?.length ?? 0,
+            });
+          });
+          targetRes.on('error', reject);
+        },
+      );
+      outReq.on('error', reject);
+      outReq.on('timeout', () => outReq.destroy(new Error('target_timeout')));
+      if (body) outReq.write(body);
+      outReq.end();
+    });
   }
 }
