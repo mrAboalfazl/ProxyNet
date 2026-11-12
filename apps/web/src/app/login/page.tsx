@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -59,6 +59,14 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      setIsLocalhost(hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1');
+    }
+  }, []);
 
   function loginError(err: unknown, fallback: string) {
     const message = err instanceof Error ? err.message : fallback;
@@ -352,32 +360,34 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Quick-Fill Testing Accounts Box */}
-          <div className="pt-3 border-t border-border/50 space-y-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>{tx('Quick Login for Testing:', 'ورود سریع جهت تست و بررسی:')}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => fillCredentials('admin@platform.local', 'admin123')}
-                className="p-2 rounded-lg border border-border/70 bg-muted/40 hover:bg-muted text-start text-xs transition-colors"
-              >
-                <div className="font-semibold text-primary truncate">مدیر سیستم (Admin)</div>
-                <div className="text-[10px] text-muted-foreground font-mono">admin@platform.local</div>
-              </button>
+          {/* Quick-Fill Testing Accounts Box (Localhost only) */}
+          {isLocalhost && (
+            <div className="pt-3 border-t border-border/50 space-y-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>{tx('Quick Login for Testing (Localhost):', 'ورود سریع جهت تست و بررسی (فقط محیط لوکال):')}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => fillCredentials('admin@platform.local', 'admin123')}
+                  className="p-2 rounded-lg border border-border/70 bg-muted/40 hover:bg-muted text-start text-xs transition-colors"
+                >
+                  <div className="font-semibold text-primary truncate">مدیر سیستم (Admin)</div>
+                  <div className="text-[10px] text-muted-foreground font-mono">admin@platform.local</div>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => fillCredentials('thisismilad71@gmail.com', 'admin123')}
-                className="p-2 rounded-lg border border-border/70 bg-muted/40 hover:bg-muted text-start text-xs transition-colors"
-              >
-                <div className="font-semibold text-foreground truncate">کاربر سیستم (User)</div>
-                <div className="text-[10px] text-muted-foreground">thisismilad71@gmail.com</div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => fillCredentials('thisismilad71@gmail.com', 'admin123')}
+                  className="p-2 rounded-lg border border-border/70 bg-muted/40 hover:bg-muted text-start text-xs transition-colors"
+                >
+                  <div className="font-semibold text-foreground truncate">کاربر سیستم (User)</div>
+                  <div className="text-[10px] text-muted-foreground">thisismilad71@gmail.com</div>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
 
         <CardFooter className="p-4 bg-muted/10 border-t border-border/50 text-center justify-center text-xs text-muted-foreground">

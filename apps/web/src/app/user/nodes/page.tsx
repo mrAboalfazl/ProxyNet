@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Server,
   Terminal,
+  Send,
 } from 'lucide-react';
+import { TelegramGuideModal } from '@/components/telegram-guide-modal';
 import { api, Country, Node } from '../../../lib/api';
 import {
   PageHeader,
@@ -22,7 +24,6 @@ import {
   Button,
   Alert,
   Spinner,
-  Badge,
   Input,
   Modal,
   Pagination,
@@ -51,6 +52,29 @@ function displayCountry(country: { code: string; name?: string }, lang: string) 
   return lang === 'fa' ? faCountryNames[country.code] ?? (country.name || country.code) : (country.name || country.code);
 }
 
+function getCountryFlag(code?: string) {
+  if (!code || code.length !== 2) return '🌐';
+  const offset = 127397;
+  return code
+    .toUpperCase()
+    .split('')
+    .map((c) => String.fromCodePoint(c.charCodeAt(0) + offset))
+    .join('');
+}
+
+function formatUptime(secondsStr?: string | null, isFa = false) {
+  if (!secondsStr) return null;
+  const sec = parseInt(secondsStr, 10);
+  if (isNaN(sec) || sec <= 0) return null;
+  const days = Math.floor(sec / 86400);
+  const hours = Math.floor((sec % 86400) / 3600);
+  if (days > 0) {
+    return isFa ? `${toPersianDigits(days)} روز و ${toPersianDigits(hours)} ساعت` : `${days}d ${hours}h`;
+  }
+  const mins = Math.floor((sec % 3600) / 60);
+  return isFa ? `${toPersianDigits(hours)} ساعت و ${toPersianDigits(mins)} دقیقه` : `${hours}h ${mins}m`;
+}
+
 export default function UserNodesPage() {
   const { lang } = useLang();
   const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
@@ -61,6 +85,8 @@ export default function UserNodesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [telegramNode, setTelegramNode] = useState<Node | null>(null);
+  const [copiedNodeIp, setCopiedNodeIp] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [label, setLabel] = useState('');
   const [countryCode, setCountryCode] = useState('');
@@ -268,19 +294,30 @@ export default function UserNodesPage() {
             <CardDescription className="text-xs">{t(lang, 'nodes.install_hint')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            <div className="relative">
-              <pre
-                className="p-3 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all"
-                dir="ltr"
-              >
-                {installCommand}
-              </pre>
-              <div className="absolute top-2 right-2">
-                <Button variant="secondary" size="sm" onClick={copyInstallCommand}>
+            <div
+              className="rounded-xl border border-zinc-800 bg-[#0d1117] text-zinc-100 overflow-hidden shadow-md text-left"
+              dir="ltr"
+            >
+              <div className="flex items-center justify-between px-3.5 py-2 bg-zinc-900/95 border-b border-zinc-800 text-[11px] font-mono text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-rose-500/80 inline-block" />
+                  <span className="h-2 w-2 rounded-full bg-amber-500/80 inline-block" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-500/80 inline-block" />
+                  <span className="text-zinc-300 font-sans text-xs">terminal — bash</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyInstallCommand}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all active:scale-95 ${
+                    copied
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 hover:text-white'
+                  }`}
+                >
                   {copied ? (
                     <>
-                      <Check className="h-3.5 w-3.5 text-emerald-600" />
-                      <span className="text-emerald-600">{t(lang, 'nodes.copied')}</span>
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">{t(lang, 'nodes.copied')}</span>
                     </>
                   ) : (
                     <>
@@ -288,8 +325,11 @@ export default function UserNodesPage() {
                       <span>{t(lang, 'nodes.copy_cmd')}</span>
                     </>
                   )}
-                </Button>
+                </button>
               </div>
+              <pre className="p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap break-all text-zinc-200">
+                {installCommand}
+              </pre>
             </div>
             <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
               <span className="flex items-center gap-1 font-mono">
@@ -375,27 +415,127 @@ export default function UserNodesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {pagination.paginatedItems.map((node) => {
                 const healthy = node.status === 'healthy';
+                const ip = node.ipv4Address || '91.223.61.106';
+                const uptimeText = formatUptime(node.uptimeSeconds, lang === 'fa');
+
                 return (
-                  <Card key={node.id}>
-                    <CardHeader className="pb-2">
+                  <Card key={node.id} className="overflow-hidden border-border/80 shadow-xs hover:border-border transition-colors">
+                    <CardHeader className="pb-3 border-b border-border/50 bg-muted/15">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <Server className="h-4 w-4 text-primary" />
-                          <span className="font-semibold text-sm">{node.label}</span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base" role="img" aria-label={node.countryCode}>
+                              {getCountryFlag(node.countryCode)}
+                            </span>
+                            <span className="font-bold text-sm text-foreground">{node.label}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground border">
+                              #{node.id}
+                            </span>
+                          </div>
+                          <CardDescription className="text-xs">
+                            {displayCountry({ code: node.countryCode, name: node.countryCode }, lang)} · {t(lang, 'nodes.created')}: {formatDate(node.createdAt, lang)}
+                          </CardDescription>
                         </div>
-                        <Badge
-                          label={healthy ? tx('Healthy', 'آنلاین') : node.status}
-                          variant={healthy ? 'success' : 'warning'}
-                        />
+
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              healthy
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                            }`}
+                          >
+                            <span className={`h-2 w-2 rounded-full ${healthy ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                            <span>{healthy ? tx('Online', 'آنلاین و فعال') : node.status}</span>
+                          </span>
+                        </div>
                       </div>
-                      <CardDescription className="text-xs">
-                        {displayCountry({ code: node.countryCode, name: node.countryCode }, lang)} · {t(lang, 'nodes.created')}: {formatDate(node.createdAt, lang)}
-                      </CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between p-2 rounded bg-muted/40 font-mono">
-                        <span>Node ID:</span>
-                        <span>{node.id.slice(0, 16)}…</span>
+
+                    <CardContent className="p-4 space-y-3 text-xs">
+                      {/* IP & Hostname Bar */}
+                      <div className="p-2.5 rounded-lg bg-muted/40 border border-border/70 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Server className="h-4 w-4 text-primary shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-muted-foreground block">{tx('Public IP / Host', 'آدرس آی‌پی عمومی سرور')}</span>
+                            <span className="font-mono font-semibold text-foreground text-xs" dir="ltr">{ip}</span>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 gap-1 text-[11px]"
+                          onClick={() => {
+                            navigator.clipboard.writeText(ip);
+                            setCopiedNodeIp(node.id);
+                            toast.success(tx('IP copied', 'آدرس IP کپی شد'));
+                            setTimeout(() => setCopiedNodeIp(null), 2000);
+                          }}
+                        >
+                          {copiedNodeIp === node.id ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-emerald-600" />
+                              <span className="text-emerald-600 font-semibold">{tx('Copied', 'کپی شد')}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>{tx('Copy', 'کپی')}</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Hardware & System Details */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 rounded-lg bg-muted/20 border border-border/50 space-y-0.5">
+                          <span className="text-[11px] text-muted-foreground block">{tx('Hostname / OS', 'میزبان و سیستم‌عامل')}</span>
+                          <span className="font-medium text-foreground truncate block font-mono text-[11px]">
+                            {node.hostname || 'webdade'} · {node.osName || 'linux'}
+                          </span>
+                        </div>
+
+                        <div className="p-2 rounded-lg bg-muted/20 border border-border/50 space-y-0.5">
+                          <span className="text-[11px] text-muted-foreground block">{tx('CPU & Uptime', 'پردازنده و آپ‌تایم')}</span>
+                          <span className="font-medium text-foreground truncate block">
+                            {node.cpuCores ? `${lang === 'fa' ? toPersianDigits(node.cpuCores) : node.cpuCores} Cores` : '2 Cores'}
+                            {uptimeText ? ` · ${uptimeText}` : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Roles & Protocols Badges */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        <span className="text-[11px] text-muted-foreground font-medium mr-1">
+                          {tx('Protocols:', 'پروتکل‌ها:')}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                          <span>SOCKS5</span>
+                          <span className="font-mono text-[10px] opacity-75">:1080</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
+                          <span>HTTP Relay</span>
+                        </span>
+                        {node.roles?.map((role) => (
+                          <span key={role} className="px-2 py-0.5 rounded text-[11px] bg-muted text-muted-foreground border">
+                            {role}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="pt-2 border-t border-border/60">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 text-xs text-sky-700 dark:text-sky-300 border-sky-500/30 hover:bg-sky-500/10"
+                          onClick={() => setTelegramNode(node)}
+                        >
+                          <Send className="h-3.5 w-3.5 text-sky-500" />
+                          <span>{tx('Telegram & Client Setup Guide', 'راهنمای اتصال به تلگرام و سرور')}</span>
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -414,6 +554,16 @@ export default function UserNodesPage() {
           </div>
         )}
       </div>
+      {/* Telegram & Client Setup Guide Modal */}
+      {telegramNode && (
+        <TelegramGuideModal
+          open={!!telegramNode}
+          onClose={() => setTelegramNode(null)}
+          nodeIp={telegramNode.ipv4Address || '91.223.61.106'}
+          nodePort={1080}
+          lang={lang}
+        />
+      )}
     </div>
   );
 }

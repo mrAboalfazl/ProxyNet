@@ -6,10 +6,18 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '@/lib/utils';
 import { toPersianDigits } from '@/lib/jalali';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from './dropdown-menu';
 
 export interface PaginationProps {
   currentPage: number;
@@ -105,18 +113,37 @@ export function Pagination({
 
         {showPageSizeSelector && onPageSizeChange && (
           <div className="flex items-center gap-1.5">
-            <span className="hidden sm:inline">{isFa ? 'تعداد:' : 'Per page:'}</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="h-8 rounded-md border border-input bg-background px-2 py-0.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {fmt(opt)}
-                </option>
-              ))}
-            </select>
+            <span className="hidden sm:inline">{isFa ? 'تعداد در صفحه:' : 'Per page:'}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2.5 gap-1.5 text-xs font-normal border-input bg-background hover:bg-accent text-foreground shadow-xs"
+                >
+                  <span className="font-medium">{fmt(pageSize)}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[5.5rem] p-1">
+                {pageSizeOptions.map((opt) => {
+                  const isSelected = opt === pageSize;
+                  return (
+                    <DropdownMenuItem
+                      key={opt}
+                      onClick={() => onPageSizeChange(opt)}
+                      className={cn(
+                        'flex items-center justify-between text-xs px-2.5 py-1.5 cursor-pointer rounded-sm',
+                        isSelected && 'font-semibold bg-accent text-accent-foreground'
+                      )}
+                    >
+                      <span>{fmt(opt)}</span>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
