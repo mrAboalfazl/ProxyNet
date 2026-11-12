@@ -13,7 +13,7 @@ import { PricingService } from '../wallet/pricing.service';
 import { redactUrl } from '../common/redact';
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 45_000;
 
 // SSRF: block internal networks. Same list as GatewayService.
 const BLOCKED_HOSTS = [
@@ -373,6 +373,7 @@ export class ForwarderProxyController {
         headers,
         body: body ? body.toString('base64') : undefined,
         isBase64: !!body,
+        timeoutMs: 40_000,
       }),
       'utf8',
     );
