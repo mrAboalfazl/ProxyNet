@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Lock,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import {
   Card,
@@ -102,7 +103,7 @@ export default function LandingPage() {
                 {t(lang, 'brand')}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                Platform v1.2
+                Platform v1.3
               </span>
             </div>
           </Link>
@@ -115,6 +116,13 @@ export default function LandingPage() {
             <a href="#how-it-works" className="hover:text-foreground transition-colors">
               {t(lang, 'steps.title')}
             </a>
+            <Link
+              href="/docs"
+              className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 font-semibold transition-colors"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>{tx('Docs & OpenAPI', 'مستندات و OpenAPI')}</span>
+            </Link>
           </nav>
 
           {/* Action Buttons */}
@@ -175,8 +183,15 @@ export default function LandingPage() {
               </Button>
             </Link>
 
-            <Link href="/login" className="w-full sm:w-auto">
+            <Link href="/docs" className="w-full sm:w-auto">
               <Button size="lg" variant="outline" className="w-full sm:w-auto text-sm font-semibold gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                <span>{tx('Developer Docs & OpenAPI', 'مستندات برنامه‌نویسان (API)')}</span>
+              </Button>
+            </Link>
+
+            <Link href="/login" className="w-full sm:w-auto">
+              <Button size="lg" variant="ghost" className="w-full sm:w-auto text-sm font-semibold gap-2">
                 <span>{t(lang, 'hero.cta_secondary')}</span>
               </Button>
             </Link>
@@ -232,8 +247,8 @@ curl -X POST "https://panel.civonex.ir/api/gateway/fetch" \\
               <p className="text-xs text-muted-foreground">{tx('Routing Latency', 'میانگین زمان پاسخگویی')}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400" dir="ltr">
-                SOCKS5 / HTTP
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400" dir="ltr">
+                WireGuard / SSE / SOCKS5
               </p>
               <p className="text-xs text-muted-foreground">{tx('Standard Protocols', 'پروتکل‌های ارتباطی استاندارد')}</p>
             </div>
@@ -337,7 +352,16 @@ curl -X POST "https://panel.civonex.ir/api/gateway/fetch" \\
             <span>{t(lang, 'footer.rights')}</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link href="/docs" className="hover:text-foreground transition-colors font-medium text-foreground">
+              {tx('Docs', 'مستندات')}
+            </Link>
+            <a href="/api/openapi.json" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors font-mono">
+              OpenAPI
+            </a>
+            <a href="/llms.txt" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors font-mono">
+              llms.txt
+            </a>
             <Link href="/login" className="hover:text-foreground transition-colors">
               {t(lang, 'footer.signin')}
             </Link>

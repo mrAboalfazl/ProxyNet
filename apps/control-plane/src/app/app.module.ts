@@ -19,6 +19,7 @@ import { ForwardersModule } from '../forwarders/forwarders.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { UpstreamsModule } from '../upstreams/upstreams.module';
+import { DocsModule } from '../docs/docs.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { UpstreamsModule } from '../upstreams/upstreams.module';
     UpstreamsModule,
     ForwardersModule,
     ProjectsModule,
+    DocsModule,
   ],
 })
 export class AppModule {}
