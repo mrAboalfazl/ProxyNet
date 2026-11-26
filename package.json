@@ -39,7 +39,7 @@
     "@types/supertest": "^7.2.1",
     "autoprefixer": "^10.4.19",
     "jest": "^30.4.2",
-    "nx": "23.1.2",
+    "nx": "23.2.1",
     "postcss": "^8.4.38",
     "prettier": "~3.6.2",
     "supertest": "^7.2.2",
