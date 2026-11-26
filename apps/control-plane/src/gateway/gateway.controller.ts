@@ -39,7 +39,7 @@ export class FetchRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  url: string;
+  url!: string;
 
   @ApiPropertyOptional({
     description: 'متد HTTP (پیش‌فرض: GET)',

@@ -24,7 +24,6 @@ const dns = require('dns').promises;
 const fs = require('fs');
 const { URL } = require('url');
 const { timingSafeEqual, randomUUID, createHash } = require('crypto');
-const { spawn } = require('child_process');
 
 function readAgentConfig() {
   try {
@@ -45,7 +44,7 @@ const SOCKS_HOST = process.env.SOCKS_HOST || '0.0.0.0';
 
 // Version + content hash are reported to the control plane so it can show the
 // installed relay build and push a verified self-update when requested.
-const RELAY_VERSION = process.env.RELAY_VERSION || '2026.11.11.1';
+const RELAY_VERSION = process.env.RELAY_VERSION || '2026.11.16.1';
 function computeRelaySha256() {
   try {
     return createHash('sha256').update(fs.readFileSync(__filename)).digest('hex');
@@ -430,12 +429,12 @@ function startUdpAssociate(controlSocket, context) {
   udp.unref();
 }
 
-async function controlRequest(path, body) {
+async function controlRequest(path, body, method = 'POST') {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     const response = await fetch(`${CONTROL_PLANE_URL}${path}`, {
-      method: 'POST',
+      method,
       headers: {
         Authorization: `Bearer ${NODE_SECRET}`,
         'Content-Type': 'application/json',
@@ -451,50 +450,6 @@ async function controlRequest(path, body) {
   }
 }
 
-let relayUpdateInFlight = false;
-
-async function applyRelayUpdate(artifact) {
-  if (relayUpdateInFlight || !artifact?.url || !artifact?.sha256) return;
-  if (artifact.sha256 === RELAY_SHA256) return; // already running this build
-  relayUpdateInFlight = true;
-
-  const target = '/usr/local/lib/proxynet/node-relay.js';
-  const next = `${target}.new`;
-  const script = '/usr/local/lib/proxynet/apply-relay-update.sh';
-
-  try {
-    const url = artifact.url.startsWith('http') ? artifact.url : `${CONTROL_PLANE_URL}${artifact.url}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${NODE_SECRET}` },
-    });
-    if (!response.ok) throw new Error(`artifact download failed: ${response.status}`);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const digest = createHash('sha256').update(buffer).digest('hex');
-    if (digest !== artifact.sha256) throw new Error('artifact checksum mismatch');
-
-    fs.writeFileSync(next, buffer, { mode: 0o644 });
-    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/update-result`, {
-      status: 'restarting',
-      message: `relay ${artifact.version || artifact.sha256.slice(0, 12)} downloaded`,
-    }).catch(() => {});
-
-    fs.writeFileSync(
-      script,
-      `#!/bin/bash\nsleep 2\nmv -f '${next}' '${target}'\nsystemctl restart proxynet-relay\n`,
-      { mode: 0o755 },
-    );
-    console.log(`[node-relay] applying update ${artifact.version || artifact.sha256.slice(0, 12)}`);
-    spawn('/bin/bash', [script], { detached: true, stdio: 'ignore' }).unref();
-  } catch (error) {
-    relayUpdateInFlight = false;
-    console.warn(`[node-relay] relay update failed: ${error.message}`);
-    await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/update-result`, {
-      status: 'failed',
-      message: error.message,
-    }).catch(() => {});
-  }
-}
-
 async function registerRelayCredential() {
   if (!CONTROL_PLANE_URL || !NODE_ID) return;
   try {
@@ -503,9 +458,7 @@ async function registerRelayCredential() {
       relaySha256: RELAY_SHA256,
     });
     console.log('[node-relay] relay credential registered');
-    if (result?.update?.relay) {
-      void applyRelayUpdate(result.update.relay);
-    }
+    if (result?.update?.relay) console.log('[node-relay] update pending; root updater service will install it');
   } catch (error) {
     console.warn(`[node-relay] relay credential registration failed: ${error.message}`);
   }
@@ -514,12 +467,11 @@ async function registerRelayCredential() {
 void registerRelayCredential();
 setInterval(() => void registerRelayCredential(), 60 * 1000).unref();
 
+// Check authorization on every connection so private sharing changes cannot be
+// bypassed through a credential cache on a previously public node.
 async function authorizeSocksCredential(username, password) {
   if (!CONTROL_PLANE_URL || !NODE_ID) throw new Error('SOCKS5 is not configured with a control plane endpoint');
-  const result = await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/credential-verify`, {
-    uuid: username,
-    secret: password,
-  });
+  const result = await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/credential-verify`, { uuid: username, secret: password });
   if (!result.allowed || !result.quotaToken) throw new Error(result.reason || 'credential rejected');
   return result.quotaToken;
 }
@@ -615,7 +567,19 @@ function createSocksConnection(socket) {
             return;
           }
           activeSocksConnections.set(username, active + 1);
+          let rechecking = false;
+          const accessTimer = setInterval(async () => {
+            if (rechecking || socket.destroyed) return;
+            rechecking = true;
+            try {
+              const result = await controlRequest(`/api/nodes/${encodeURIComponent(NODE_ID)}/quota/${encodeURIComponent(username)}`, undefined, 'GET');
+              if (!result.hasQuota) socket.destroy();
+            } catch { socket.destroy(); }
+            finally { rechecking = false; }
+          }, 20_000);
+          accessTimer.unref();
           socket.once('close', () => {
+            clearInterval(accessTimer);
             const remaining = (activeSocksConnections.get(username) || 1) - 1;
             if (remaining > 0) activeSocksConnections.set(username, remaining);
             else activeSocksConnections.delete(username);

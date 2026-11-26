@@ -121,6 +121,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'admin.nav.dashboard': 'Dashboard',
     'admin.nav.statistics': 'Statistics & Budget',
     'admin.nav.nodes': 'Nodes',
+    'admin.nav.upstreams': 'Upstream Tunnels',
     'admin.nav.users': 'Users',
     'admin.nav.plans': 'Plans',
     'admin.nav.pricing': 'Pricing',
@@ -132,6 +133,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'user.nav.dashboard': 'Dashboard',
     'user.nav.plans': 'Plans & Subscription',
     'user.nav.credentials': 'My Credentials',
+    'user.nav.projects': 'Projects',
     'user.nav.profile': 'Profile',
     'user.signout': 'Sign out',
 
@@ -152,7 +154,7 @@ const tr: Record<Lang, Record<string, string>> = {
       'Manage your VLESS credentials and copy connection URIs.',
     'udash.manage': 'Manage credentials',
     'udash.account_title': 'Account Settings',
-    'udash.account_msg': 'Update your display name and routing preferences.',
+    'udash.account_msg': 'Update your display name and view account details.',
     'udash.edit_profile': 'Edit profile',
 
     // User credentials
@@ -171,7 +173,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'cred.status.revoked': 'Revoked',
 
     // User nodes
-    'user.nav.nodes': 'My Private Nodes',
+    'user.nav.nodes': 'My Registered Servers',
     'user.nav.forwarders': 'Forwarders',
     'user.nav.wallet': 'Wallet',
     'user.nav.billing': 'Usage & billing',
@@ -201,6 +203,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.type.topup_admin': 'Admin top-up',
     'wallet.type.forwarder_call': 'Forwarder call',
     'wallet.type.gateway_call': 'Gateway call',
+    'wallet.type.socks5_session': 'SOCKS5 proxy traffic',
     'wallet.type.adjustment_admin': 'Admin adjustment',
     'wallet.type.refund': 'Refund',
 
@@ -271,7 +274,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'health.plan': 'plan',
     'health.no_plan': 'no plan assigned',
     'health.last_checked': 'last checked',
-    'nodes.title': 'My Private Nodes',
+    'nodes.title': 'My Registered Servers',
     'nodes.add': 'Add Node',
     'nodes.kicker': 'Network contribution',
     'nodes.hero_title': 'Connect your own server (optional BYO node)',
@@ -480,6 +483,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'admin.nav.dashboard': 'داشبورد',
     'admin.nav.statistics': 'آمار و بودجه',
     'admin.nav.nodes': 'نودها',
+    'admin.nav.upstreams': 'تانل‌های خروجی',
     'admin.nav.users': 'کاربران',
     'admin.nav.plans': 'پلن‌ها',
     'admin.nav.pricing': 'تعرفه‌ها',
@@ -490,6 +494,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'user.nav.dashboard': 'داشبورد',
     'user.nav.plans': 'پلن و اشتراک',
     'user.nav.credentials': 'اعتبارنامه‌های من',
+    'user.nav.projects': 'پروژه‌ها',
     'user.nav.profile': 'پروفایل',
     'user.signout': 'خروج',
 
@@ -509,7 +514,7 @@ const tr: Record<Lang, Record<string, string>> = {
       'اعتبارنامه‌های VLESS خود را مدیریت کنید و آدرس اتصال را کپی کنید.',
     'udash.manage': 'مدیریت اعتبارنامه‌ها',
     'udash.account_title': 'تنظیمات حساب',
-    'udash.account_msg': 'نام نمایشی و تنظیمات مسیریابی خود را به‌روز کنید.',
+    'udash.account_msg': 'نام نمایشی و اطلاعات حساب کاربری خود را مشاهده کنید.',
     'udash.edit_profile': 'ویرایش پروفایل',
 
     'cred.title': 'اعتبارنامه‌های من',
@@ -527,7 +532,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'cred.status.revoked': 'لغو شده',
 
     // User nodes (FA)
-    'user.nav.nodes': 'نودهای اختصاصی من',
+    'user.nav.nodes': 'سرورهای ثبت‌شده من',
     'user.nav.forwarders': 'فوروارد آدرس‌ها',
     'user.nav.wallet': 'کیف پول',
     'user.nav.billing': 'گزارش مصرف و مالی',
@@ -557,6 +562,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'wallet.type.topup_admin': 'شارژ توسط مدیر',
     'wallet.type.forwarder_call': 'فراخوانی فورواردر',
     'wallet.type.gateway_call': 'فراخوانی گیت‌وی',
+    'wallet.type.socks5_session': 'ترافیک پروکسی SOCKS5',
     'wallet.type.adjustment_admin': 'تنظیم توسط مدیر',
     'wallet.type.refund': 'بازگشت',
 
@@ -626,7 +632,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'health.plan': 'پلن',
     'health.no_plan': 'پلن اختصاص نیافته',
     'health.last_checked': 'آخرین بررسی',
-    'nodes.title': 'نودهای اختصاصی من',
+    'nodes.title': 'سرورهای ثبت‌شده من',
     'nodes.add': 'افزودن نود',
     'nodes.kicker': 'مشارکت در شبکه',
     'nodes.hero_title': 'سرور اختصاصی خود را متصل کنید (نود BYO اختیاری)',
@@ -685,7 +691,7 @@ const tr: Record<Lang, Record<string, string>> = {
     'nodes.status.unhealthy': 'ناسالم',
     'nodes.status.quarantined': 'قرنطینه',
     'nodes.status.draining': 'در حال تخلیه',
-    'nodes.status.disabled': 'رد شده',
+    'nodes.status.disabled': 'غیرفعال',
     'nodes.enrolled': 'ایجنت متصل است',
     'nodes.not_enrolled': 'منتظر ایجنت',
     'nodes.token_title': 'توکن ثبت‌نام',

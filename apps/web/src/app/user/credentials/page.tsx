@@ -19,6 +19,7 @@ import {
   usePagination,
   formatDateTime,
 } from '../../../components/user-ui';
+import { CountryFlag } from '../../../components/country-flag';
 import { useLang } from '../../../lib/lang-context';
 import { t } from '../../../lib/i18n';
 import { CodeExamplesPanel, CopyableCodeBlock, buildGatewaySnippets } from '../../../lib/code-examples';
@@ -286,15 +287,7 @@ export default function UserCredentialsPage() {
     setTimeout(() => setCopiedKey(null), 2000);
   }
 
-  function countryFlag(code?: string) {
-    if (!code || code.length !== 2) return '🌐';
-    const offset = 127397;
-    return code
-      .toUpperCase()
-      .split('')
-      .map((c) => String.fromCodePoint(c.charCodeAt(0) + offset))
-      .join('');
-  }
+
 
   useEffect(() => {
     load();
@@ -435,7 +428,7 @@ export default function UserCredentialsPage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">{countryFlag(ep.countryCode)}</span>
+                          <CountryFlag code={ep.countryCode} size={22} />
                           <div>
                             <div className="font-semibold text-sm">{ep.countryName}</div>
                             <div className="text-[11px] text-muted-foreground">

@@ -17,29 +17,35 @@ import (
 	"github.com/proxy-platform/agent/internal/config"
 	"github.com/proxy-platform/agent/internal/dataplane"
 	"github.com/proxy-platform/agent/internal/routing"
+	"github.com/proxy-platform/agent/internal/tunnel"
 )
 
-const agentVersion = "v1.2.0"
+const agentVersion = "v1.3.0"
 
 // Agent manages the connection to the Control Plane and coordinates
-// local data-plane subprocess management.
+// local data-plane subprocess management and userspace upstream tunnels.
 type Agent struct {
 	cfg           *config.Config
 	client        *http.Client
 	xray          *dataplane.XrayManager
 	routingClient *routing.Client
+	tunnelMgr     *tunnel.Manager
+	streamServer  *tunnel.StreamServer
 
 	activeConfigVersion int64
 	activeSessions      int
 }
 
 func NewAgent(cfg *config.Config) (*Agent, error) {
+	tunnelMgr := tunnel.NewManager(cfg.ControlEndpoint, cfg.NodeID, cfg.NodeSecret)
 	a := &Agent{
 		cfg: cfg,
 		client: &http.Client{
 			Timeout: 15 * time.Second,
 		},
 		routingClient: routing.NewClient(cfg.ControlEndpoint, cfg.NodeID, cfg.NodeSecret),
+		tunnelMgr:     tunnelMgr,
+		streamServer:  tunnel.NewStreamServer(cfg.TunnelProxyListen, cfg.NodeSecret, tunnelMgr),
 	}
 
 	if cfg.XrayBinaryPath != "" {
@@ -51,20 +57,41 @@ func NewAgent(cfg *config.Config) (*Agent, error) {
 
 // Run starts the agent control loop. Blocks until the context is cancelled.
 func (a *Agent) Run() error {
-	fmt.Printf("agent starting: node_id=%s endpoint=%s\n", a.cfg.NodeID, a.cfg.ControlEndpoint)
+	fmt.Printf("agent starting: node_id=%s endpoint=%s tunnel_proxy=%s\n",
+		a.cfg.NodeID, a.cfg.ControlEndpoint, a.cfg.TunnelProxyListen)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Pull initial routing snapshot and start Xray-core (if configured).
+	// Start the local/node streaming proxy for WireGuard/AmneziaWG/SOCKS5 upstream tunnels.
+	go func() {
+		if err := a.streamServer.Start(); err != nil {
+			fmt.Printf("[tunnel-proxy] server error: %v\n", err)
+		}
+	}()
+
+	// Pull initial routing snapshot and upstream tunnels immediately.
 	if err := a.syncRoutingSnapshot(ctx); err != nil {
 		fmt.Printf("[routing] initial snapshot error: %v\n", err)
+	}
+	if err := a.tunnelMgr.Sync(ctx); err != nil {
+		fmt.Printf("[tunnel] initial sync error: %v\n", err)
+	} else {
+		go func() {
+			if err := a.tunnelMgr.ProbeAllAndReport(ctx); err != nil {
+				fmt.Printf("[tunnel] initial probe error: %v\n", err)
+			}
+		}()
 	}
 
 	heartbeatTicker := time.NewTicker(15 * time.Second)
 	snapshotTicker := time.NewTicker(60 * time.Second)
+	tunnelSyncTicker := time.NewTicker(30 * time.Second)
+	tunnelProbeTicker := time.NewTicker(90 * time.Second)
 	defer heartbeatTicker.Stop()
 	defer snapshotTicker.Stop()
+	defer tunnelSyncTicker.Stop()
+	defer tunnelProbeTicker.Stop()
 
 	// Send first heartbeat immediately.
 	if err := a.sendHeartbeat(); err != nil {
@@ -74,6 +101,10 @@ func (a *Agent) Run() error {
 	for {
 		select {
 		case <-ctx.Done():
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = a.streamServer.Shutdown(shutdownCtx)
+			cancel()
+			a.tunnelMgr.CloseAll()
 			if a.xray != nil {
 				a.xray.Stop()
 			}
@@ -86,6 +117,16 @@ func (a *Agent) Run() error {
 			if err := a.syncRoutingSnapshot(ctx); err != nil {
 				fmt.Printf("[routing] snapshot sync error: %v\n", err)
 			}
+		case <-tunnelSyncTicker.C:
+			if err := a.tunnelMgr.Sync(ctx); err != nil {
+				fmt.Printf("[tunnel] sync error: %v\n", err)
+			}
+		case <-tunnelProbeTicker.C:
+			go func() {
+				if err := a.tunnelMgr.ProbeAllAndReport(ctx); err != nil {
+					fmt.Printf("[tunnel] probe error: %v\n", err)
+				}
+			}()
 		}
 	}
 }

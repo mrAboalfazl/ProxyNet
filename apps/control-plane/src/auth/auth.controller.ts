@@ -1,3 +1,5 @@
+import type { Request as ExpressRequest } from 'express';
+type AuthedRequest = ExpressRequest & { user: { id: bigint } };
 import { Body, Controller, Delete, GoneException, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -25,14 +27,14 @@ export class AuthController {
   @Post('registration/start')
   @HttpCode(200)
   @ApiOperation({ summary: 'Send a phone verification code for a new account' })
-  startRegistration(@Body() dto: StartRegistrationDto, @Request() req) {
+  startRegistration(@Body() dto: StartRegistrationDto, @Request() req: AuthedRequest) {
     return this.auth.startRegistration(dto.displayName, dto.email, dto.phone, dto.password, req.ip);
   }
 
   @Post('registration/confirm')
   @HttpCode(201)
   @ApiOperation({ summary: 'Create a new account after successful phone verification' })
-  confirmRegistration(@Body() dto: ConfirmRegistrationDto, @Request() req) {
+  confirmRegistration(@Body() dto: ConfirmRegistrationDto, @Request() req: AuthedRequest) {
     return this.auth.confirmRegistration(dto.registrationId, dto.code, req.ip, req.headers['user-agent']);
   }
 
@@ -53,14 +55,14 @@ export class AuthController {
   @Post('otp/verify')
   @HttpCode(200)
   @ApiOperation({ summary: 'Verify OTP and receive an access token' })
-  verifyOtp(@Body() dto: VerifyOtpDto, @Request() req) {
+  verifyOtp(@Body() dto: VerifyOtpDto, @Request() req: AuthedRequest) {
     return this.auth.verifyOtp(dto.identifier, dto.method, dto.code, req.ip, req.headers['user-agent']);
   }
 
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Login with username and password' })
-  passwordLogin(@Body() dto: PasswordLoginDto, @Request() req) {
+  passwordLogin(@Body() dto: PasswordLoginDto, @Request() req: AuthedRequest) {
     return this.auth.verifyPassword(dto.identifier, dto.password, req.ip, req.headers['user-agent']);
   }
 
@@ -69,8 +71,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke current session' })
-  logout(@Request() req) {
-    const token = req.headers['authorization']?.replace('Bearer ', '');
+  logout(@Request() req: AuthedRequest) {
+    const token = req.headers['authorization']?.replace('Bearer ', '') ?? '';
     return this.auth.revokeSession(token);
   }
 
@@ -79,7 +81,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate TOTP setup URL and manual key' })
-  totpSetup(@Request() req) {
+  totpSetup(@Request() req: AuthedRequest) {
     return this.auth.totpSetup(req.user.id);
   }
 
@@ -88,7 +90,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Confirm TOTP setup with a valid code' })
-  totpConfirm(@Request() req, @Body() body: { code: string }) {
+  totpConfirm(@Request() req: AuthedRequest, @Body() body: { code: string }) {
     return this.auth.totpConfirm(req.user.id, body.code);
   }
 
@@ -97,7 +99,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Disable and remove TOTP for the current user' })
-  totpDisable(@Request() req) {
+  totpDisable(@Request() req: AuthedRequest) {
     return this.auth.totpDisable(req.user.id);
   }
 }

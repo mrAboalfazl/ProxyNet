@@ -22,8 +22,11 @@ type Config struct {
 	RealityServerName string   `json:"reality_server_name,omitempty"` // e.g. "microsoft.com"
 
 	// Inbound listen config
-	InboundPort int    `json:"inbound_port,omitempty"` // default 443
+	InboundPort     int    `json:"inbound_port,omitempty"`     // default 443
 	InboundProtocol string `json:"inbound_protocol,omitempty"` // vless_reality | shadowsocks
+
+	// Upstream tunnel streaming engine listen address (e.g. "127.0.0.1:9444" or "0.0.0.0:9444")
+	TunnelProxyListen string `json:"tunnel_proxy_listen,omitempty"`
 }
 
 func Load(path string) (*Config, error) {
@@ -43,6 +46,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.XrayConfigPath == "" {
 		cfg.XrayConfigPath = filepath.Join(filepath.Dir(path), "xray.json")
+	}
+	if cfg.TunnelProxyListen == "" {
+		cfg.TunnelProxyListen = "0.0.0.0:9444"
 	}
 	return &cfg, nil
 }

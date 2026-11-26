@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveExitNode } from '../nodes/node-access';
 import { randomBytes } from 'crypto';
 import { URL } from 'url';
 
@@ -26,6 +27,8 @@ const BLOCKED_HOSTS = [
   /^::1$/, /^fc[0-9a-f]{2}:/i, /^fd[0-9a-f]{2}:/i, /^fe80:/i,
 ];
 
+export type ForwarderRoutingMode = 'auto' | 'country' | 'tunnel' | 'direct';
+
 export interface CreateForwarderDto {
   label: string;
   targetUrl: string;
@@ -34,6 +37,11 @@ export interface CreateForwarderDto {
   forwardAuthHeader?: boolean;
   countryCode?: string | null;
   countryCodes?: string[] | null;
+  projectId?: string | number | null;
+  exitNodeId?: string | null;
+  routingMode?: ForwarderRoutingMode;
+  upstreamTunnelId?: string | number | null;
+  streamingEnabled?: boolean;
 }
 
 export interface UpdateForwarderDto {
@@ -44,6 +52,11 @@ export interface UpdateForwarderDto {
   forwardAuthHeader?: boolean;
   countryCode?: string | null;
   countryCodes?: string[] | null;
+  projectId?: string | number | null;
+  exitNodeId?: string | null;
+  routingMode?: ForwarderRoutingMode;
+  upstreamTunnelId?: string | number | null;
+  streamingEnabled?: boolean;
   enabled?: boolean;
 }
 
@@ -117,9 +130,98 @@ export class ForwardersService {
     return normalized;
   }
 
+  private async resolveProjectId(
+    userId: bigint,
+    projectId?: string | number | null,
+  ): Promise<bigint | null> {
+    if (projectId === undefined || projectId === null || projectId === '') {
+      return null;
+    }
+    const id = BigInt(projectId);
+    const project = await this.prisma.project.findUnique({ where: { id } });
+    if (!project || project.userId !== userId) {
+      throw new BadRequestException('Invalid projectId');
+    }
+    return id;
+  }
+
+  private async defaultProjectId(userId: bigint): Promise<bigint> {
+    let project = await this.prisma.project.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!project) {
+      project = await this.prisma.project.create({
+        data: { userId, name: 'Default', slug: randomSlug(12) },
+      });
+    }
+    return project.id;
+  }
+
+  private normalizeRoutingMode(
+    mode?: string | null,
+    fallback: ForwarderRoutingMode = 'auto',
+  ): ForwarderRoutingMode {
+    if (!mode) return fallback;
+    if (
+      mode === 'auto' ||
+      mode === 'country' ||
+      mode === 'tunnel' ||
+      mode === 'direct'
+    ) {
+      return mode;
+    }
+    throw new BadRequestException(
+      'routingMode must be one of: auto, country, tunnel, direct',
+    );
+  }
+
+  private async resolveUpstreamTunnelId(
+    userId: bigint,
+    tunnelId?: string | number | null,
+  ): Promise<bigint | null | undefined> {
+    if (tunnelId === undefined) return undefined;
+    if (tunnelId === null || tunnelId === '') return null;
+
+    const id = BigInt(tunnelId);
+    const tunnel = await this.prisma.upstreamTunnel.findUnique({
+      where: { id },
+      include: { country: true },
+    });
+    if (!tunnel || !tunnel.enabled || !tunnel.country?.enabled) {
+      throw new BadRequestException('Selected upstream tunnel is unavailable');
+    }
+
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { userId, status: 'active' },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const allowed = subscription?.plan.allowedCountries ?? [];
+    if (allowed.length > 0 && !allowed.includes(tunnel.countryCode)) {
+      throw new BadRequestException(
+        `Country ${tunnel.countryCode} is not included in your plan`,
+      );
+    }
+
+    return id;
+  }
+
   async list(userId: bigint) {
     return this.prisma.forwarder.findMany({
       where: { userId },
+      include: {
+        upstreamTunnel: {
+          select: {
+            id: true,
+            label: true,
+            protocol: true,
+            countryCode: true,
+            status: true,
+            latencyMs: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -129,6 +231,11 @@ export class ForwardersService {
       throw new BadRequestException('label is required (max 80 chars)');
     }
     this.validateTargetUrl(dto.targetUrl);
+    const exitNodeId = await resolveExitNode(this.prisma, userId, dto.exitNodeId);
+    const upstreamTunnelId = await this.resolveUpstreamTunnelId(
+      userId,
+      dto.upstreamTunnelId,
+    );
     const countryCodes =
       dto.countryCodes !== undefined
         ? await this.resolveCountries(userId, dto.countryCodes)
@@ -141,6 +248,25 @@ export class ForwardersService {
                 : undefined,
           );
 
+    const inferredMode: ForwarderRoutingMode = dto.routingMode
+      ? this.normalizeRoutingMode(dto.routingMode)
+      : upstreamTunnelId
+        ? 'tunnel'
+        : countryCodes && countryCodes.length > 0
+          ? 'country'
+          : 'auto';
+
+    if (inferredMode === 'tunnel' && !upstreamTunnelId && !exitNodeId) {
+      throw new BadRequestException(
+        'upstreamTunnelId or exitNodeId is required when routingMode is tunnel',
+      );
+    }
+
+    const projectId =
+      dto.projectId === undefined
+        ? await this.defaultProjectId(userId)
+        : await this.resolveProjectId(userId, dto.projectId);
+
     // Collision-avoidance loop: generate slug, retry if unique-conflict (should never happen with 20 chars)
     for (let attempt = 0; attempt < 5; attempt++) {
       const slug = randomSlug(20);
@@ -148,14 +274,22 @@ export class ForwardersService {
         return await this.prisma.forwarder.create({
           data: {
             userId,
+            projectId,
+            exitNodeId: inferredMode === 'direct' ? null : exitNodeId,
+            upstreamTunnelId:
+              inferredMode === 'direct' ? null : (upstreamTunnelId ?? null),
+            routingMode: inferredMode,
+            streamingEnabled: dto.streamingEnabled ?? true,
             slug,
             label: dto.label,
             targetUrl: dto.targetUrl,
             preservePath: dto.preservePath ?? true,
             preserveQuery: dto.preserveQuery ?? true,
             forwardAuthHeader: dto.forwardAuthHeader ?? true,
-            countryCode: countryCodes?.[0] ?? null,
-            countryCodes: countryCodes ?? [],
+            countryCode:
+              inferredMode === 'direct' ? null : (countryCodes?.[0] ?? null),
+            countryCodes:
+              inferredMode === 'direct' ? [] : (countryCodes ?? []),
           },
         });
       } catch (e: unknown) {
@@ -172,6 +306,11 @@ export class ForwardersService {
     if (!fwd) throw new NotFoundException('Forwarder not found');
     if (fwd.userId !== userId) throw new ForbiddenException('You do not own this forwarder');
 
+    const exitNodeId = await resolveExitNode(this.prisma, userId, dto.exitNodeId);
+    const upstreamTunnelId = await this.resolveUpstreamTunnelId(
+      userId,
+      dto.upstreamTunnelId,
+    );
     if (dto.targetUrl !== undefined) this.validateTargetUrl(dto.targetUrl);
     if (dto.label !== undefined && (dto.label.length === 0 || dto.label.length > 80)) {
       throw new BadRequestException('label must be 1-80 chars');
@@ -186,17 +325,37 @@ export class ForwardersService {
             )
           : undefined;
 
+    const routingMode =
+      dto.routingMode !== undefined
+        ? this.normalizeRoutingMode(dto.routingMode)
+        : undefined;
+
+    const projectId =
+      dto.projectId === undefined
+        ? undefined
+        : await this.resolveProjectId(userId, dto.projectId);
+
     return this.prisma.forwarder.update({
       where: { id },
       data: {
+        exitNodeId: routingMode === 'direct' ? null : exitNodeId,
+        upstreamTunnelId:
+          routingMode === 'direct' ? null : upstreamTunnelId,
+        routingMode,
+        streamingEnabled: dto.streamingEnabled,
         label: dto.label,
         targetUrl: dto.targetUrl,
         preservePath: dto.preservePath,
         preserveQuery: dto.preserveQuery,
         forwardAuthHeader: dto.forwardAuthHeader,
         countryCode:
-          countryCodes === undefined ? undefined : countryCodes[0] ?? null,
-        countryCodes,
+          routingMode === 'direct'
+            ? null
+            : countryCodes === undefined
+              ? undefined
+              : countryCodes[0] ?? null,
+        countryCodes: routingMode === 'direct' ? [] : countryCodes,
+        projectId,
         enabled: dto.enabled,
       },
     });

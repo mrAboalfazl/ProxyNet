@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RoutingSnapshotService } from './routing-snapshot.service';
+import { usableNodeWhere, planCountryWhere } from '../nodes/node-access';
 import { decryptRelaySecret } from '../nodes/relay-secret.crypto';
 
 export interface SelectedNode {
@@ -55,6 +56,7 @@ export class NodeSelectorService {
   async selectCandidatesForUser(
     userId: bigint,
     options: {
+      nodeId?: string | null;
       country?: string | null;
       countries?: string[] | null;
       limit?: number;
@@ -66,7 +68,7 @@ export class NodeSelectorService {
       .map((code) => code.trim().toUpperCase())
       .filter((code) => /^[A-Z]{2}$/.test(code));
     const override = options.country?.trim().toUpperCase() || null;
-    const mode = override || overrideCountries.length ? 'country' : pref.mode;
+    const mode = options.nodeId ? 'auto' : override || overrideCountries.length ? 'country' : pref.mode;
     const preferredCountry = override ?? pref.preferredCountry;
 
     if (mode === 'local') return [];
@@ -76,7 +78,8 @@ export class NodeSelectorService {
     let candidates = snap.nodes.filter(
       (n) =>
         (n.status === 'healthy' || n.status === 'active') &&
-        !exclude.has(Number(n.id)),
+        n.roles.includes('exit') &&
+        !exclude.has(Number(n.id)) && (!options.nodeId || n.id === options.nodeId),
     );
 
     if (overrideCountries.length) {
@@ -111,10 +114,11 @@ export class NodeSelectorService {
       this.rrCursor = (this.rrCursor + 1) % Number.MAX_SAFE_INTEGER;
     }
 
+    const countryAccess = await planCountryWhere(this.prisma, userId);
     const selected: SelectedNode[] = [];
     for (const pick of ordered) {
       if (selected.length >= limit) break;
-      const node = await this.buildSelectedNode(pick);
+      const node = await this.buildSelectedNode(pick, userId, countryAccess);
       if (node) selected.push(node);
     }
     return selected;
@@ -148,29 +152,29 @@ export class NodeSelectorService {
 
     const snap = await this.snapshot.getCurrentSnapshot();
     let nodes = snap.nodes.filter(
-      (n) => n.status === 'healthy' || n.status === 'active',
+      (n) => (n.status === 'healthy' || n.status === 'active') && n.roles.includes('exit'),
     );
     if (mode === 'country' && preferredCountry) {
       nodes = nodes.filter((n) => n.countryCode === preferredCountry);
     }
 
-    return nodes.map((n) => ({
-      id: Number(n.id),
-      countryCode: n.countryCode,
-      label: n.label,
-      status: n.status,
-    }));
+    const countryAccess = await planCountryWhere(this.prisma, userId);
+    const eligible = await this.prisma.node.findMany({
+      where: { AND: [usableNodeWhere(userId), countryAccess, { id: { in: nodes.map((n) => BigInt(n.id)) }, relaySecretEncrypted: { not: null } }] },
+      select: { id: true, countryCode: true, label: true, status: true },
+    });
+    return eligible.map((n) => ({ ...n, id: Number(n.id) }));
   }
 
   private async buildSelectedNode(pick: {
     id: string;
     countryCode: string;
     label: string;
-  }): Promise<SelectedNode | null> {
+  }, userId: bigint, countryAccess: import('@prisma/client').Prisma.NodeWhereInput): Promise<SelectedNode | null> {
     // The snapshot doesn't carry ipv4_address (that's a routing detail, not a client detail).
     // Look up the address from the DB.
-    const node = await this.prisma.node.findUnique({
-      where: { id: BigInt(pick.id) },
+    const node = await this.prisma.node.findFirst({
+      where: { AND: [usableNodeWhere(userId), countryAccess, { id: BigInt(pick.id) }] },
       select: {
         id: true,
         ipv4Address: true,

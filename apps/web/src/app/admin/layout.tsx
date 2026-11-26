@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { BarChart3, Boxes, ChevronLeft, ChevronRight, Globe2, LayoutDashboard, LogOut, Menu, ReceiptText, ShieldCheck, Users, X } from 'lucide-react';
+import { BarChart3, Boxes, Cable, ChevronLeft, ChevronRight, Globe2, LayoutDashboard, LogOut, Menu, ReceiptText, ShieldCheck, Users, X } from 'lucide-react';
 import { clearToken, getToken } from '../../lib/api';
 import { useLang } from '../../lib/lang-context';
 import { t } from '../../lib/i18n';
@@ -12,6 +12,7 @@ const navigation = [
   { href: '/admin/dashboard', key: 'admin.nav.dashboard', icon: LayoutDashboard },
   { href: '/admin/statistics', key: 'admin.nav.statistics', icon: BarChart3 },
   { href: '/admin/nodes', key: 'admin.nav.nodes', icon: Boxes },
+  { href: '/admin/upstreams', key: 'admin.nav.upstreams', icon: Cable },
   { href: '/admin/users', key: 'admin.nav.users', icon: Users },
   { href: '/admin/plans', key: 'admin.nav.plans', icon: ReceiptText },
   { href: '/admin/pricing', key: 'admin.nav.pricing', icon: BarChart3 },

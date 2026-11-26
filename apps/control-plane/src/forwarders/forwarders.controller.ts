@@ -15,8 +15,8 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   ForwardersService,
-  CreateForwarderDto,
-  UpdateForwarderDto,
+  type CreateForwarderDto,
+  type UpdateForwarderDto,
 } from './forwarders.service';
 
 @ApiTags('forwarders')

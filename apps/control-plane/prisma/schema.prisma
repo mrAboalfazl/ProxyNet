@@ -26,6 +26,7 @@ model User {
   sessions           UserSession[]
   proxyCredentials   ProxyCredential[]
   forwarders         Forwarder[]
+  projects           Project[]
   wallet             Wallet?
   routingPreference  UserRoutingPreference?
   usageAccount       UsageAccount?
@@ -77,12 +78,36 @@ model Setting {
   @@map("settings")
 }
 
+model Project {
+  id          BigInt   @id @default(autoincrement())
+  userId      BigInt   @map("user_id")
+  name        String
+  slug        String   @unique
+  defaultMode String   @default("auto") @map("default_mode")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  forwarders  Forwarder[]
+  credentials ProxyCredential[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
 model Forwarder {
   id               BigInt   @id @default(autoincrement())
   userId           BigInt   @map("user_id")
+  projectId        BigInt?  @map("project_id")
   slug             String   @unique
   label            String
   targetUrl        String   @map("target_url")
+  exitNodeId       BigInt?  @map("exit_node_id")
+  exitNode         Node?    @relation("ForwarderExitNode", fields: [exitNodeId], references: [id], onDelete: Restrict)
+  routingMode      String   @default("auto") @map("routing_mode")
+  upstreamTunnelId BigInt?  @map("upstream_tunnel_id")
+  upstreamTunnel   UpstreamTunnel? @relation("ForwarderUpstreamTunnel", fields: [upstreamTunnelId], references: [id], onDelete: SetNull)
+  streamingEnabled Boolean  @default(true) @map("streaming_enabled")
   preservePath     Boolean  @default(true) @map("preserve_path")
   preserveQuery    Boolean  @default(true) @map("preserve_query")
   forwardAuthHeader Boolean @default(true) @map("forward_auth_header")
@@ -96,10 +121,13 @@ model Forwarder {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId, enabled])
+  @@index([projectId])
   @@index([countryCode])
+  @@index([upstreamTunnelId])
   @@map("forwarders")
 }
 
@@ -155,18 +183,29 @@ model UserSession {
 }
 
 model ProxyCredential {
-  id         BigInt   @id @default(autoincrement())
-  userId     BigInt   @map("user_id")
-  uuid       String   @unique @default(uuid())
-  secretHash String   @map("secret_hash")
-  label      String?
-  enabled    Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
-  revokedAt  DateTime? @map("revoked_at")
+  id          BigInt   @id @default(autoincrement())
+  userId      BigInt   @map("user_id")
+  projectId   BigInt?  @map("project_id")
+  uuid        String   @unique @default(uuid())
+  secretHash  String   @map("secret_hash")
+  exitNodeId  BigInt?  @map("exit_node_id")
+  exitNode    Node?    @relation("CredentialExitNode", fields: [exitNodeId], references: [id], onDelete: Restrict)
+  label       String?
+  countryCode String?  @map("country_code")
+  routingMode String   @default("auto") @map("routing_mode")
+  enabled     Boolean  @default(true)
+  callCount   BigInt   @default(0) @map("call_count")
+  bytesIn     BigInt   @default(0) @map("bytes_in")
+  bytesOut    BigInt   @default(0) @map("bytes_out")
+  lastUsedAt  DateTime? @map("last_used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([projectId])
   @@map("proxy_credentials")
 }
 
@@ -319,8 +358,9 @@ model Country {
   enabled          Boolean @default(true)
   autoModeEligible Boolean @default(true) @map("auto_mode_eligible")
 
-  nodes   Node[]
-  policies Policy[]
+  nodes           Node[]
+  policies        Policy[]
+  upstreamTunnels UpstreamTunnel[]
 
   @@map("countries")
 }
@@ -376,6 +416,10 @@ model Node {
   updateRequestedAt     DateTime?  @map("update_requested_at")
   updateStatus          String?    @map("update_status")
   updateMessage         String?    @map("update_message")
+  visibility            String     @default("private")
+  sharingRequested      Boolean    @default(false) @map("sharing_requested")
+  userPaused            Boolean    @default(false) @map("user_paused")
+  tunnelProxyPort       Int        @default(9444) @map("tunnel_proxy_port")
   submittedById         BigInt?    @map("submitted_by_id")
   approvedById          BigInt?    @map("approved_by_id")
   approvedAt            DateTime?  @map("approved_at")
@@ -393,6 +437,11 @@ model Node {
   edgeEndpoints EdgeEndpoint[]
   ipPools      IpPool[]
 
+  forwarders       Forwarder[]       @relation("ForwarderExitNode")
+  proxyCredentials ProxyCredential[] @relation("CredentialExitNode")
+  upstreamTunnels  UpstreamTunnel[]  @relation("NodeUpstreamTunnels")
+
+  @@index([visibility, submittedById])
   @@index([countryCode, status])
   @@map("nodes")
 }
@@ -497,6 +546,8 @@ enum TransportType {
   hysteria2
   https
   grpc
+  wireguard
+  amneziawg
 }
 
 enum EndpointStatus {
@@ -717,4 +768,54 @@ model AuditLog {
   @@index([actorId, occurredAt(sort: Desc)])
   @@index([occurredAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+// ─── Upstream Outbound Tunnels (WireGuard / AmneziaWG / SOCKS5) ───────────────
+
+enum UpstreamProtocol {
+  wireguard
+  amneziawg
+  socks5
+  http
+}
+
+enum UpstreamStatus {
+  pending
+  healthy
+  degraded
+  unhealthy
+  disabled
+}
+
+model UpstreamTunnel {
+  id                 BigInt           @id @default(autoincrement())
+  label              String
+  protocol           UpstreamProtocol
+  hostNodeId         BigInt?          @map("host_node_id")
+  countryCode        String           @map("country_code")
+  configEncrypted    String           @map("config_encrypted")
+  endpointPreview    String?          @map("endpoint_preview")
+  hasJunkObfuscation Boolean          @default(false) @map("has_junk_obfuscation")
+  mtu                Int?
+  priority           Int              @default(100)
+  enabled            Boolean          @default(true)
+  status             UpstreamStatus   @default(pending)
+  exitIp             String?          @map("exit_ip")
+  latencyMs          Int?             @map("latency_ms")
+  aiCheckStatus      Json?            @map("ai_check_status")
+  lastError          String?          @map("last_error")
+  lastCheckedAt      DateTime?        @map("last_checked_at")
+  bytesIn            BigInt           @default(0) @map("bytes_in")
+  bytesOut           BigInt           @default(0) @map("bytes_out")
+  requestCount       BigInt           @default(0) @map("request_count")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  hostNode   Node?       @relation("NodeUpstreamTunnels", fields: [hostNodeId], references: [id], onDelete: SetNull)
+  country    Country     @relation(fields: [countryCode], references: [code])
+  forwarders Forwarder[] @relation("ForwarderUpstreamTunnel")
+
+  @@index([hostNodeId, enabled])
+  @@index([countryCode, enabled, status])
+  @@map("upstream_tunnels")
 }

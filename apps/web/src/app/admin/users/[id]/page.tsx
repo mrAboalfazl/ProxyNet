@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api, AdminUserDetails, AdminVlessBundle, AdminWalletBundle, FinancialReport, Plan } from '../../../../lib/api';
-import { PageHeader, Card, Badge, Button, Alert, Spinner, colors, Pagination, usePagination, formatDateTime } from '../../../../lib/ui';
+import { PageHeader, Card, Badge, Button, Alert, Spinner, colors, Pagination, usePagination, formatDate, formatDateTime } from '../../../../lib/ui';
 import { useLang } from '../../../../lib/lang-context';
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -340,7 +340,7 @@ export default function AdminUserDetailPage() {
                       <Badge label={c.enabled ? 'enabled' : 'disabled'} />
                     </div>
                     <span style={{ fontSize: 12, color: colors.textMuted }}>
-                      created {new Date(c.createdAt).toLocaleDateString()}
+                      created {formatDate(c.createdAt, lang)}
                     </span>
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase' }}>UUID</div>
@@ -387,7 +387,7 @@ export default function AdminUserDetailPage() {
                     <Badge label={f.enabled ? 'enabled' : 'disabled'} />
                   </div>
                   <span style={{ fontSize: 12, color: colors.textMuted }}>
-                    {f.callCount} calls · last used {f.lastUsedAt ? new Date(f.lastUsedAt).toLocaleString() : 'never'}
+                    {f.callCount} calls · last used {f.lastUsedAt ? formatDateTime(f.lastUsedAt, lang) : 'never'}
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: colors.textMuted, direction: 'ltr' }}>

@@ -22,7 +22,10 @@ import {
 } from '@/components/ui/table';
 import { Input as ShadInput } from '@/components/ui/input';
 import { Label as ShadLabel } from '@/components/ui/label';
-import { Alert as ShadAlert, AlertDescription as ShadAlertDesc } from '@/components/ui/alert';
+import {
+  Alert as ShadAlert,
+  AlertDescription as ShadAlertDesc,
+} from '@/components/ui/alert';
 import {
   Dialog,
   DialogContent,
@@ -66,7 +69,10 @@ export function Card({
 }) {
   return (
     <ShadCard
-      className={cn('transition-all duration-200 border-border/80 shadow-sm hover:shadow', className)}
+      className={cn(
+        'transition-all duration-200 border-border/80 shadow-sm hover:shadow',
+        className,
+      )}
       style={style}
     >
       {children}
@@ -102,7 +108,10 @@ export function StatCard({
 }) {
   return (
     <ShadCard
-      className={cn('p-5 flex-1 min-w-[200px] border-border/70 hover:border-primary/40 transition-all', className)}
+      className={cn(
+        'p-5 flex-1 min-w-[200px] border-border/70 hover:border-primary/40 transition-all',
+        className,
+      )}
       style={style}
     >
       <div className="flex items-center justify-between space-y-0 pb-2">
@@ -110,7 +119,10 @@ export function StatCard({
         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </div>
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold tracking-tight" style={color ? { color } : undefined}>
+        <div
+          className="text-2xl font-bold tracking-tight"
+          style={color ? { color } : undefined}
+        >
           {value}
         </div>
       </div>
@@ -141,7 +153,10 @@ export function Button({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const variantMap: Record<string, 'default' | 'secondary' | 'destructive' | 'ghost' | 'outline'> = {
+  const variantMap: Record<
+    string,
+    'default' | 'secondary' | 'destructive' | 'ghost' | 'outline'
+  > = {
     primary: 'default',
     secondary: 'secondary',
     danger: 'destructive',
@@ -171,7 +186,10 @@ export function Button({
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────
-const badgeVariantMap: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'> = {
+const badgeVariantMap: Record<
+  string,
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'
+> = {
   healthy: 'success',
   active: 'success',
   enabled: 'success',
@@ -191,12 +209,22 @@ export function Badge({
   className,
 }: {
   label: string;
-  variant?: 'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline';
+  variant?:
+    | 'default'
+    | 'secondary'
+    | 'success'
+    | 'warning'
+    | 'destructive'
+    | 'outline';
   className?: string;
 }) {
-  const chosenVariant = variant ?? badgeVariantMap[label.toLowerCase()] ?? 'secondary';
+  const chosenVariant =
+    variant ?? badgeVariantMap[label.toLowerCase()] ?? 'secondary';
   return (
-    <ShadBadge variant={chosenVariant} className={cn('px-2.5 py-0.5 font-medium text-xs', className)}>
+    <ShadBadge
+      variant={chosenVariant}
+      className={cn('px-2.5 py-0.5 font-medium text-xs', className)}
+    >
       {label}
     </ShadBadge>
   );
@@ -213,7 +241,12 @@ export function Table({
   className?: string;
 }) {
   return (
-    <div className={cn('rounded-lg border border-border/80 overflow-hidden bg-card', className)}>
+    <div
+      className={cn(
+        'rounded-lg border border-border/80 overflow-hidden bg-card',
+        className,
+      )}
+    >
       <ShadTable>
         <ShadTableHeader>
           <ShadTableRow className="bg-muted/40 hover:bg-muted/40">
@@ -246,7 +279,10 @@ export function Tr({
 }) {
   return (
     <ShadTableRow
-      className={cn('transition-colors hover:bg-muted/50 cursor-default', className)}
+      className={cn(
+        'transition-colors hover:bg-muted/50 cursor-default',
+        className,
+      )}
       style={style}
       onClick={onClick}
     >
@@ -265,7 +301,10 @@ export function Td({
   style?: React.CSSProperties;
 }) {
   return (
-    <ShadTableCell className={cn('py-3 px-4 text-sm align-middle', className)} style={style}>
+    <ShadTableCell
+      className={cn('py-3 px-4 text-sm align-middle', className)}
+      style={style}
+    >
       {children}
     </ShadTableCell>
   );
@@ -301,7 +340,10 @@ export function Input({
   return (
     <div className={cn('grid gap-1.5', className)} style={style}>
       {label && (
-        <ShadLabel htmlFor={id} className="text-xs font-semibold text-foreground/90">
+        <ShadLabel
+          htmlFor={id}
+          className="text-xs font-semibold text-foreground/90"
+        >
           {label}
           {required && <span className="text-destructive ms-1">*</span>}
         </ShadLabel>
@@ -333,7 +375,10 @@ export function Alert({
   title?: string;
   className?: string;
 }) {
-  const variantMap: Record<string, 'destructive' | 'success' | 'info' | 'warning'> = {
+  const variantMap: Record<
+    string,
+    'destructive' | 'success' | 'info' | 'warning'
+  > = {
     error: 'destructive',
     success: 'success',
     info: 'info',
@@ -341,11 +386,7 @@ export function Alert({
   };
 
   const Icon =
-    type === 'error'
-      ? AlertCircle
-      : type === 'success'
-      ? CheckCircle2
-      : Info;
+    type === 'error' ? AlertCircle : type === 'success' ? CheckCircle2 : Info;
 
   return (
     <ShadAlert variant={variantMap[type]} className={cn('my-2', className)}>
@@ -374,9 +415,17 @@ export function Modal({
 }) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className={cn('sm:max-w-[540px] p-6 shadow-xl border-border/80', className)}>
+      <DialogContent
+        {...(!description ? { 'aria-describedby': undefined } : {})}
+        className={cn(
+          'sm:max-w-[540px] max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 shadow-xl border-border/80',
+          className,
+        )}
+      >
         <DialogHeader className="pb-3 border-b border-border/50">
-          <DialogTitle className="text-lg font-bold tracking-tight text-foreground">{title}</DialogTitle>
+          <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+            {title}
+          </DialogTitle>
           {description && (
             <DialogDescription className="text-xs text-muted-foreground mt-1">
               {description}
@@ -405,16 +454,20 @@ export function PageHeader({
     <div
       className={cn(
         'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border/60 mb-6',
-        className
+        className,
       )}
     >
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          {title}
+        </h1>
         {description && (
           <p className="text-sm text-muted-foreground mt-1">{description}</p>
         )}
       </div>
-      {action && <div className="flex items-center gap-2 shrink-0">{action}</div>}
+      {action && (
+        <div className="flex items-center gap-2 shrink-0">{action}</div>
+      )}
     </div>
   );
 }

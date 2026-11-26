@@ -35,7 +35,7 @@ export class UsersService {
           dto.email ? { email: dto.email } : undefined,
           dto.phone ? { phone: dto.phone } : undefined,
           dto.telegramId ? { telegramId: dto.telegramId } : undefined,
-        ].filter(Boolean),
+        ].filter((condition) => condition !== undefined),
       },
     });
     if (existing)

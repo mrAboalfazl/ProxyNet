@@ -1,3 +1,5 @@
+import type { Request as ExpressRequest } from 'express';
+type AuthedRequest = ExpressRequest & { user: { id: bigint } };
 import { Controller, Get, Post, Param, Request, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PlansService } from './plans.service';
@@ -16,7 +18,7 @@ export class PlansController {
   }
 
   @Post(':id/purchase')
-  purchase(@Request() req, @Param('id') id: string) {
+  purchase(@Request() req: AuthedRequest, @Param('id') id: string) {
     return this.plans.purchase(BigInt(req.user.id), BigInt(id));
   }
 }

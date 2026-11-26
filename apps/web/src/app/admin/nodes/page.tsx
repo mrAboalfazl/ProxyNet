@@ -141,8 +141,8 @@ export default function AdminNodesPage() {
 
   useEffect(() => { load(); }, []);
 
-  const pendingUserNodes = nodes.filter((n) => n.status === 'pending' && n.submittedById);
-  const otherNodes = nodes.filter((n) => !(n.status === 'pending' && n.submittedById));
+  const pendingUserNodes = nodes.filter((n) => (n.status === 'pending' || n.sharingRequested) && n.submittedById);
+  const otherNodes = nodes.filter((n) => !((n.status === 'pending' || n.sharingRequested) && n.submittedById));
   const pendingPagination = usePagination(pendingUserNodes, 5);
   const otherPagination = usePagination(otherNodes, 10);
 
@@ -199,7 +199,7 @@ export default function AdminNodesPage() {
                 <Table headers={[tx('Label', 'برچسب'), tx('Country', 'کشور'), tx('Submitted by', 'ارسال‌کننده'), tx('Agent', 'ایجنت'), tx('Actions', 'عملیات')]}>
                   {pendingPagination.paginatedItems.map((node) => (
                     <Tr key={node.id}>
-                      <Td style={{ fontWeight: 600 }}>{node.label}</Td>
+                      <Td style={{ fontWeight: 600 }}>{node.label}<div className="text-xs text-muted-foreground">{node.sharingRequested ? tx('Requests public access', 'درخواست دسترسی عمومی') : tx('Private account node', 'نود خصوصی حساب')}</div></Td>
                       <Td><span style={{ fontFamily: 'monospace', fontSize: 13 }}>{node.countryCode}</span></Td>
                       <Td>
                         <span style={{ fontSize: 13, color: colors.textMuted }}>
@@ -214,11 +214,12 @@ export default function AdminNodesPage() {
                       <Td>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <Button
+                            disabled={!node.nodeSecretHash}
                             onClick={() => approveNode(node.id)}
                             size="sm"
                             style={{ background: '#22c55e', color: '#fff', border: 'none' }}
                           >
-                            {tx('Approve', 'تأیید')}
+                            {node.sharingRequested ? tx('Approve public sharing', 'تأیید اشتراک عمومی') : tx('Approve private node', 'تأیید نود خصوصی')}
                           </Button>
                           <Button
                             onClick={() => rejectNode(node.id)}
@@ -226,7 +227,7 @@ export default function AdminNodesPage() {
                             size="sm"
                             style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                           >
-                            {tx('Reject', 'رد')}
+                            {node.sharingRequested && node.status !== 'pending' ? tx('Reject sharing', 'رد درخواست اشتراک') : tx('Reject', 'رد')}
                           </Button>
                         </div>
                       </Td>
@@ -273,7 +274,7 @@ export default function AdminNodesPage() {
                         ))}
                       </div>
                     </Td>
-                    <Td><Badge label={node.status} /><div style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{node.nodeSecretHash ? 'Connected' : 'Not enrolled'}{node.metrics?.[0]?.cpuPct != null && ` · CPU ${node.metrics[0].cpuPct}%`}</div></Td>
+                    <Td><Badge label={node.status} /><div style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>{node.nodeSecretHash ? 'Connected' : 'Not enrolled'} · {node.visibility === 'public' ? tx('Public', 'عمومی') : tx('Private', 'خصوصی')}{node.userPaused ? tx(' · Paused by owner', ' · توقف توسط مالک') : ''}{node.metrics?.[0]?.cpuPct != null && ` · CPU ${node.metrics[0].cpuPct}%`}</div></Td>
                     <Td style={{ color: colors.textMuted, fontSize: 12 }}>{node.heartbeats?.[0]?.reportedAt ? formatDateTime(node.heartbeats[0].reportedAt, lang) : (node.updatedAt ? formatDateTime(node.updatedAt, lang) : '—')}<div style={{ fontSize: 11 }}>{node.metrics?.[0]?.activeSessions != null ? `${node.metrics[0].activeSessions} active sessions` : ''}</div></Td>
                     <Td>
                       <div style={{ fontFamily: 'monospace', fontSize: 11, direction: 'ltr', lineHeight: 1.5 }}>
@@ -309,7 +310,7 @@ export default function AdminNodesPage() {
                         {!node.nodeSecretHash && node.status !== 'pending' ? (
                           <Button onClick={() => resetEnrollment(node.id)} variant="primary" size="sm">{tx('Reset enrollment', 'بازنشانی ثبت نود')}</Button>
                         ) : (
-                          <Button onClick={() => genToken(node.id)} variant="ghost" size="sm">{tx('Get Token', 'دریافت توکن')}</Button>
+                          <Button disabled={!!node.nodeSecretHash} onClick={() => genToken(node.id)} variant="ghost" size="sm">{tx('Get Token', 'دریافت توکن')}</Button>
                         )}
                         {node.nodeSecretHash && (node.status !== 'disabled' ? (
                           <Button onClick={() => setStatus(node.id, 'disabled')} variant="secondary" size="sm">{tx('Disable', 'غیرفعال کردن')}</Button>

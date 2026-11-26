@@ -1,5 +1,5 @@
 import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import type { Job } from 'bull';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -73,9 +73,9 @@ export class MeteringProcessor {
 
     const plan = activeSubscription.plan;
     // monthlyBandwidthGb is a Decimal — convert to bytes as BigInt
-    // 1 GB = 1_000_000_000 bytes
+    // 1 GiB = 1024 * 1024 * 1024 bytes (aligned with QuotaService)
     const byteLimitBigInt = BigInt(
-      Math.floor(Number(plan.monthlyBandwidthGb) * 1_000_000_000),
+      Math.floor(Number(plan.monthlyBandwidthGb) * 1024 * 1024 * 1024),
     );
 
     if (account.bytesUsed >= byteLimitBigInt) {

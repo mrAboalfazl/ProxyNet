@@ -173,6 +173,10 @@ export function getDaysInGregorianMonth(gy: number, gm: number): number {
  */
 export function parseDate(val: string | number | Date | null | undefined): Date | null {
   if (!val) return null;
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+    const [y, m, d] = val.trim().split('-').map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0);
+  }
   const d = typeof val === 'object' && val instanceof Date ? val : new Date(val);
   return isNaN(d.getTime()) ? null : d;
 }

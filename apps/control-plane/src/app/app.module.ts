@@ -16,7 +16,9 @@ import { MeteringModule } from '../metering/metering.module';
 import { ProxyCredentialsModule } from '../proxy-credentials/proxy-credentials.module';
 import { GatewayModule } from '../gateway/gateway.module';
 import { ForwardersModule } from '../forwarders/forwarders.module';
+import { ProjectsModule } from '../projects/projects.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { UpstreamsModule } from '../upstreams/upstreams.module';
 
 @Module({
   imports: [
@@ -46,7 +48,9 @@ import { WalletModule } from '../wallet/wallet.module';
     ProxyCredentialsModule,
     WalletModule,
     GatewayModule,
+    UpstreamsModule,
     ForwardersModule,
+    ProjectsModule,
   ],
 })
 export class AppModule {}

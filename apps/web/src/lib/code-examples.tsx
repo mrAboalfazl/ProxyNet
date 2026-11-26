@@ -180,6 +180,142 @@ echo curl_exec($ch);`,
 }
 
 /**
+ * Build ready-to-paste AI Gateway & SSE streaming snippets (OpenCode, OpenAI SDK,
+ * OpenRouter, cURL -N streaming) for a forwarder URL.
+ */
+export function buildAiGatewayTabs(
+  forwarderUrl: string,
+  targetUrl?: string,
+): CodeTerminalTab[] {
+  const cleanUrl = forwarderUrl.replace(/\/+$/, '');
+  const lower = (targetUrl || '').toLowerCase();
+  const isOpenRouter = lower.includes('openrouter.ai');
+  const isOpenCode = lower.includes('opencode.ai');
+  const isAnthropic = lower.includes('anthropic.com');
+  const baseWithV1 =
+    isOpenRouter || isOpenCode || isAnthropic ? cleanUrl : `${cleanUrl}/v1`;
+  const model = isOpenRouter
+    ? 'openai/gpt-4o-mini'
+    : isAnthropic
+      ? 'claude-3-5-sonnet-latest'
+      : 'gpt-4o-mini';
+
+  return [
+    {
+      key: 'opencode',
+      label: 'OpenCode',
+      filename: 'opencode.json',
+      code: `{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "${isOpenRouter ? 'openrouter' : isOpenCode ? 'opencode' : 'openai'}": {
+      "options": {
+        "baseURL": "${baseWithV1}",
+        "apiKey": "{env:AI_API_KEY}"
+      }
+    }
+  }
+}`,
+    },
+    {
+      key: 'curl-stream',
+      label: 'cURL (SSE)',
+      filename: 'stream.sh',
+      code: `# True zero-buffer SSE streaming (-N disables curl buffering)
+curl -N "${baseWithV1}/chat/completions" \\
+  -H "Authorization: Bearer $AI_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${model}",
+    "stream": true,
+    "messages": [{"role": "user", "content": "Hello via ProxyNet WireGuard!"}]
+  }'`,
+    },
+    {
+      key: 'openai-python',
+      label: 'Python (OpenAI SDK)',
+      filename: 'ai_client.py',
+      code: `from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="${baseWithV1}",
+)
+
+stream = client.chat.completions.create(
+    model="${model}",
+    messages=[{"role": "user", "content": "Say hello in Persian"}],
+    stream=True,
+)
+for chunk in stream:
+    delta = chunk.choices[0].delta.content
+    if delta:
+        print(delta, end="", flush=True)`,
+    },
+    {
+      key: 'openai-node',
+      label: 'Node / TS (OpenAI SDK)',
+      filename: 'ai_client.ts',
+      code: `import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.AI_API_KEY,
+  baseURL: "${baseWithV1}",
+});
+
+const stream = await client.chat.completions.create({
+  model: "${model}",
+  messages: [{ role: "user", content: "Hello from ProxyNet!" }],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
+}`,
+    },
+    {
+      key: 'http-generic',
+      label: 'HTTP / REST',
+      filename: 'request.sh',
+      code: `# Any HTTP method, path, query, and Authorization header pass through:
+curl "${cleanUrl}/v1/models" \\
+  -H "Authorization: Bearer $AI_API_KEY"`,
+    },
+  ];
+}
+
+export function AiGatewayExamplesPanel({
+  lang,
+  forwarderUrl,
+  targetUrl,
+}: {
+  lang: Lang;
+  forwarderUrl: string;
+  targetUrl?: string;
+}) {
+  const isRTL = lang === 'fa';
+  const tabs = buildAiGatewayTabs(forwarderUrl, targetUrl);
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Terminal className="h-4 w-4 text-primary" />
+        <span className="font-bold text-sm text-foreground">
+          {isRTL
+            ? 'نمونه اتصال AI Gateway و استریم (OpenCode / OpenAI / cURL)'
+            : 'AI Gateway & SSE Streaming Examples'}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        {isRTL
+          ? 'آدرس فورواردر را به عنوان Base URL در OpenCode، OpenAI SDK یا ابزارهای دیگر قرار دهید؛ استریم توکن‌ها بدون بافر منتقل می‌شود.'
+          : 'Drop your forwarder URL in as Base URL in OpenCode, OpenAI SDK, or any HTTP client — SSE tokens stream with zero buffering.'}
+      </p>
+      <CodeTerminal tabs={tabs} isRTL={isRTL} />
+    </div>
+  );
+}
+
+/**
  * Build the code snippets for the HTTP Gateway (UUID + Secret + Basic auth).
  * Response is JSON-wrapped: { status, headers, body, isBase64, bytesIn, bytesOut, viaNodeId }.
  */

@@ -1,10 +1,10 @@
+import type { Request as ExpressRequest } from 'express';
+type AuthedRequest = ExpressRequest & { user: { id: bigint } };
 import {
   Controller,
   Get,
   Patch,
   Body,
-  Param,
-  ParseIntPipe,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -20,13 +20,13 @@ export class UsersController {
   constructor(private users: UsersService) {}
 
   @Get('me')
-  getMe(@Request() req) {
+  getMe(@Request() req: AuthedRequest) {
     return this.users.findById(req.user.id);
   }
 
   @Patch('me/routing')
   updateRouting(
-    @Request() req,
+    @Request() req: AuthedRequest,
     @Body() body: { routingMode?: string; preferredCountry?: string | null },
   ) {
     return this.users.updateRoutingPreference(req.user.id, body);

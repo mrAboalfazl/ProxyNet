@@ -11,8 +11,8 @@ export class AdminService {
     private prisma: PrismaService,
     private nodes: NodesService,
     private plans: PlansService,
-    private countries: CountriesService,
-    private users: UsersService,
+    _countries: CountriesService,
+    _users: UsersService,
   ) {}
 
   async getDashboardSummary() {

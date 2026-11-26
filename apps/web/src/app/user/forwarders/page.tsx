@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { api, Forwarder, getPublicApiBase } from '../../../lib/api';
+import {
+  api,
+  AvailableUpstreamTunnel,
+  Forwarder,
+  getPublicApiBase,
+} from '../../../lib/api';
 import {
   PageHeader,
   Card,
@@ -18,9 +23,14 @@ import {
   usePagination,
   formatDateTime,
 } from '../../../components/user-ui';
+import { CountryFlag } from '../../../components/country-flag';
 import { useLang } from '../../../lib/lang-context';
 import { t, Lang } from '../../../lib/i18n';
-import { CodeExamplesPanel, buildForwarderSnippets } from '../../../lib/code-examples';
+import {
+  AiGatewayExamplesPanel,
+  CodeExamplesPanel,
+  buildForwarderSnippets,
+} from '../../../lib/code-examples';
 import { toast } from 'sonner';
 import {
   Network,
@@ -33,6 +43,10 @@ import {
   Pencil,
   ChevronDown,
   Globe2,
+  Cable,
+  Zap,
+  Sparkles,
+  Route,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -42,11 +56,39 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
+type RoutingMode = 'auto' | 'country' | 'tunnel' | 'direct';
+
 type TestState =
   | { loading: true }
-  | { loading: false; ok: boolean; status?: number; timeMs?: number; msg?: string };
+  | {
+      loading: false;
+      ok: boolean;
+      status?: number;
+      timeMs?: number;
+      msg?: string;
+    };
 
-function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }) {
+const AI_PRESETS = [
+  { id: 'openai', label: 'OpenAI', targetUrl: 'https://api.openai.com' },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    targetUrl: 'https://openrouter.ai/api',
+  },
+  { id: 'opencode', label: 'OpenCode', targetUrl: 'https://opencode.ai/zen' },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    targetUrl: 'https://api.anthropic.com',
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    targetUrl: 'https://generativelanguage.googleapis.com',
+  },
+] as const;
+
+function TestBadge({ state }: { state: TestState | undefined }) {
   if (!state || state.loading) return null;
   const good = state.ok;
   return (
@@ -60,7 +102,9 @@ function TestBadge({ state, lang }: { state: TestState | undefined; lang: Lang }
     >
       {good ? '✓' : '✗'}
       {state.status && <span>{state.status}</span>}
-      {state.timeMs !== undefined && <span className="opacity-80">· {state.timeMs}ms</span>}
+      {state.timeMs !== undefined && (
+        <span className="opacity-80">· {state.timeMs}ms</span>
+      )}
       {state.msg && <span title={state.msg}>· {state.msg.slice(0, 20)}</span>}
     </span>
   );
@@ -93,22 +137,10 @@ function CountryPicker({
     <div className="space-y-2">
       <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
         <Globe2 className="h-3.5 w-3.5 text-primary" />
-        <span>{tx('Exit countries (optional)', 'کشورهای خروج (اختیاری)')}</span>
+        <span>{tx('Exit countries (ordered failover)', 'کشورهای خروج (ترتیب Failover)')}</span>
       </label>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onChange([])}
-          className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors ${
-            value.length === 0
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border hover:border-primary/40'
-          }`}
-        >
-          {tx('Auto (account routing)', 'خودکار (تنظیمات حساب)')}
-        </button>
-
         {options.map((country) => {
           const index = value.indexOf(country.code);
           const selected = index >= 0;
@@ -128,7 +160,8 @@ function CountryPicker({
                   {index + 1}
                 </span>
               )}
-              <span>
+              <span className="inline-flex items-center gap-1.5">
+                <CountryFlag code={country.code} size={16} />
                 {country.code} — {country.name}
               </span>
             </button>
@@ -139,8 +172,8 @@ function CountryPicker({
       {options.length === 0 && (
         <p className="text-[11px] text-amber-600">
           {tx(
-            'No country list available; Auto mode will be used.',
-            'لیست کشورها در دسترس نیست؛ حالت خودکار استفاده می‌شود.',
+            'No exit countries available yet; switch to Auto mode.',
+            'کشوری در دسترس نیست؛ حالت خودکار را انتخاب کنید.',
           )}
         </p>
       )}
@@ -148,21 +181,208 @@ function CountryPicker({
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         {value.length > 0
           ? tx(
-              'Nodes are tried in the numbered order (failover).',
-              'نودها به ترتیب شماره امتحان می‌شوند (failover).',
+              'Tunnels / exit nodes are tried in the numbered order (automatic failover).',
+              'تانل‌ها و نودها به ترتیب شماره امتحان می‌شوند (Failover خودکار).',
             )
           : requiresPlan
             ? tx(
-                'An active plan is required to pin countries. Auto mode still works without it.',
-                'برای انتخاب کشور به اشتراک فعال نیاز دارید؛ حالت خودکار بدون اشتراک هم کار می‌کند.',
+                'An active plan may be required to pin countries. Auto mode still works.',
+                'برای انتخاب کشور ممکن است به اشتراک فعال نیاز باشد؛ حالت خودکار بدون آن هم کار می‌کند.',
               )
             : tx(
-                'Auto picks a healthy node respecting your account routing preference.',
-                'حالت خودکار یک نود سالم را با توجه به تنظیمات مسیریابی حساب انتخاب می‌کند.',
+                'Select one or more countries in priority order.',
+                'یک یا چند کشور را به ترتیب اولویت انتخاب کنید.',
               )}
       </p>
     </div>
   );
+}
+
+function RoutingModeSelector({
+  routingMode,
+  countryCodes,
+  upstreamTunnelId,
+  countryOptions,
+  tunnels,
+  requiresPlan,
+  lang,
+  onChangeMode,
+  onChangeCountries,
+  onChangeTunnel,
+}: {
+  routingMode: RoutingMode;
+  countryCodes: string[];
+  upstreamTunnelId: string;
+  countryOptions: { code: string; name: string }[];
+  tunnels: AvailableUpstreamTunnel[];
+  requiresPlan: boolean;
+  lang: Lang;
+  onChangeMode: (mode: RoutingMode) => void;
+  onChangeCountries: (codes: string[]) => void;
+  onChangeTunnel: (id: string) => void;
+}) {
+  const tx = (en: string, fa: string) => (lang === 'fa' ? fa : en);
+
+  const modes: Array<{
+    id: RoutingMode;
+    en: string;
+    fa: string;
+    descEn: string;
+    descFa: string;
+  }> = [
+    {
+      id: 'auto',
+      en: 'Auto',
+      fa: 'خودکار (Auto)',
+      descEn: 'Best healthy WireGuard / SOCKS5 tunnel with automatic failover.',
+      descFa: 'بهترین تانل سالم WireGuard یا SOCKS5 با Failover خودکار.',
+    },
+    {
+      id: 'country',
+      en: 'Country',
+      fa: 'انتخاب کشور',
+      descEn: 'Route through specific countries in numbered failover order.',
+      descFa: 'عبور از کشورهای انتخابی به ترتیب اولویت.',
+    },
+    {
+      id: 'tunnel',
+      en: 'Pinned Tunnel',
+      fa: 'تانل اختصاصی',
+      descEn: 'Pin requests to a specific WireGuard / AmneziaWG / SOCKS5 tunnel.',
+      descFa: 'اتصال ثابت به یک تانل مشخص (وایرگارد، AmneziaWG یا SOCKS5).',
+    },
+    {
+      id: 'direct',
+      en: 'Direct',
+      fa: 'مستقیم (Direct)',
+      descEn: 'Direct server egress without tunnel/proxy (lowest latency).',
+      descFa: 'خروج مستقیم بدون تانل و پروکسی (کمترین پینگ برای مقاصد بدون تحریم).',
+    },
+  ];
+
+  const activeDesc = modes.find((m) => m.id === routingMode);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-border/70 p-3 bg-muted/20">
+      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+        <Route className="h-3.5 w-3.5 text-primary" />
+        <span>{tx('Routing Mode', 'حالت مسیریابی')}</span>
+      </label>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        {modes.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChangeMode(m.id)}
+            className={`px-2.5 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+              routingMode === m.id
+                ? 'border-primary bg-primary/10 text-primary font-semibold'
+                : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
+            }`}
+          >
+            {lang === 'fa' ? m.fa : m.en}
+          </button>
+        ))}
+      </div>
+
+      {activeDesc && (
+        <p className="text-[11px] text-muted-foreground">
+          {lang === 'fa' ? activeDesc.descFa : activeDesc.descEn}
+        </p>
+      )}
+
+      {routingMode === 'country' && (
+        <CountryPicker
+          value={countryCodes}
+          options={countryOptions}
+          requiresPlan={requiresPlan}
+          lang={lang}
+          onChange={onChangeCountries}
+        />
+      )}
+
+      {routingMode === 'tunnel' && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+            <Cable className="h-3.5 w-3.5 text-primary" />
+            <span>{tx('Select Upstream Tunnel', 'انتخاب تانل خروجی')}</span>
+          </label>
+          <select
+            value={upstreamTunnelId}
+            onChange={(e) => onChangeTunnel(e.target.value)}
+            className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+          >
+            <option value="">
+              {tx('— Choose a tunnel —', '— یک تانل انتخاب کنید —')}
+            </option>
+            {tunnels.map((tun) => {
+              const protoLabel =
+                tun.protocol === 'wireguard' && tun.hasJunkObfuscation
+                  ? 'WG+AntiDPI'
+                  : tun.protocol.toUpperCase();
+              const ping =
+                tun.latencyMs !== null && tun.latencyMs !== undefined
+                  ? ` · ${tun.latencyMs}ms`
+                  : '';
+              return (
+                <option key={tun.id} value={tun.id}>
+                  {tun.label} [{protoLabel} · {tun.countryCode}
+                  {ping}] ({tun.status})
+                </option>
+              );
+            })}
+          </select>
+          {tunnels.length === 0 && (
+            <p className="text-[11px] text-amber-600">
+              {tx(
+                'No upstream tunnels are available yet. Ask admin to add a WireGuard/SOCKS5 tunnel, or use Auto mode.',
+                'هنوز تانل خروجی فعالی ثبت نشده است. از ادمین بخواهید تانل اضافه کند یا حالت Auto را انتخاب کنید.',
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ForwarderFormState {
+  label: string;
+  targetUrl: string;
+  routingMode: RoutingMode;
+  countryCodes: string[];
+  upstreamTunnelId: string;
+  streamingEnabled: boolean;
+  forwardAuthHeader: boolean;
+  preservePath: boolean;
+  preserveQuery: boolean;
+}
+
+const EMPTY_FORM: ForwarderFormState = {
+  label: '',
+  targetUrl: '',
+  routingMode: 'auto',
+  countryCodes: [],
+  upstreamTunnelId: '',
+  streamingEnabled: true,
+  forwardAuthHeader: true,
+  preservePath: true,
+  preserveQuery: true,
+};
+
+function inferRoutingMode(fwd: Forwarder): RoutingMode {
+  if (
+    fwd.routingMode === 'direct' ||
+    fwd.routingMode === 'tunnel' ||
+    fwd.routingMode === 'country' ||
+    fwd.routingMode === 'auto'
+  ) {
+    return fwd.routingMode;
+  }
+  if (fwd.upstreamTunnelId) return 'tunnel';
+  if (fwd.countryCodes?.length || fwd.countryCode) return 'country';
+  return 'auto';
 }
 
 export default function ForwardersPage() {
@@ -172,9 +392,13 @@ export default function ForwardersPage() {
   useEffect(() => {
     setApiBase(getPublicApiBase());
   }, []);
+
   const [userSlug, setUserSlug] = useState('');
   const [countryOptions, setCountryOptions] = useState<
     { code: string; name: string }[]
+  >([]);
+  const [availableTunnels, setAvailableTunnels] = useState<
+    AvailableUpstreamTunnel[]
   >([]);
   const [countryRequiresPlan, setCountryRequiresPlan] = useState(false);
   const [fwds, setFwds] = useState<Forwarder[]>([]);
@@ -184,36 +408,27 @@ export default function ForwardersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    label: '',
-    targetUrl: '',
-    countryCodes: [] as string[],
-    forwardAuthHeader: true,
-    preservePath: true,
-    preserveQuery: true,
-  });
+  const [form, setForm] = useState<ForwarderFormState>(EMPTY_FORM);
 
   const [editingFwd, setEditingFwd] = useState<Forwarder | null>(null);
   const [updating, setUpdating] = useState(false);
-  const [editForm, setEditForm] = useState({
-    label: '',
-    targetUrl: '',
-    countryCodes: [] as string[],
-    forwardAuthHeader: true,
-    preservePath: true,
-    preserveQuery: true,
-  });
+  const [editForm, setEditForm] = useState<ForwarderFormState>(EMPTY_FORM);
+
+  const [snippetMode, setSnippetMode] = useState<'ai' | 'generic'>('ai');
 
   function openEdit(fwd: Forwarder) {
     setEditingFwd(fwd);
     setEditForm({
       label: fwd.label,
       targetUrl: fwd.targetUrl,
+      routingMode: inferRoutingMode(fwd),
       countryCodes: fwd.countryCodes?.length
         ? fwd.countryCodes
         : fwd.countryCode
           ? [fwd.countryCode]
           : [],
+      upstreamTunnelId: fwd.upstreamTunnelId ?? '',
+      streamingEnabled: fwd.streamingEnabled ?? true,
       forwardAuthHeader: fwd.forwardAuthHeader,
       preservePath: fwd.preservePath,
       preserveQuery: fwd.preserveQuery,
@@ -221,21 +436,32 @@ export default function ForwardersPage() {
   }
 
   async function handleUpdate() {
-    if (!editingFwd || !editForm.label.trim() || !editForm.targetUrl.trim()) return;
+    if (!editingFwd || !editForm.label.trim() || !editForm.targetUrl.trim()) {
+      return;
+    }
     setUpdating(true);
     try {
       await api.forwarders.update(editingFwd.id, {
         label: editForm.label.trim(),
         targetUrl: editForm.targetUrl.trim(),
-        countryCodes: editForm.countryCodes.length
-          ? editForm.countryCodes
-          : null,
+        routingMode: editForm.routingMode,
+        countryCodes:
+          editForm.routingMode === 'country' && editForm.countryCodes.length
+            ? editForm.countryCodes
+            : null,
+        upstreamTunnelId:
+          editForm.routingMode === 'tunnel' && editForm.upstreamTunnelId
+            ? editForm.upstreamTunnelId
+            : null,
+        streamingEnabled: editForm.streamingEnabled,
         forwardAuthHeader: editForm.forwardAuthHeader,
         preservePath: editForm.preservePath,
         preserveQuery: editForm.preserveQuery,
       });
       setEditingFwd(null);
-      toast.success(tx('Forwarder updated successfully', 'مسیر با موفقیت ویرایش شد'));
+      toast.success(
+        tx('Forwarder updated successfully', 'مسیر با موفقیت ویرایش شد'),
+      );
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to update';
@@ -248,20 +474,33 @@ export default function ForwardersPage() {
   async function load() {
     setLoading(true);
     try {
-      const [data, socks] = await Promise.all([
+      const [data, socks, tunnels] = await Promise.all([
         api.forwarders.list(),
         api.socks5
           .endpoints()
           .catch(() => ({ endpoints: [], requiresActivePlan: false })),
+        api.upstreams
+          .available()
+          .catch(() => [] as AvailableUpstreamTunnel[]),
       ]);
       setUserSlug(data.userSlug);
       setFwds(data.forwarders);
+      setAvailableTunnels(tunnels);
+
       const countries = new Map<string, string>();
       for (const endpoint of socks.endpoints) {
         countries.set(endpoint.countryCode, endpoint.countryName);
       }
+      for (const tun of tunnels) {
+        if (!countries.has(tun.countryCode)) {
+          countries.set(
+            tun.countryCode,
+            tun.country?.name || tun.countryCode,
+          );
+        }
+      }
       setCountryOptions(
-        Array.from(countries, ([code, name]) => ({ code, name }))
+        Array.from(countries, ([code, name]) => ({ code, name })),
       );
       setCountryRequiresPlan(socks.requiresActivePlan);
     } catch (e) {
@@ -279,21 +518,25 @@ export default function ForwardersPage() {
       await api.forwarders.create({
         label: form.label.trim(),
         targetUrl: form.targetUrl.trim(),
-        countryCodes: form.countryCodes.length ? form.countryCodes : null,
+        routingMode: form.routingMode,
+        countryCodes:
+          form.routingMode === 'country' && form.countryCodes.length
+            ? form.countryCodes
+            : null,
+        upstreamTunnelId:
+          form.routingMode === 'tunnel' && form.upstreamTunnelId
+            ? form.upstreamTunnelId
+            : null,
+        streamingEnabled: form.streamingEnabled,
         forwardAuthHeader: form.forwardAuthHeader,
         preservePath: form.preservePath,
         preserveQuery: form.preserveQuery,
       });
-      setForm({
-        label: '',
-        targetUrl: '',
-        countryCodes: [],
-        forwardAuthHeader: true,
-        preservePath: true,
-        preserveQuery: true,
-      });
+      setForm(EMPTY_FORM);
       setShowCreate(false);
-      toast.success(tx('Forwarder created successfully', 'مسیر جدید با موفقیت ایجاد شد'));
+      toast.success(
+        tx('Forwarder created successfully', 'مسیر جدید با موفقیت ایجاد شد'),
+      );
       await load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to create forwarder';
@@ -310,7 +553,7 @@ export default function ForwardersPage() {
       toast.success(
         !fwd.enabled
           ? tx('Forwarder activated', 'مسیر فعال شد')
-          : tx('Forwarder deactivated', 'مسیر غیرفعال شد')
+          : tx('Forwarder deactivated', 'مسیر غیرفعال شد'),
       );
       await load();
     } catch (e) {
@@ -353,37 +596,50 @@ export default function ForwardersPage() {
             toast.error(
               tx(
                 `Connection refused by target server (${fwd.targetUrl}). Please ensure your upstream service is online.`,
-                `سرور مقصد (${fwd.targetUrl}) اتصال را رد کرد (ECONNREFUSED). لطفاً مطمئن شوید سرویس مقصد روشن و در دسترس است.`
+                `سرور مقصد (${fwd.targetUrl}) اتصال را رد کرد (ECONNREFUSED). لطفاً مطمئن شوید سرویس مقصد روشن و در دسترس است.`,
               ),
-              { duration: 7000 }
+              { duration: 7000 },
             );
             detailMsg = 'ECONNREFUSED';
           } else if (bodyJson.error === 'upstream_relay_error') {
             toast.error(
               tx(
                 `Target server is unreachable (${fwd.targetUrl})`,
-                `سرور مقصد در دسترس نیست (${fwd.targetUrl})`
+                `سرور مقصد در دسترس نیست (${fwd.targetUrl})`,
               ),
-              { duration: 6000 }
+              { duration: 6000 },
             );
             detailMsg = '502 Unreachable';
           } else {
             toast.error(
               bodyJson.message ||
                 bodyJson.error ||
-                tx(`HTTP error: ${r.status}`, `خطای پاسخ سرور: ${r.status}`)
+                tx(`HTTP error: ${r.status}`, `خطای پاسخ سرور: ${r.status}`),
             );
           }
         } catch {
-          toast.error(tx(`HTTP error: ${r.status}`, `خطای پاسخ سرور: ${r.status}`));
+          toast.error(
+            tx(`HTTP error: ${r.status}`, `خطای پاسخ سرور: ${r.status}`),
+          );
         }
       } else {
-        toast.success(tx(`Forwarder OK (${timeMs}ms)`, `تست موفق بود (${timeMs} میلی‌ثانیه)`));
+        toast.success(
+          tx(
+            `Forwarder OK (${timeMs}ms)`,
+            `تست موفق بود (${timeMs} میلی‌ثانیه)`,
+          ),
+        );
         setTimeout(load, 500);
       }
       setTestResults((s) => ({
         ...s,
-        [fwd.id]: { loading: false, ok: r.ok, status: r.status, timeMs, msg: detailMsg },
+        [fwd.id]: {
+          loading: false,
+          ok: r.ok,
+          status: r.status,
+          timeMs,
+          msg: detailMsg,
+        },
       }));
     } catch (e) {
       const timeMs = Math.round(performance.now() - started);
@@ -392,14 +648,18 @@ export default function ForwardersPage() {
         ...s,
         [fwd.id]: { loading: false, ok: false, timeMs, msg: errMsg },
       }));
-      toast.error(tx(`Connection failed: ${errMsg}`, `عدم برقراری ارتباط: ${errMsg}`));
+      toast.error(
+        tx(`Connection failed: ${errMsg}`, `عدم برقراری ارتباط: ${errMsg}`),
+      );
     }
   }
 
   function copyUrl(text: string, id: string) {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
-    toast.success(tx('Gateway URL copied to clipboard', 'آدرس درگاه در کلیپ‌بورد کپی شد'));
+    toast.success(
+      tx('Gateway URL copied to clipboard', 'آدرس درگاه در کلیپ‌بورد کپی شد'),
+    );
     setTimeout(() => setCopiedId(null), 2000);
   }
 
@@ -414,15 +674,56 @@ export default function ForwardersPage() {
     return fwds.find((f) => f.enabled) ?? fwds[0];
   }, [fwds, exampleFwdId]);
   const featuredUrl =
-    featuredForwarder && userSlug ? `${apiBase}/f/${userSlug}/${featuredForwarder.slug}` : null;
+    featuredForwarder && userSlug
+      ? `${apiBase}/f/${userSlug}/${featuredForwarder.slug}`
+      : null;
+
+  function renderRoutingSummary(fwd: Forwarder) {
+    const mode = inferRoutingMode(fwd);
+    if (mode === 'direct') {
+      return (
+        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium">
+          <Zap className="h-3.5 w-3.5" />
+          {tx('Direct (Local)', 'مستقیم (بدون تانل)')}
+        </span>
+      );
+    }
+    if (mode === 'tunnel') {
+      const tun =
+        fwd.upstreamTunnel ??
+        availableTunnels.find((t) => t.id === fwd.upstreamTunnelId);
+      return (
+        <span className="inline-flex items-center gap-1.5 font-mono text-foreground" dir="ltr">
+          <Cable className="h-3.5 w-3.5 text-primary" />
+          {tun
+            ? `${tun.label} (${tun.protocol.toUpperCase()} · ${tun.countryCode})`
+            : `#${fwd.upstreamTunnelId}`}
+        </span>
+      );
+    }
+    if (mode === 'country') {
+      return (
+        <span className="font-mono text-foreground" dir="ltr">
+          {fwd.countryCodes?.length
+            ? fwd.countryCodes.join(' → ')
+            : fwd.countryCode || tx('Auto', 'خودکار')}
+        </span>
+      );
+    }
+    return (
+      <span className="text-foreground font-medium">
+        {tx('Auto (Best WireGuard / Tunnel)', 'خودکار (بهترین تانل سالم)')}
+      </span>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t(lang, 'fwd.title')}
         description={tx(
-          'Create secure webhook endpoints that relay traffic through proxy exits.',
-          'ایجاد درگاه‌های اختصاصی امن جهت هدایت ترافیک به سرورهای مقصد از طریق شبکه پروکسی.'
+          'Create high-speed AI Gateways (OpenAI, OpenRouter, OpenCode) and webhook forwarders routed over WireGuard / AmneziaWG / SOCKS5 with true SSE streaming.',
+          'ایجاد درگاه‌های پرسرعت هوش مصنوعی (OpenAI، OpenRouter، OpenCode) و فورواردرها با عبور از تانل‌های WireGuard / AmneziaWG / SOCKS5 و استریم واقعی SSE.',
         )}
         action={
           <Button onClick={() => setShowCreate(true)}>
@@ -448,8 +749,45 @@ export default function ForwardersPage() {
           title={t(lang, 'fwd.new')}
           onClose={() => setShowCreate(false)}
           open={showCreate}
+          className="sm:max-w-[600px]"
         >
           <div className="space-y-4 pt-2">
+            {/* 1-click AI Gateway Presets */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {tx('Quick AI Gateway Presets', 'پریست سریع درگاه‌های هوش مصنوعی')}
+                </span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {AI_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        label: preset.label,
+                        targetUrl: preset.targetUrl,
+                        streamingEnabled: true,
+                        forwardAuthHeader: true,
+                        preservePath: true,
+                        preserveQuery: true,
+                      }))
+                    }
+                    className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors ${
+                      form.targetUrl === preset.targetUrl
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-primary/40 text-foreground'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Input
               label={t(lang, 'fwd.form.label')}
               placeholder={t(lang, 'fwd.form.label_ph')}
@@ -468,17 +806,45 @@ export default function ForwardersPage() {
               required
             />
 
-            <CountryPicker
-              value={form.countryCodes}
-              options={countryOptions}
+            <RoutingModeSelector
+              routingMode={form.routingMode}
+              countryCodes={form.countryCodes}
+              upstreamTunnelId={form.upstreamTunnelId}
+              countryOptions={countryOptions}
+              tunnels={availableTunnels}
               requiresPlan={countryRequiresPlan}
               lang={lang}
-              onChange={(next) =>
-                setForm((f) => ({ ...f, countryCodes: next }))
+              onChangeMode={(mode) =>
+                setForm((f) => ({ ...f, routingMode: mode }))
+              }
+              onChangeCountries={(codes) =>
+                setForm((f) => ({ ...f, countryCodes: codes }))
+              }
+              onChangeTunnel={(id) =>
+                setForm((f) => ({ ...f, upstreamTunnelId: id }))
               }
             />
 
             <div className="space-y-3 pt-3 border-t border-border/50">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="streamingEnabled"
+                  checked={form.streamingEnabled}
+                  onCheckedChange={(checked) =>
+                    setForm((f) => ({ ...f, streamingEnabled: !!checked }))
+                  }
+                />
+                <label
+                  htmlFor="streamingEnabled"
+                  className="text-xs font-medium leading-none cursor-pointer select-none text-foreground"
+                >
+                  {tx(
+                    'Enable zero-buffer SSE streaming (recommended for AI chat / OpenCode)',
+                    'فعال‌سازی استریم زنده SSE بدون بافر (پیشنهادی برای OpenAI / OpenCode)',
+                  )}
+                </label>
+              </div>
+
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="preservePath"
@@ -529,13 +895,22 @@ export default function ForwardersPage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
-              <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreate(false)}
+              >
                 {t(lang, 'cancel')}
               </Button>
               <Button
                 size="sm"
                 onClick={create}
-                disabled={creating || !form.label.trim() || !form.targetUrl.trim()}
+                disabled={
+                  creating ||
+                  !form.label.trim() ||
+                  !form.targetUrl.trim() ||
+                  (form.routingMode === 'tunnel' && !form.upstreamTunnelId)
+                }
               >
                 {creating ? '...' : t(lang, 'fwd.form.create')}
               </Button>
@@ -550,6 +925,7 @@ export default function ForwardersPage() {
           title={tx('Edit Forwarder', 'ویرایش مسیر فورواردر')}
           onClose={() => setEditingFwd(null)}
           open={!!editingFwd}
+          className="sm:max-w-[600px]"
         >
           <div className="space-y-4 pt-2">
             <Input
@@ -566,24 +942,52 @@ export default function ForwardersPage() {
               value={editForm.targetUrl}
               onChange={(v) => setEditForm((f) => ({ ...f, targetUrl: v }))}
               hint={tx(
-                'e.g. http://199.247.2.165:4000 or https://api.ipify.org?format=json',
-                'مثال: http://199.247.2.165:4000 یا https://api.ipify.org?format=json'
+                'e.g. https://api.openai.com or https://openrouter.ai/api',
+                'مثال: https://api.openai.com یا https://openrouter.ai/api',
               )}
               dir="ltr"
               required
             />
 
-            <CountryPicker
-              value={editForm.countryCodes}
-              options={countryOptions}
+            <RoutingModeSelector
+              routingMode={editForm.routingMode}
+              countryCodes={editForm.countryCodes}
+              upstreamTunnelId={editForm.upstreamTunnelId}
+              countryOptions={countryOptions}
+              tunnels={availableTunnels}
               requiresPlan={countryRequiresPlan}
               lang={lang}
-              onChange={(next) =>
-                setEditForm((f) => ({ ...f, countryCodes: next }))
+              onChangeMode={(mode) =>
+                setEditForm((f) => ({ ...f, routingMode: mode }))
+              }
+              onChangeCountries={(codes) =>
+                setEditForm((f) => ({ ...f, countryCodes: codes }))
+              }
+              onChangeTunnel={(id) =>
+                setEditForm((f) => ({ ...f, upstreamTunnelId: id }))
               }
             />
 
             <div className="space-y-3 pt-3 border-t border-border/50">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="editStreamingEnabled"
+                  checked={editForm.streamingEnabled}
+                  onCheckedChange={(checked) =>
+                    setEditForm((f) => ({ ...f, streamingEnabled: !!checked }))
+                  }
+                />
+                <label
+                  htmlFor="editStreamingEnabled"
+                  className="text-xs font-medium leading-none cursor-pointer select-none text-foreground"
+                >
+                  {tx(
+                    'Enable zero-buffer SSE streaming (recommended for AI chat / OpenCode)',
+                    'فعال‌سازی استریم زنده SSE بدون بافر (پیشنهادی برای OpenAI / OpenCode)',
+                  )}
+                </label>
+              </div>
+
               <div className="flex items-center gap-2.5">
                 <Checkbox
                   id="editPreservePath"
@@ -634,13 +1038,23 @@ export default function ForwardersPage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-border/50">
-              <Button variant="outline" size="sm" onClick={() => setEditingFwd(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingFwd(null)}
+              >
                 {t(lang, 'cancel')}
               </Button>
               <Button
                 size="sm"
                 onClick={handleUpdate}
-                disabled={updating || !editForm.label.trim() || !editForm.targetUrl.trim()}
+                disabled={
+                  updating ||
+                  !editForm.label.trim() ||
+                  !editForm.targetUrl.trim() ||
+                  (editForm.routingMode === 'tunnel' &&
+                    !editForm.upstreamTunnelId)
+                }
               >
                 {updating ? '...' : tx('Save Changes', 'ذخیره تغییرات')}
               </Button>
@@ -661,18 +1075,34 @@ export default function ForwardersPage() {
           {pagination.paginatedItems.map((fwd) => {
             const publicUrl = `${apiBase}/f/${userSlug}/${fwd.slug}`;
             const isCopied = copiedId === fwd.id;
+            const mode = inferRoutingMode(fwd);
 
             return (
               <Card key={fwd.id} className="overflow-hidden">
                 <CardHeader className="pb-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-base">{fwd.label}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-base">
+                          {fwd.label}
+                        </span>
                         <Badge
-                          label={fwd.enabled ? tx('Active', 'فعال') : tx('Inactive', 'غیرفعال')}
+                          label={
+                            fwd.enabled
+                              ? tx('Active', 'فعال')
+                              : tx('Inactive', 'غیرفعال')
+                          }
                           variant={fwd.enabled ? 'success' : 'secondary'}
                         />
+                        {fwd.streamingEnabled !== false && (
+                          <Badge label="SSE Stream" variant="outline" />
+                        )}
+                        {mode === 'direct' && (
+                          <Badge
+                            label={tx('Direct', 'مستقیم')}
+                            variant="warning"
+                          />
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span>
@@ -690,7 +1120,7 @@ export default function ForwardersPage() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <TestBadge state={testResults[fwd.id]} lang={lang} />
+                      <TestBadge state={testResults[fwd.id]} />
                       <Button
                         variant="outline"
                         size="sm"
@@ -719,7 +1149,9 @@ export default function ForwardersPage() {
                       >
                         <Power className="h-3.5 w-3.5" />
                         <span>
-                          {fwd.enabled ? t(lang, 'fwd.disable') : t(lang, 'fwd.enable')}
+                          {fwd.enabled
+                            ? t(lang, 'fwd.disable')
+                            : t(lang, 'fwd.enable')}
                         </span>
                       </Button>
                       <Button
@@ -756,7 +1188,9 @@ export default function ForwardersPage() {
                         {isCopied ? (
                           <>
                             <Check className="h-3.5 w-3.5 text-emerald-600" />
-                            <span className="text-emerald-600">{tx('Copied', 'کپی شد')}</span>
+                            <span className="text-emerald-600">
+                              {tx('Copied', 'کپی شد')}
+                            </span>
                           </>
                         ) : (
                           <>
@@ -781,13 +1215,9 @@ export default function ForwardersPage() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Globe2 className="h-3.5 w-3.5 text-primary" />
                     <span className="font-semibold uppercase tracking-wider">
-                      {tx('Exit:', 'خروج:')}
+                      {tx('Route:', 'مسیر خروج:')}
                     </span>
-                    <span className="font-mono text-foreground" dir="ltr">
-                      {fwd.countryCodes?.length
-                        ? fwd.countryCodes.join(' → ')
-                        : fwd.countryCode || tx('Auto', 'خودکار')}
-                    </span>
+                    {renderRoutingSummary(fwd)}
                   </div>
                 </CardContent>
               </Card>
@@ -809,44 +1239,91 @@ export default function ForwardersPage() {
       <div className="pt-4">
         {featuredUrl ? (
           <div className="space-y-3">
-            {fwds.length > 1 && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t(lang, 'examples.select_forwarder')}:
-                </span>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-normal border-input bg-background">
-                      <span>{featuredForwarder?.label ?? '—'}</span>
-                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[8rem] p-1">
-                    {fwds.map((f) => {
-                      const isSelected = f.id === (featuredForwarder?.id ?? '');
-                      return (
-                        <DropdownMenuItem
-                          key={f.id}
-                          onClick={() => setExampleFwdId(f.id)}
-                          className={cn(
-                            'text-xs cursor-pointer flex items-center justify-between px-2.5 py-1.5',
-                            isSelected && 'font-semibold bg-accent text-accent-foreground'
-                          )}
-                        >
-                          <span>{f.label}</span>
-                          {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {fwds.length > 1 && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {t(lang, 'examples.select_forwarder')}:
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs font-normal border-input bg-background"
+                      >
+                        <span>{featuredForwarder?.label ?? '—'}</span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="min-w-[8rem] p-1"
+                    >
+                      {fwds.map((f) => {
+                        const isSelected =
+                          f.id === (featuredForwarder?.id ?? '');
+                        return (
+                          <DropdownMenuItem
+                            key={f.id}
+                            onClick={() => setExampleFwdId(f.id)}
+                            className={cn(
+                              'text-xs cursor-pointer flex items-center justify-between px-2.5 py-1.5',
+                              isSelected &&
+                                'font-semibold bg-accent text-accent-foreground',
+                            )}
+                          >
+                            <span>{f.label}</span>
+                            {isSelected && (
+                              <Check className="h-3.5 w-3.5 text-primary" />
+                            )}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+
+              <div className="inline-flex items-center rounded-lg border border-border bg-muted/50 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSnippetMode('ai')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    snippetMode === 'ai'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tx('AI Gateway & SSE', 'درگاه هوش مصنوعی / استریم')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSnippetMode('generic')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    snippetMode === 'generic'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tx('Generic HTTP', 'HTTP عمومی')}
+                </button>
               </div>
+            </div>
+
+            {snippetMode === 'ai' ? (
+              <AiGatewayExamplesPanel
+                lang={lang}
+                forwarderUrl={featuredUrl}
+                targetUrl={featuredForwarder?.targetUrl}
+              />
+            ) : (
+              <CodeExamplesPanel
+                lang={lang}
+                intro={t(lang, 'examples.intro.forwarder')}
+                snippets={buildForwarderSnippets(featuredUrl)}
+              />
             )}
-            <CodeExamplesPanel
-              lang={lang}
-              intro={t(lang, 'examples.intro.forwarder')}
-              snippets={buildForwarderSnippets(featuredUrl)}
-            />
           </div>
         ) : (
           <Card className="p-6 text-center text-xs text-muted-foreground">

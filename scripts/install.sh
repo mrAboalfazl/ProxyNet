@@ -17,7 +17,7 @@ set -euo pipefail
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 
-PROXYNET_VERSION="v1.1.0"
+PROXYNET_VERSION="v1.3.0"
 GITHUB_REPO="mrAboalfazl/ProxyNet"
 DEFAULT_PANEL="https://panel.civonex.ir"
 
@@ -46,6 +46,7 @@ step() { printf '\n%b\n' "${C_BLD}${C_CYN}==${C_RESET} ${C_BLD}$*${C_RESET}"; }
 
 PANEL=""
 TOKEN=""
+TUNNEL_PROXY_LISTEN="0.0.0.0:9444"
 DO_UNINSTALL=0
 NON_INTERACTIVE=0
 
@@ -53,6 +54,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --panel)         PANEL="$2"; shift 2 ;;
     --token)         TOKEN="$2"; NON_INTERACTIVE=1; shift 2 ;;
+    --tunnel-listen) TUNNEL_PROXY_LISTEN="$2"; shift 2 ;;
     --uninstall)     DO_UNINSTALL=1; shift ;;
     --version)       PROXYNET_VERSION="$2"; shift 2 ;;
     -h|--help)
@@ -60,15 +62,16 @@ while [[ $# -gt 0 ]]; do
 ProxyNet node installer
 
 Usage:
-  sudo bash install.sh [--panel URL] [--token TOKEN]
+  sudo bash install.sh [--panel URL] [--token TOKEN] [--tunnel-listen ADDR]
   sudo bash install.sh --uninstall
 
 Options:
-  --panel URL         Control-plane URL (default: $DEFAULT_PANEL)
-  --token TOKEN       Enrollment token from the admin panel (skips interactive prompt)
-  --version VER       Install a specific release (default: $PROXYNET_VERSION)
-  --uninstall         Remove all ProxyNet services, binaries and config
-  -h, --help          Show this help
+  --panel URL            Control-plane URL (default: $DEFAULT_PANEL)
+  --token TOKEN          Enrollment token from the admin panel (skips interactive prompt)
+  --tunnel-listen ADDR   Go WireGuard/SOCKS5 streaming proxy listen addr (default: 0.0.0.0:9444; use 127.0.0.1:9444 if colocated with control-plane)
+  --version VER          Install a specific release (default: $PROXYNET_VERSION)
+  --uninstall            Remove all ProxyNet services, binaries and config
+  -h, --help             Show this help
 EOF
       exit 0
       ;;
@@ -160,7 +163,8 @@ ensure_sysuser() {
     useradd --system --home-dir "$STATE_DIR" --shell /usr/sbin/nologin --user-group "$SYS_USER"
   fi
   install -d -m 0755 "$LIB_DIR"
-  install -d -m 0750 -o "$SYS_USER" -g "$SYS_GROUP" "$ETC_DIR" "$STATE_DIR"
+  install -d -m 0750 -o root -g "$SYS_GROUP" "$ETC_DIR"
+  install -d -m 0750 -o "$SYS_USER" -g "$SYS_GROUP" "$STATE_DIR"
   touch "$LOG_FILE" && chmod 0640 "$LOG_FILE"
   ok "user + directories ready"
 }
@@ -244,11 +248,12 @@ write_config() {
 {
   "node_id": "$NODE_ID",
   "control_endpoint": "$PANEL",
-  "node_secret": "$NODE_SECRET"
+  "node_secret": "$NODE_SECRET",
+  "tunnel_proxy_listen": "$TUNNEL_PROXY_LISTEN"
 }
 EOF
   chmod 0640 "$ETC_DIR/agent.json"
-  chown "$SYS_USER:$SYS_GROUP" "$ETC_DIR/agent.json"
+  chown "root:$SYS_GROUP" "$ETC_DIR/agent.json"
 
   cat > "$ETC_DIR/relay.env" <<EOF
 NODE_SECRET=$NODE_SECRET
@@ -260,7 +265,7 @@ SOCKS_HOST=0.0.0.0
 SOCKS_PORT=1080
 EOF
   chmod 0640 "$ETC_DIR/relay.env"
-  chown "$SYS_USER:$SYS_GROUP" "$ETC_DIR/relay.env"
+  chown "root:$SYS_GROUP" "$ETC_DIR/relay.env"
 
   ok "config written to $ETC_DIR (readable only by $SYS_USER)"
 }
@@ -299,16 +304,72 @@ download_agent() {
 }
 
 download_relay() {
-  step "Downloading node-relay"
-  local url="https://raw.githubusercontent.com/$GITHUB_REPO/master/packages/node-relay/index.js"
-  local tmp; tmp="$(mktemp)"
-  if ! curl -fsSL --max-time 30 -o "$tmp" "$url" 2>>"$LOG_FILE"; then
-    rm -f "$tmp"
-    die "Failed to download node-relay from $url"
+  step "Downloading authenticated relay artifacts from panel"
+  local artifact tmp headers expected actual
+  for artifact in relay updater; do
+    tmp="$(mktemp)"; headers="$(mktemp)"
+    if ! curl -fsSL --max-time 45 -D "$headers" -H "Authorization: Bearer $NODE_SECRET" -o "$tmp" "$PANEL/api/nodes/$NODE_ID/artifact/$artifact" 2>>"$LOG_FILE"; then
+      rm -f "$tmp" "$headers"
+      die "Failed to download $artifact from panel"
+    fi
+    expected="$(awk 'tolower($1)=="x-relay-sha256:" {gsub("\r", "", $2); print $2}' "$headers" | tail -n 1)"
+    actual="$(sha256sum "$tmp" | awk '{print $1}')"
+    if [[ ! "$expected" =~ ^[a-f0-9]{64}$ || "$actual" != "$expected" ]]; then
+      rm -f "$tmp" "$headers"
+      die "Invalid $artifact checksum"
+    fi
+    if [[ "$artifact" == relay ]]; then
+      install -m 0644 -o root -g root "$tmp" "$LIB_DIR/node-relay.js"
+    else
+      install -m 0644 -o root -g root "$tmp" "$LIB_DIR/update-relay.js"
+    fi
+    rm -f "$tmp" "$headers"
+  done
+  ok "relay and root updater installed"
+}
+
+write_update_units() {
+  # The privileged updater must never consume configuration writable by the relay.
+  chown "root:$SYS_GROUP" "$ETC_DIR" "$ETC_DIR/relay.env"
+  chmod 0750 "$ETC_DIR"
+  chmod 0640 "$ETC_DIR/relay.env"
+  if [[ -f "$ETC_DIR/agent.json" ]]; then
+    chown "root:$SYS_GROUP" "$ETC_DIR/agent.json"
+    chmod 0640 "$ETC_DIR/agent.json"
   fi
-  install -m 0644 -o root -g root "$tmp" "$LIB_DIR/node-relay.js"
-  rm -f "$tmp"
-  ok "relay installed to $LIB_DIR/node-relay.js"
+  chown root:root "$LIB_DIR"
+  chmod 0755 "$LIB_DIR"
+  cat > "$SYSTEMD_DIR/proxynet-relay-update.service" <<EOF
+[Unit]
+Description=ProxyNet verified relay updater
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=$ETC_DIR/relay.env
+ExecStart=/usr/bin/node $LIB_DIR/update-relay.js
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=$LIB_DIR
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+TimeoutStartSec=120
+EOF
+  cat > "$SYSTEMD_DIR/proxynet-relay-update.timer" <<EOF
+[Unit]
+Description=Check for requested ProxyNet relay updates
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=45s
+RandomizedDelaySec=5s
+Unit=proxynet-relay-update.service
+[Install]
+WantedBy=timers.target
+EOF
 }
 
 # ── systemd units ──────────────────────────────────────────────────────────────
@@ -393,7 +454,9 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
+  write_update_units
   systemctl daemon-reload
+  systemctl enable --now proxynet-relay-update.timer
   ok "systemd units written"
 }
 
@@ -435,19 +498,37 @@ configure_selinux() {
 
 configure_firewall() {
   step "Configuring firewall"
+  local expose_tunnel=1
+  if [[ "$TUNNEL_PROXY_LISTEN" == 127.0.0.1:* || "$TUNNEL_PROXY_LISTEN" == localhost:* || "$TUNNEL_PROXY_LISTEN" == "[::1]:"* ]]; then
+    expose_tunnel=0
+  fi
+  local tunnel_port="${TUNNEL_PROXY_LISTEN##*:}"
+
   if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
     ufw allow 9443/tcp comment 'ProxyNet relay' >>"$LOG_FILE" 2>&1 || true
     ufw allow 1080/tcp comment 'ProxyNet SOCKS5' >>"$LOG_FILE" 2>&1 || true
     ufw allow 1080/udp comment 'ProxyNet SOCKS5 UDP' >>"$LOG_FILE" 2>&1 || true
-    ok "ufw: opened 9443/tcp and 1080/tcp+udp"
+    if [[ $expose_tunnel -eq 1 && -n "$tunnel_port" ]]; then
+      ufw allow "${tunnel_port}/tcp" comment 'ProxyNet WireGuard/Tunnel stream engine' >>"$LOG_FILE" 2>&1 || true
+      ok "ufw: opened 9443/tcp, ${tunnel_port}/tcp and 1080/tcp+udp"
+    else
+      ok "ufw: opened 9443/tcp and 1080/tcp+udp (tunnel engine bound locally to $TUNNEL_PROXY_LISTEN)"
+    fi
   elif command -v firewall-cmd >/dev/null && systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-port=9443/tcp >>"$LOG_FILE" 2>&1 || true
     firewall-cmd --permanent --add-port=1080/tcp >>"$LOG_FILE" 2>&1 || true
     firewall-cmd --permanent --add-port=1080/udp >>"$LOG_FILE" 2>&1 || true
+    if [[ $expose_tunnel -eq 1 && -n "$tunnel_port" ]]; then
+      firewall-cmd --permanent --add-port="${tunnel_port}/tcp" >>"$LOG_FILE" 2>&1 || true
+    fi
     firewall-cmd --reload >>"$LOG_FILE" 2>&1 || true
-    ok "firewalld: opened 9443/tcp and 1080/tcp+udp"
+    if [[ $expose_tunnel -eq 1 && -n "$tunnel_port" ]]; then
+      ok "firewalld: opened 9443/tcp, ${tunnel_port}/tcp and 1080/tcp+udp"
+    else
+      ok "firewalld: opened 9443/tcp and 1080/tcp+udp (tunnel engine bound locally)"
+    fi
   else
-    warn "no active firewall detected — make sure port 9443/tcp is reachable from $PANEL"
+    warn "no active firewall detected — make sure ports 9443/tcp and ${tunnel_port:-9444}/tcp are reachable from $PANEL"
   fi
 }
 
@@ -472,6 +553,14 @@ start_services() {
   else
     warn "relay health check failed — check: journalctl -u proxynet-relay -n 50"
   fi
+
+  # Health-check the Go WireGuard/SOCKS5 streaming engine
+  local tunnel_port="${TUNNEL_PROXY_LISTEN##*:}"
+  if curl -fsSL --max-time 3 "http://127.0.0.1:${tunnel_port:-9444}/health" >/dev/null 2>&1; then
+    ok "tunnel stream engine health check (${TUNNEL_PROXY_LISTEN}): OK"
+  else
+    warn "tunnel stream engine health check failed — check: journalctl -u proxynet-agent -n 50"
+  fi
 }
 
 print_summary() {
@@ -481,11 +570,12 @@ ${C_GRN}${C_BLD}═════════════════════�
 ${C_GRN}${C_BLD}  ProxyNet node installed successfully${C_RESET}
 ${C_GRN}${C_BLD}══════════════════════════════════════════════════════════════${C_RESET}
 
-  Node ID:      ${C_BLD}$NODE_ID${C_RESET}  ($NODE_LABEL, $NODE_COUNTRY)
-  Control URL:  $PANEL
-  SOCKS5:       ${DETECTED_IPV4:-your-node-ip}:1080
-  Config:       $ETC_DIR/agent.json
-  Log file:     $LOG_FILE
+  Node ID:       ${C_BLD}$NODE_ID${C_RESET}  ($NODE_LABEL, $NODE_COUNTRY)
+  Control URL:   $PANEL
+  SOCKS5:        ${DETECTED_IPV4:-your-node-ip}:1080
+  Tunnel Engine: $TUNNEL_PROXY_LISTEN (WireGuard / AmneziaWG / SOCKS5 SSE)
+  Config:        $ETC_DIR/agent.json
+  Log file:      $LOG_FILE
 
 ${C_BLD}Manage this node:${C_RESET}
   proxynetctl status
@@ -505,6 +595,8 @@ EOF
 
 do_uninstall() {
   step "Uninstalling ProxyNet"
+  systemctl disable --now proxynet-relay-update.timer proxynet-relay-update.service 2>>"$LOG_FILE" || true
+  rm -f "$SYSTEMD_DIR/proxynet-relay-update.timer" "$SYSTEMD_DIR/proxynet-relay-update.service"
   for svc in proxynet-agent proxynet-relay; do
     systemctl disable --now "$svc.service" 2>>"$LOG_FILE" || true
     rm -f "$SYSTEMD_DIR/$svc.service"
@@ -552,4 +644,4 @@ main() {
   print_summary
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi

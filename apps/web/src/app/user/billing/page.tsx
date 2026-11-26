@@ -212,15 +212,16 @@ export default function BillingPage() {
             {report.dailySpending.map((d) => {
               const spent = Number(d.spentToman);
               const heightPct = Math.max(4, Math.round((spent / maxDaily) * 100));
+              const dayLabel = formatDate(d.day, lang, { format: 'short' });
               return (
                 <div
                   key={d.day}
-                  title={`${d.day}: ${fmtNum(d.spentToman, lang)} ${t(lang, 'wallet.currency')}`}
+                  title={`${dayLabel}: ${fmtNum(d.spentToman, lang)} ${t(lang, 'wallet.currency')}`}
                   className="group relative flex-1 min-w-[6px] rounded-t bg-primary/70 hover:bg-primary transition-all cursor-pointer"
                   style={{ height: `${heightPct}%` }}
                 >
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-20 whitespace-nowrap rounded bg-slate-900 px-2 py-1 text-[10px] text-white shadow-lg pointer-events-none">
-                    {d.day}: {fmtNum(d.spentToman, lang)} {t(lang, 'wallet.currency')}
+                    {dayLabel}: {fmtNum(d.spentToman, lang)} {t(lang, 'wallet.currency')}
                   </div>
                 </div>
               );

@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { authenticator } from 'otplib';
+import { createGuardrails, generateSecret, generateURI, verify } from 'otplib';
+
+// Preserve verification of 10-byte secrets issued by the former authenticator API.
+// Newly generated secrets use the library's stronger 20-byte default.
+const legacyVerification = createGuardrails({ MIN_SECRET_BYTES: 10 });
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -13,8 +17,8 @@ export class TotpService {
     });
 
     const label = user?.email ?? user?.displayName ?? userId.toString();
-    const secret = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(label, 'ProxyPlatform', secret);
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({ label, issuer: 'ProxyPlatform', secret });
 
     await this.prisma.userCredential.upsert({
       where: {
@@ -44,7 +48,7 @@ export class TotpService {
       throw new NotFoundException('TOTP setup not initiated');
     }
 
-    const isValid = authenticator.verify({ token: code, secret: cred.credentialHash });
+    const isValid = /^\d{6}$/.test(code) && (await verify({ token: code, secret: cred.credentialHash, guardrails: legacyVerification })).valid;
     if (!isValid) {
       throw new BadRequestException('Invalid TOTP code');
     }
@@ -64,7 +68,8 @@ export class TotpService {
       return false;
     }
 
-    return authenticator.verify({ token: code, secret: cred.credentialHash });
+    if (!/^\d{6}$/.test(code)) return false;
+    return (await verify({ token: code, secret: cred.credentialHash, guardrails: legacyVerification })).valid;
   }
 
   async disable(userId: bigint): Promise<void> {

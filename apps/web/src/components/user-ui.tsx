@@ -5,6 +5,7 @@ import React from 'react';
 
 export * from '../lib/ui';
 export { Checkbox } from './ui/checkbox';
+export { Switch } from './ui/switch';
 export { Pagination, usePagination } from './ui/pagination';
 export { BilingualDatePicker } from './ui/bilingual-date-picker';
 export { formatDate, formatDateTime, toPersianDigits } from '../lib/jalali';

@@ -176,10 +176,10 @@ export default function UserDashboardPage() {
       key: 'country',
       done: !!(
         me?.routingPreference?.preferredCountry ||
-        forwarders.some((f) => f.countryCode)
+        forwarders.some((f) => f.countryCode || (f.countryCodes && f.countryCodes.length > 0))
       ),
-      title: tx('Choose an exit country', 'کشور خروج را انتخاب کنید'),
-      href: '/user/profile',
+      title: tx('Configure forwarder routing', 'تنظیم مسیر خروج فورواردر'),
+      href: '/user/forwarders',
     },
     {
       key: 'credential',
@@ -559,8 +559,8 @@ export default function UserDashboardPage() {
             </div>
             <CardDescription className="text-xs">
               {isRTL
-                ? 'تغییر نام نمایشی و انتخاب کشور خروج موردعلاقه (آلمان، فرانسه و...).'
-                : 'Update display name and choose preferred exit relay countries.'}
+                ? 'مشاهده مشخصات حساب، نام نمایشی و وضعیت کاربری.'
+                : 'View account details, display name, and user status.'}
             </CardDescription>
           </CardHeader>
           <CardFooter>

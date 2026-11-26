@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -14,15 +15,13 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { AdminGuard } from '../admin/guards/admin.guard';
 import { NodesService } from './nodes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { NodeAuthGuard } from './guards/node-auth.guard';
 import { QuotaService } from '../quota/quota.service';
 import { MeteringService, RecordUsageEventData } from '../metering/metering.service';
 import { ProxyCredentialsService } from '../proxy-credentials/proxy-credentials.service';
-import { RoutingSnapshotService } from '../routing/routing-snapshot.service';
-import { WalletService } from '../wallet/wallet.service';
-import { PricingService } from '../wallet/pricing.service';
 
 @ApiTags('nodes')
 @ApiBearerAuth()
@@ -33,16 +32,20 @@ export class NodesController {
     private readonly quota: QuotaService,
     private readonly metering: MeteringService,
     private readonly proxyCredentials: ProxyCredentialsService,
-    private readonly routingSnapshot: RoutingSnapshotService,
-    private readonly wallet: WalletService,
-    private readonly pricing: PricingService,
   ) {}
 
   // ──────────────────────────────────────────────
   // Admin / JWT-authenticated endpoints
   // ──────────────────────────────────────────────
 
-  @UseGuards(JwtAuthGuard)
+  @Get('install.sh')
+  installer(@Res() res: Response) {
+    res.setHeader('Content-Type', 'text/x-shellscript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(this.nodes.getInstaller());
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get()
   findAll(@Query('country') country?: string) {
     return this.nodes.findAll(country);
@@ -63,16 +66,35 @@ export class NodesController {
   @Post('my')
   createMyNode(
     @Req() req: any,
-    @Body() body: { countryCode: string; label: string; roles?: string[] },
+    @Body() body: { countryCode: string; label: string; sharing?: 'private' | 'request-public' },
   ) {
     return this.nodes.createUserNode(req.user.id, {
-      countryCode: body.countryCode.toUpperCase(),
+      countryCode: body.countryCode,
       label: body.label,
-      roles: body.roles ?? ['exit'],
+      roles: ['exit'],
+      sharing: body.sharing,
     });
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('my/available')
+  availableNodes(@Req() req: any) { return this.nodes.availableForUser(req.user.id); }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('my/:id')
+  updateMyNode(@Req() req: any, @Param('id') id: string, @Body() body: { label?: string; userPaused?: boolean; sharing?: 'private' | 'request-public' }) {
+    return this.nodes.updateUserNode(req.user.id, id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('my/:id/enrollment-token')
+  renewMyToken(@Req() req: any, @Param('id') id: string) { return this.nodes.renewUserEnrollment(req.user.id, id); }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('my/:id/update')
+  updateMyNodeSoftware(@Req() req: any, @Param('id') id: string) { return this.nodes.requestUserNodeUpdate(req.user.id, id); }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.nodes.findById(BigInt(id));
@@ -130,6 +152,15 @@ export class NodesController {
     res.send(artifact.content);
   }
 
+  @UseGuards(NodeAuthGuard)
+  @Get(':id/artifact/updater')
+  updaterArtifact(@Res() res: Response) {
+    const artifact = this.nodes.getUpdaterArtifact();
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('X-Relay-Sha256', artifact.sha256);
+    res.send(artifact.content);
+  }
+
   /** Node relay reports the outcome of a self-update. */
   @UseGuards(NodeAuthGuard)
   @Post(':id/update-result')
@@ -167,8 +198,8 @@ export class NodesController {
   /** Agent fetches current routing snapshot */
   @UseGuards(NodeAuthGuard)
   @Get(':id/snapshot')
-  getSnapshot() {
-    return this.routingSnapshot.getCurrentSnapshot();
+  getSnapshot(@Param('id') id: string) {
+    return this.nodes.snapshotForNode(BigInt(id));
   }
 
   /**
@@ -179,20 +210,16 @@ export class NodesController {
   @Post(':id/credential-verify')
   @HttpCode(HttpStatus.OK)
   async verifyCredential(
+    @Param('id') id: string,
     @Body() body: { uuid: string; secret: string },
   ) {
     if (!body.uuid || !body.secret) {
       throw new BadRequestException('uuid and secret are required');
     }
 
-    const valid = await this.proxyCredentials.verify(body.uuid, body.secret);
+    const valid = await this.proxyCredentials.verify(body.uuid, body.secret, BigInt(id));
     if (!valid.valid) {
       return { allowed: false, reason: 'invalid_credential' };
-    }
-
-    const pricing = await this.pricing.get();
-    if (!(await this.wallet.hasMinBalance(valid.userId, pricing.minBalanceToman))) {
-      return { allowed: false, reason: 'insufficient_balance' };
     }
 
     // Issue a short-lived quota token on first use, then reuse it for subsequent
@@ -219,13 +246,14 @@ export class NodesController {
    */
   @UseGuards(NodeAuthGuard)
   @Get(':id/quota/:credentialUuid')
-  async getQuota(@Param('credentialUuid') credentialUuid: string) {
+  async getQuota(@Param('id') id: string, @Param('credentialUuid') credentialUuid: string) {
+    if (!await this.proxyCredentials.canUseCredentialOnNode(credentialUuid, BigInt(id))) return { hasQuota: false, reason: 'node_access_denied' };
     const token = await this.quota.getToken(credentialUuid);
     if (!token) {
       return { hasQuota: false, reason: 'no_quota_token' };
     }
     return {
-      hasQuota: BigInt(token.bytesRemaining) > 0n,
+      hasQuota: BigInt(token.bytesRemaining) > 0n && new Date(token.expiresAt).getTime() > Date.now(),
       bytesRemaining: token.bytesRemaining,
       connsRemaining: token.connsRemaining,
       expiresAt: token.expiresAt,
@@ -279,15 +307,7 @@ export class NodesController {
         throw new BadRequestException('credentialUuid is required for SOCKS5 usage');
       }
       await this.quota.consumeTokenBytes(body.credentialUuid, bytesIn + bytesOut);
-      const pricing = await this.pricing.get();
-      const cost = this.pricing.computeBandwidthCostBigInt(bytesIn, bytesOut, pricing);
-      await this.wallet.chargeSilently(
-        userId,
-        cost,
-        'socks5_session',
-        `SOCKS5 ${body.destination ?? 'session'}`.slice(0, 200),
-        { bytesIn: Number(bytesIn), bytesOut: Number(bytesOut), nodeId: Number(id) },
-      );
+      await this.proxyCredentials.recordUsage(body.credentialUuid, bytesIn, bytesOut);
     }
     return { accepted: true };
   }

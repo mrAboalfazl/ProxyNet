@@ -5,70 +5,70 @@ export class InitiateLoginDto {
   @ApiProperty({ description: 'Email, phone number, or Telegram username' })
   @IsString()
   @IsNotEmpty()
-  identifier: string;
+  identifier!: string;
 }
 
 export class SendOtpDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  identifier: string;
+  identifier!: string;
 
   @ApiProperty({ enum: ['email_otp', 'sms_otp', 'telegram_otp'] })
   @IsIn(['email_otp', 'sms_otp', 'telegram_otp'])
-  method: 'email_otp' | 'sms_otp' | 'telegram_otp';
+  method!: 'email_otp' | 'sms_otp' | 'telegram_otp';
 }
 
 export class VerifyOtpDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  identifier: string;
+  identifier!: string;
 
   @ApiProperty({ enum: ['email_otp', 'sms_otp', 'telegram_otp', 'totp'] })
   @IsString()
-  method: string;
+  method!: string;
 
   @ApiProperty({ description: '6-digit OTP code' })
   @Matches(/^\d{6}$/)
-  code: string;
+  code!: string;
 }
 
 export class PasswordLoginDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  identifier: string;
+  identifier!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  password: string;
+  password!: string;
 }
 
 export class StartRegistrationDto {
   @IsString()
   @IsNotEmpty()
-  displayName: string;
+  displayName!: string;
 
   @IsEmail()
-  email: string;
+  email!: string;
 
   @IsString()
   @IsNotEmpty()
-  phone: string;
+  phone!: string;
 
   @IsString()
   @MinLength(6)
-  password: string;
+  password!: string;
 }
 
 export class ConfirmRegistrationDto {
   @IsString()
   @Matches(/^[a-f0-9]{64}$/)
-  registrationId: string;
+  registrationId!: string;
 
   @IsString()
   @Matches(/^\d{6}$/)
-  code: string;
+  code!: string;
 }
